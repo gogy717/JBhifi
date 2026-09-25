@@ -87,7 +87,7 @@ export default function PromotionsPage() {
                 {rows.map((p) => (
                   <tr key={p.promotion_id} className="hover:bg-neutral-50">
                     <td className="px-4 py-2.5">
-                      <Link href={`/products/${p.product_id}`} className="font-medium hover:underline">
+                      <Link href={`/admin/products/${p.product_id}`} className="font-medium hover:underline">
                         {p.brand} {p.product_name}
                       </Link>
                       <div className="font-mono text-xs text-neutral-500">{p.sku}</div>

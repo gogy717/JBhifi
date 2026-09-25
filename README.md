@@ -2,7 +2,7 @@
 
 COMP9120 group project: a PostgreSQL-first prototype of an omnichannel electronics retailer — catalogue,
 per-store stock, promotions, orders (home delivery or Click & Collect) and returns. The database itself
-enforces the business rules (BR01–BR18); a FastAPI backend and a Next.js admin console sit on top.
+enforces the business rules (BR01–BR18); a FastAPI backend and a Next.js storefront + store admin sit on top.
 
 ```
 web/ (Next.js, :3000) ──/api/*──▶ app/ (FastAPI, :8000) ──▶ PostgreSQL 18 in Docker (:5433)
@@ -54,12 +54,17 @@ Three terminals, each starting in the repo root:
 |---|---|---|
 | 1 | `docker compose up -d` | — PostgreSQL on `localhost:5433` |
 | 2 | `source .venv/bin/activate` (Windows: `.venv\Scripts\Activate.ps1`), then `fastapi dev app/main.py` | http://127.0.0.1:8000/docs — every endpoint, try them out |
-| 3 | `cd web`, then `npm run dev` | **http://localhost:3000** — the admin console |
+| 3 | `cd web`, then `npm run dev` | **http://localhost:3000** — the storefront; the store admin is at **/admin** |
 
 The first `docker compose up` creates the tables and loads the seed data from `sql/` (a few seconds).
 Port 5433 is deliberate, so it can't clash with a PostgreSQL you may already run on 5432.
 
-In the admin console: pick a store and use **±1** or **Adjust…** to change stock; edit products, specs and
+**Storefront** (`/`): the home page is live — current deals with stock at your store, categories, stores near
+you. Pick a demo customer under "Signed in as" and a store under "My store". The other customer pages (catalogue,
+product, cart, checkout, orders, returns, stores, account) are *reserved*: each says what it will do, which
+requirements and rules it covers, and which API it needs.
+
+**Store admin** (`/admin`): pick a store and use **±1** or **Adjust…** to change stock; edit products, specs and
 prices; create promotions. When the database refuses something (stock below zero, staff from another store,
 a sale price above the base price…) the page shows which rule refused it, e.g. `br03_inventory_qty_nonneg`.
 
@@ -74,8 +79,8 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 | Regenerate the frontend's API types after changing the API (API running) | `cd web && npm run gen:api` |
 | Check the frontend | `cd web && npm run typecheck && npm run lint && npm run build` |
 
-`sql/*.sql` only run when the database volume is empty — **after editing anything in `sql/`, reset the
-database** or you won't see the change. `pytest` never touches your data: it rebuilds a separate
+`sql/*.sql` only run when the database volume is empty — **after editing or pulling changes to anything in
+`sql/`, reset the database** or you won't see the change. `pytest` never touches your data: it rebuilds a separate
 `jbhifi_test` database from `sql/` on every run.
 
 ## Project layout
@@ -85,17 +90,18 @@ database** or you won't see the change. `pytest` never touches your data: it reb
 | `sql/` | `00_domains` → `01_tables` → `02_rules` (triggers) → `03_views` → `10_seed_reference`, run in that order |
 | `app/` | FastAPI. `routers/` handle HTTP only; `services/` hold the SQL (one call = one transaction); `errors.py` turns a rule violation into a 409 whose `code` is the constraint name |
 | `tests/` | `test_business_rules.py` (one test per BR), `test_transactions.py` (stock adjustments under concurrency), `test_api.py` |
-| `web/` | Next.js admin console — see [`web/README.md`](web/README.md) |
+| `web/` | Next.js: the customer storefront (`/`) and the store admin (`/admin`) — see [`web/README.md`](web/README.md) |
 | `doc/progress.md` | decisions, experiments and AI-use notes, newest first |
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| Sidebar says "API unreachable", pages stay on "Loading…" | Start the API (terminal 2). |
+| Pages stay on "Loading…" / the admin sidebar says "API unreachable" | Start the API (terminal 2). |
 | API errors: `connection refused` / `KeyError: 'POSTGRES_HOST'` | Start the database (terminal 1) / create `.env` from `.env.example`. |
 | `fastapi: command not found` | Activate the virtual environment first. |
 | Changed `sql/` but nothing changed | Reset the database (`docker compose down -v && docker compose up -d`). |
+| "Signed in as" only offers Guest | Your database predates the demo customers: reset it (same command). |
 | `port is already allocated` on 5433 | Another container uses it: `docker ps`, stop it. |
 | Windows: `Activate.ps1 cannot be loaded` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or use `.venv\Scripts\activate.bat` in cmd. |
 

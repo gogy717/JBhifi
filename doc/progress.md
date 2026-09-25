@@ -4,6 +4,40 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — Branch `storefront`: customer home page, reserved customer pages
+
+**What's on the branch.**
+
+- The web app now has two parts: the **storefront at `/`** and the **store admin at `/admin`** (moved from
+  `/inventory`, `/products`, `/promotions` — those old URLs are gone). Route group `web/src/app/(shop)`.
+- **Home page, live:** current deals sorted by discount, each with its stock at "my store" (R2, R3); "starting
+  soon" promotions; shop by category (the recursive category tree); stores near you, retail only (BR06).
+- **Reserved pages:** catalogue, product, cart, checkout, my orders, order, my returns, stores, account. Each
+  shows what it will do, which R#/BR#/T# it covers, the API it needs (existing or to build) and the owner
+  slice. The content is one list, `web/src/lib/shop-pages.ts`; building a page = replacing its `<ReservedPage>`.
+- **Demo customers:** 4 customers with addresses in `10_seed_reference.sql` (one has a retired address, BR16),
+  and `GET /api/v1/customers`, `/customers/{id}`. **Reset the database** to get them.
+
+**Decisions — proposed.**
+
+1. **Demo sign-in is a "Signed in as" picker kept in the browser (localStorage)**, not the plan's signed-cookie
+   demo login. It is a UI convenience, not an actor/authorisation layer: the API doesn't know who is asking yet.
+   The `get_current_actor` dependency (plan §7) is still to build, before checkout.
+2. **"My store"** is the chosen store, else the first retail store in the customer's state, else the first one.
+3. **Promotions report `product_active`**, so the storefront never advertises a retired product.
+4. **Added three pages to plan §7's list** (my returns, stores, account) — see the plan for why.
+
+**Verification.** `pytest`: 42 passed. Typecheck, lint and build clean. A scripted browser run checked guest vs
+signed-in home, store choice and its persistence, search and category links, every reserved page, and the
+moved admin. A four-lens review (Next.js/React, data/API, UX/accessibility, spec/docs) with adversarial
+verification confirmed 18 distinct issues; all were fixed (e.g. page titles, API-down state, last day of a sale,
+phone navigation).
+
+**AI use.** Built and reviewed with Claude Code (including a multi-agent review workflow) on 2026-09-26.
+Include in the AI-use acknowledgement.
+
+---
+
 ## 2026-09-26 — Branch `admin`: schema v1, catalogue and stock API, stock admin UI
 
 **What's on the branch.**

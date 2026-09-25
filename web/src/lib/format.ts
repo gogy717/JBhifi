@@ -20,6 +20,11 @@ export function formatDate(iso: string): string {
   return dateOnly.format(new Date(iso));
 }
 
+/** The last day of a half-open period [start, end): the day just before `end` (end is midnight after it). */
+export function formatLastDay(endIso: string): string {
+  return dateOnly.format(new Date(new Date(endIso).getTime() - 1));
+}
+
 export function timeAgo(iso: string, now = Date.now()): string {
   const seconds = Math.round((now - new Date(iso).getTime()) / 1000);
   if (seconds < 60) return "just now";

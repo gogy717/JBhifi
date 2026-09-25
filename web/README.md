@@ -1,8 +1,16 @@
-# web — store admin (Next.js)
+# web — storefront and store admin (Next.js)
 
-Phase 1 admin console on the JB Hi-Fi database: stock per store with ± adjustments, products (prices, specs)
-and promotions. Every rule is enforced by the database; when it refuses a request, the page shows the
-constraint that fired (e.g. `br03_inventory_qty_nonneg`).
+Two apps in one Next.js project, on the same FastAPI backend:
+
+- **Storefront** at `/` — what customers see. The home page is live: current deals with stock at your store,
+  shop by category, stores near you. A demo "Signed in as" picker and a "My store" picker stand in for login.
+  The other customer pages are **reserved**: each shows what it will do, which requirements (R#), rules (BR#)
+  and transaction it covers, the API it needs (existing or to build) and the owner slice. Their content comes
+  from `src/lib/shop-pages.ts` — build a page by replacing its `<ReservedPage>`.
+- **Store admin** at `/admin` — stock per store with ± adjustments, products (prices, specs), promotions.
+
+Every rule is enforced by the database; when it refuses a request, the page shows the constraint that fired
+(e.g. `br03_inventory_qty_nonneg`).
 
 ## Run
 
@@ -11,7 +19,7 @@ From the repo root, in three terminals:
 ```bash
 docker compose up -d                                   # PostgreSQL on :5433
 source .venv/bin/activate && fastapi dev app/main.py   # API on :8000 (docs at /docs)
-cd web && npm install && npm run dev                   # this app on http://localhost:3000
+cd web && npm install && npm run dev                   # http://localhost:3000 and /admin
 ```
 
 The browser only talks to Next.js. `next.config.ts` forwards `/api/*` to FastAPI (set `API_URL` to point
@@ -26,9 +34,12 @@ every endpoint, read from FastAPI's OpenAPI spec. Commit the regenerated file.
 
 | Path | What |
 |---|---|
-| `src/app/inventory` | stock at one store, ±1 buttons, adjust dialog, recent adjustments |
-| `src/app/products`, `src/app/products/[id]` | catalogue list; edit details and specs; stock by store |
-| `src/app/promotions` | list, create and delete promotions |
+| `src/app/(shop)/` | storefront pages; `(shop)` is a route group, so it adds nothing to the URL |
+| `src/app/(shop)/page.tsx` | the home page (live) |
+| `src/app/(shop)/{products,cart,checkout,orders,returns,stores,account}` | reserved customer pages |
+| `src/app/admin/` | store admin: `inventory`, `products`, `promotions` |
+| `src/components/shop/` | storefront header, shop context (demo customer, my store), `ReservedPage` |
+| `src/lib/shop-pages.ts` | the customer page list: what each does, what it covers, the API it needs |
 | `src/lib/api/client.ts` | typed client (`openapi-fetch`) and `ApiError` (`code` = database constraint name) |
 | `src/lib/use-load.ts` | load data in a client component, keep the old data while reloading |
 | `src/components/ui.tsx` | small UI pieces: buttons, fields, cards, modal, error box |
