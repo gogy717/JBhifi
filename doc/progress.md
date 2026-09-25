@@ -1,0 +1,251 @@
+# Progress log
+
+Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
+
+---
+
+## 2026-09-25 — Decision: hand-written SQL (psycopg2), no ORM in Phase 1
+
+**Question.** Should Phase 1 use an ORM (e.g. SQLAlchemy), or keep hand-written SQL through psycopg2?
+
+**Decision.** Phase 1 uses hand-written SQL via psycopg2 — no ORM. The Phase 2 spec may revisit this, but only
+for new CRUD-heavy modules (admin screens, support tickets, agent logs). Checkout, returns and the other core
+transactions keep explicit SQL with explicit locking, and the database constraints and triggers stay either way.
+
+**Why.**
+
+1. **The SQL itself is assessed.** Criterion 4 (20%) is marked on the submitted implementation, and its HD
+   descriptor asks for SQL that is "precise and expressive". ORM-generated SQL isn't ours to present, and it
+   can't show the unit's techniques (joins, nested queries, `NOT EXISTS` division).
+2. **We couldn't use what an ORM is best at.** Domains, named constraints, `DEFERRABLE` circular FKs, triggers
+   and views all need raw SQL anyway, so an ORM would mean maintaining two layers.
+3. **An ORM hides what criterion 4 asks us to reason about** — transaction boundaries, locking, concurrency.
+   The experiment below shows the idiomatic ORM pattern overselling stock.
+4. **Every member must be able to explain the submission.** An ORM adds sessions, autoflush and lazy loading on
+   top of SQL, which makes "which statements run, and where does the transaction start and end?" harder to answer.
+
+**Costs we accept, and how we handle them.**
+
+| Cost | Mitigation |
+|---|---|
+| Mapping rows to objects | `RealDictCursor` + Pydantic models |
+| Optional search filters need a dynamic `WHERE` | compose it with the `psycopg2.sql` module; values still go through `%s` parameters — never f-strings |
+| Schema migrations | Phase 1 data is generated, so edit `sql/` and rebuild with `docker compose down -v` — no Alembic |
+| Repeated queries | SQL lives in `app/services/`; each query is written once |
+
+### Experiment: two customers buy the last unit
+
+**Goal.** Find out whether the idiomatic ORM update is safe under concurrency, compared with a hand-written
+conditional `UPDATE`, and whether the BR03 constraint `CHECK (quantity >= 0)` catches overselling.
+
+**Setup.**
+
+- Throwaway PostgreSQL 18.6 container on port 5434 — the project database on 5433 was not touched.
+  Default isolation level (`READ COMMITTED`).
+- Python 3.14.7, SQLAlchemy 2.1.0, psycopg2-binary 2.9.13.
+- One table, one product, one unit in stock:
+
+  ```sql
+  CREATE TABLE inventory (
+      product  text PRIMARY KEY,
+      quantity int  NOT NULL CONSTRAINT br03_inventory_qty_nonneg CHECK (quantity >= 0)
+  );
+  INSERT INTO inventory VALUES ('PS5', 1);
+  ```
+
+**Scenarios.**
+
+1. **ORM idiom.** Each customer loads the row as an object, decrements `quantity` in Python and commits. The two
+   sessions are interleaved deterministically: both read before either writes.
+2. **Hand-written conditional UPDATE.**
+   `UPDATE inventory SET quantity = quantity - 1 WHERE product = %s AND quantity >= 1`, run by two concurrent
+   transactions. A holds its row lock for 1 s before committing; B starts 0.2 s after A.
+3. **ORM with a row lock.** Same as 1, but the row is loaded with `with_for_update=True`
+   (`SELECT … FOR UPDATE`); same timing as 2.
+
+**Output** (this run was on 2026-09-25; an earlier run the same day gave the same results, with B waiting 0.78 s
+in scenario 2):
+
+```text
+PostgreSQL 18.6 | isolation: read committed | SQLAlchemy 2.1.0 | psycopg2 2.9.13
+
+[1] ORM idiom: load the row as an object, decrement in Python, commit
+    SQL emitted by the ORM: UPDATE inventory SET quantity=%(quantity)s WHERE inventory.product = %(inventory_product)s  params={'quantity': 0, 'inventory_product': 'PS5'}
+  customer A: order placed
+    SQL emitted by the ORM: UPDATE inventory SET quantity=%(quantity)s WHERE inventory.product = %(inventory_product)s  params={'quantity': 0, 'inventory_product': 'PS5'}
+  customer B: order placed
+  RESULT: sold 2, stock left 0  <- 1 unit sold twice; the CHECK never fired
+
+[2] Hand-written SQL: UPDATE ... SET quantity = quantity - 1 WHERE ... AND quantity >= 1
+  customer A: 1 row(s) updated after waiting 0.00s -> order placed
+  customer B: 0 row(s) updated after waiting 0.79s -> refused: out of stock
+  RESULT: sold 1, stock left 0
+
+[3] ORM with SELECT ... FOR UPDATE (with_for_update=True)
+    SQL emitted by the ORM: UPDATE inventory SET quantity=%(quantity)s WHERE inventory.product = %(inventory_product)s  params={'quantity': 0, 'inventory_product': 'PS5'}
+  customer A: order placed (waited 0.01s for the lock)
+  customer B: refused: out of stock (waited 0.82s for the lock)
+  RESULT: stock left 0
+```
+
+**What happened.**
+
+- **[1] Lost update → oversold.** Both sessions read `quantity = 1`. The ORM computed `1 - 1` in Python and wrote
+  the result as an absolute value — `UPDATE inventory SET quantity = 0`, twice. One unit, two orders.
+  The CHECK constraint never fired because no statement ever wrote a negative value, so **BR03 alone cannot
+  prevent this**. This is the classic read–modify–write lost update. Hand-written SQL that runs a `SELECT` and
+  then `UPDATE … SET quantity = <value computed in Python>` has exactly the same bug; the ORM just makes that
+  pattern the default.
+- **[2] Correct.** B's `UPDATE` blocked on A's row lock for about 0.8 s. After A committed, PostgreSQL
+  re-evaluated B's `WHERE quantity >= 1` against the newest version of the row, found 0, and updated 0 rows —
+  so B was refused. The decrement happens inside the database, atomically with the check.
+- **[3] Also correct — but only because we knew to lock.** B's `SELECT … FOR UPDATE` waited about 0.8 s for A,
+  then read 0 and refused.
+
+**Takeaways.**
+
+- Checkout (T1, plan §5) uses the conditional `UPDATE` from scenario 2 and treats "0 rows updated" as
+  out of stock.
+- BR03's `CHECK` is a backstop, not the mechanism: it only catches writes that go negative.
+- Report §4 material: how the lost update happens, why a CHECK constraint can't catch it, and why the
+  conditional `UPDATE` is correct under `READ COMMITTED`. Scenario 2 is also the basis of the
+  "last console on launch day" video idea (plan §10).
+
+<details>
+<summary><b>Reproduce</b> — commands and full script</summary>
+
+```bash
+docker run --rm -d --name orm-demo-db -p 5434:5432 \
+  -e POSTGRES_USER=jbhifi -e POSTGRES_PASSWORD=devpassword -e POSTGRES_DB=jbhifi postgres:18
+python3 -m venv /tmp/orm-demo && /tmp/orm-demo/bin/pip install sqlalchemy psycopg2-binary
+/tmp/orm-demo/bin/python orm_vs_sql.py
+docker stop orm-demo-db        # --rm removes the container and its data
+```
+
+`orm_vs_sql.py`:
+
+```python
+"""Two customers race for the last unit: ORM idiom vs conditional UPDATE vs ORM with a row lock."""
+import threading
+import time
+
+import psycopg2
+import sqlalchemy
+from sqlalchemy import Integer, String, create_engine, event, text
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+
+DSN = dict(host="localhost", port=5434, dbname="jbhifi", user="jbhifi", password="devpassword")
+engine = create_engine("postgresql+psycopg2://jbhifi:devpassword@localhost:5434/jbhifi")
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Inventory(Base):
+    __tablename__ = "inventory"
+    product: Mapped[str] = mapped_column(String, primary_key=True)
+    quantity: Mapped[int] = mapped_column(Integer)
+
+
+@event.listens_for(engine, "before_cursor_execute")
+def show_update(conn, cursor, statement, params, context, executemany):
+    if statement.lstrip().startswith("UPDATE"):
+        print(f"    SQL emitted by the ORM: {' '.join(statement.split())}  params={params}")
+
+
+def reset():
+    with engine.begin() as c:
+        c.execute(text("DROP TABLE IF EXISTS inventory"))
+        c.execute(text("CREATE TABLE inventory (product text PRIMARY KEY, quantity int NOT NULL "
+                       "CONSTRAINT br03_inventory_qty_nonneg CHECK (quantity >= 0))"))
+        c.execute(text("INSERT INTO inventory VALUES ('PS5', 1)"))
+
+
+def stock_left():
+    with engine.connect() as c:
+        return c.execute(text("SELECT quantity FROM inventory")).scalar()
+
+
+with engine.connect() as c:
+    print("PostgreSQL", c.execute(text("SHOW server_version")).scalar().split()[0],
+          "| isolation:", c.execute(text("SHOW transaction_isolation")).scalar(),
+          "| SQLAlchemy", sqlalchemy.__version__, "| psycopg2", psycopg2.__version__.split()[0])
+print()
+
+# 1. ORM idiom: load the row as an object, decrement in Python, commit
+print("[1] ORM idiom: load the row as an object, decrement in Python, commit")
+reset()
+sold = 0
+a, b = Session(engine), Session(engine)
+inv_a = a.get(Inventory, "PS5")   # A reads quantity = 1
+inv_b = b.get(Inventory, "PS5")   # B reads quantity = 1 (A has not written yet)
+for name, s, inv in (("A", a, inv_a), ("B", b, inv_b)):
+    if inv.quantity >= 1:
+        inv.quantity -= 1
+        s.commit()
+        sold += 1
+        print(f"  customer {name}: order placed")
+print(f"  RESULT: sold {sold}, stock left {stock_left()}  <- 1 unit sold twice; the CHECK never fired\n")
+
+# 2. Hand-written conditional UPDATE, two concurrent transactions
+print("[2] Hand-written SQL: UPDATE ... SET quantity = quantity - 1 WHERE ... AND quantity >= 1")
+reset()
+results = {}
+
+
+def raw_buyer(name, hold_seconds):
+    conn = psycopg2.connect(**DSN)
+    t0 = time.perf_counter()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE inventory SET quantity = quantity - 1 "
+                        "WHERE product = %s AND quantity >= 1", ("PS5",))
+            results[name] = (cur.rowcount, time.perf_counter() - t0)
+            time.sleep(hold_seconds)      # A holds its row lock for 1 s before committing
+    conn.close()
+
+
+ta = threading.Thread(target=raw_buyer, args=("A", 1.0)); ta.start(); time.sleep(0.2)
+tb = threading.Thread(target=raw_buyer, args=("B", 0)); tb.start()
+ta.join(); tb.join()
+for name in ("A", "B"):
+    rows, waited = results[name]
+    print(f"  customer {name}: {rows} row(s) updated after waiting {waited:.2f}s -> "
+          f"{'order placed' if rows else 'refused: out of stock'}")
+print(f"  RESULT: sold {sum(r for r, _ in results.values())}, stock left {stock_left()}\n")
+
+# 3. ORM with an explicit row lock
+print("[3] ORM with SELECT ... FOR UPDATE (with_for_update=True)")
+reset()
+outcome = {}
+
+
+def orm_locked_buyer(name, hold_seconds):
+    with Session(engine) as s:
+        t0 = time.perf_counter()
+        inv = s.get(Inventory, "PS5", with_for_update=True)   # waits while another tx holds the lock
+        waited = time.perf_counter() - t0
+        if inv.quantity >= 1:
+            inv.quantity -= 1
+            time.sleep(hold_seconds)
+            s.commit()
+            outcome[name] = f"order placed (waited {waited:.2f}s for the lock)"
+        else:
+            s.rollback()
+            outcome[name] = f"refused: out of stock (waited {waited:.2f}s for the lock)"
+
+
+ta = threading.Thread(target=orm_locked_buyer, args=("A", 1.0)); ta.start(); time.sleep(0.2)
+tb = threading.Thread(target=orm_locked_buyer, args=("B", 0)); tb.start()
+ta.join(); tb.join()
+for name in ("A", "B"):
+    print(f"  customer {name}: {outcome[name]}")
+print(f"  RESULT: stock left {stock_left()}")
+```
+
+</details>
+
+**AI use.** This experiment was designed and run with Claude Code; the output above is from an actual run.
+Include it in the submission's AI-use acknowledgement.
+
