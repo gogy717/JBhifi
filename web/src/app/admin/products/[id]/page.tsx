@@ -63,7 +63,7 @@ export default function ProductPage() {
           onSaved={(specs) => saved({ ...p, specs }, "Specifications")} />
 
         <Card title={<>Stock by location <span className="font-normal text-neutral-500">· {p.total_stock} in total</span></>}
-          actions={<Link href="/inventory" className="text-xs text-neutral-600 hover:underline">Adjust in Inventory →</Link>}>
+          actions={<Link href="/admin/inventory" className="text-xs text-neutral-600 hover:underline">Adjust in Inventory →</Link>}>
           <table className="w-full text-sm">
             <tbody className="divide-y divide-neutral-100">
               {p.stock.map((s) => (
@@ -80,7 +80,7 @@ export default function ProductPage() {
         </Card>
 
         <Card title="Promotions"
-          actions={<Link href="/promotions" className="text-xs text-neutral-600 hover:underline">Manage →</Link>}>
+          actions={<Link href="/admin/promotions" className="text-xs text-neutral-600 hover:underline">Manage →</Link>}>
           {p.promotions.length === 0 ? <Empty>No promotions for this product.</Empty> : (
             <ul className="divide-y divide-neutral-100">
               {p.promotions.map((pr) => (
@@ -103,7 +103,7 @@ export default function ProductPage() {
 }
 
 function BackLink() {
-  return <Link href="/products" className="mb-3 inline-block text-sm text-neutral-600 hover:underline">← Products</Link>;
+  return <Link href="/admin/products" className="mb-3 inline-block text-sm text-neutral-600 hover:underline">← Products</Link>;
 }
 
 function DetailsForm({ product, brands, categories, onSaved }: {

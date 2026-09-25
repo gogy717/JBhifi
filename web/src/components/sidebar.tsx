@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { useLoad } from "@/lib/use-load";
 
 const LINKS = [
-  { href: "/inventory", label: "Inventory", hint: "Stock per store, ± adjustments" },
-  { href: "/products", label: "Products", hint: "Catalogue, prices, specs" },
-  { href: "/promotions", label: "Promotions", hint: "Sale prices over a period" },
+  { href: "/admin/inventory", label: "Inventory", hint: "Stock per store, ± adjustments" },
+  { href: "/admin/products", label: "Products", hint: "Catalogue, prices, specs" },
+  { href: "/admin/promotions", label: "Promotions", hint: "Sale prices over a period" },
 ];
 
 export function Sidebar() {
@@ -37,6 +37,10 @@ export function Sidebar() {
           );
         })}
       </nav>
+      <Link href="/" className="mx-3 mb-3 block rounded-md px-3 py-2 text-xs text-neutral-400 hover:bg-neutral-800/60
+        hover:text-white md:mb-0 md:mt-4">
+        ← Customer storefront
+      </Link>
       <ApiStatus />
     </aside>
   );

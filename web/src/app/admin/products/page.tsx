@@ -85,7 +85,7 @@ export default function ProductsPage() {
                 {rows.map((p) => (
                   <tr key={p.product_id} className="hover:bg-neutral-50">
                     <td className="px-4 py-2.5">
-                      <Link href={`/products/${p.product_id}`} className="font-medium text-neutral-900 hover:underline">
+                      <Link href={`/admin/products/${p.product_id}`} className="font-medium text-neutral-900 hover:underline">
                         {p.name}
                       </Link>{" "}
                       {!p.is_active && <Badge>retired</Badge>}
@@ -138,7 +138,7 @@ function NewProductDialog({ brands, categories, onClose }: {
           category_id: Number(form.categoryId), base_price: form.basePrice.trim(),
         },
       }));
-      router.push(`/products/${product.product_id}`);
+      router.push(`/admin/products/${product.product_id}`);
     } catch (e) {
       setError(toApiError(e));
       setSaving(false);

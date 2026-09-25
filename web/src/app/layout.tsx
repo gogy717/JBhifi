@@ -1,21 +1,18 @@
 import type { Metadata } from "next";
 
-import { Sidebar } from "@/components/sidebar";
-
 import "./globals.css";
 
+// No `title` here: every page renders its own <title> (React 19), and a metadata title would come first in
+// <head> and win on every page.
 export const metadata: Metadata = {
-  title: "JB Hi-Fi Store Admin",
-  description: "Phase 1 prototype: stock, products and promotions on the JB Hi-Fi database",
+  description: "COMP9120 prototype: a storefront and a store admin on the JB Hi-Fi database",
 };
 
+// The storefront (app/(shop)) and the store admin (app/admin) each bring their own layout.
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="flex min-h-full flex-col bg-neutral-50 text-neutral-900 md:flex-row">
-        <Sidebar />
-        <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
-      </body>
+      <body className="min-h-full bg-neutral-50 text-neutral-900">{children}</body>
     </html>
   );
 }

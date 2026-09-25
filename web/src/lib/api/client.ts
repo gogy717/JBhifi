@@ -18,6 +18,8 @@ export type ProductDetail = Schemas["ProductDetail"];
 export type Spec = Schemas["Spec"];
 export type Promotion = Schemas["PromotionOut"];
 export type PromotionStatus = Promotion["status"];
+export type Customer = Schemas["CustomerSummary"];
+export type CustomerDetail = Schemas["CustomerDetail"];
 
 /** Every API error has this shape; for database rules, `code` is the constraint name (brNN_…). */
 export class ApiError extends Error {
