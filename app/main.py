@@ -1,10 +1,22 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
+from fastapi.routing import APIRoute
 
 from app.db import DbCursor
-from app.routers import products
+from app.errors import register_error_handlers
+from app.routers import inventory, products, promotions, reference
 
-app = FastAPI(title="JB Hi-Fi API")
-app.include_router(products.router)
+
+def operation_id(route: APIRoute) -> str:
+    return route.name                   # e.g. "adjust_stock" instead of "adjust_stock_api_v1_stores_..."
+
+
+app = FastAPI(title="JB Hi-Fi API", version="0.1.0", generate_unique_id_function=operation_id)
+register_error_handlers(app)
+
+api = APIRouter(prefix="/api/v1")
+for module in (reference, inventory, products, promotions):
+    api.include_router(module.router)
+app.include_router(api)
 
 
 @app.get("/health")
