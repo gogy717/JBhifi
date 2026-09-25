@@ -16,6 +16,7 @@ class PromotionOut(BaseModel):
     brand: str
     product_name: str
     base_price: Decimal
+    product_active: bool            # a retired product's promotion isn't advertised to customers
     sale_price: Decimal
     starts_at: datetime
     ends_at: datetime

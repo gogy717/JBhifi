@@ -14,7 +14,7 @@ STATUS_CONDITIONS = {
 PROMOTION_SELECT = sql.SQL(
     """
     SELECT pr.promotion_id, pr.product_id, p.sku, b.name AS brand, p.name AS product_name, p.base_price,
-           pr.sale_price, pr.starts_at, pr.ends_at,
+           p.is_active AS product_active, pr.sale_price, pr.starts_at, pr.ends_at,
            CASE WHEN now() < pr.starts_at THEN 'upcoming'
                 WHEN now() < pr.ends_at   THEN 'active'
                 ELSE 'ended'

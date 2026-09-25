@@ -40,6 +40,15 @@ def test_reference_lists():
     assert client.get(f"{API}/stores/99/inventory").status_code == 404
 
 
+def test_demo_customers():
+    customers = {c["email"]: c["customer_id"] for c in client.get(f"{API}/customers").json()}
+    assert {"alice.morgan@example.com", "ben.okafor@example.com"} <= set(customers)
+    ben = client.get(f"{API}/customers/{customers['ben.okafor@example.com']}").json()
+    # The current address comes first; the old one is still there, inactive (BR16: never edited).
+    assert [(a["address_no"], a["is_active"]) for a in ben["addresses"]] == [(2, True), (1, False)]
+    assert client.get(f"{API}/customers/999999").status_code == 404
+
+
 def test_adjust_stock_round_trip(new_product):
     pid, sku = new_product["product_id"], new_product["sku"]
     response = client.post(f"{API}/stores/1/inventory/{pid}/adjustments",
@@ -109,6 +118,7 @@ def test_promotions(new_product):
         == (409, "br15_promotion_below_base_price")
     response = client.post(f"{API}/promotions", json=promotion("149.00", -1, 7))
     assert (response.status_code, response.json()["status"]) == (201, "active"), response.text
+    assert response.json()["product_active"] is True
     promotion_id = response.json()["promotion_id"]
     assert client.get(f"{API}/products/{pid}").json()["current_price"] == "149.00"
 

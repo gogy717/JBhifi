@@ -1,6 +1,6 @@
--- Reference data: stores, staff, catalogue, promotions and opening stock.
+-- Reference data: stores, staff, catalogue, promotions, opening stock, and a few demo customers.
 -- One transaction: store and staff reference each other, and BR04 is only checked at COMMIT.
--- Customers and orders will come from the seed generator (20_seed_generated.sql, plan §7).
+-- Bulk customers and orders will come from the seed generator (20_seed_generated.sql, plan §7).
 BEGIN;
 -- Day arithmetic below (date_trunc, + n days) in the stores' time zone, so seeded promotions start and
 -- end at local midnight even across the daylight-saving change. Only for this transaction.
@@ -239,5 +239,25 @@ SELECT s.store_id, p.product_id,
        END
 FROM store s
 CROSS JOIN product p;
+
+-- ---------------------------------------------------------------- demo customers
+-- The storefront's "signed in as" switcher (a stand-in for the plan's demo login) picks one of these.
+
+INSERT INTO customer (email, full_name, phone) VALUES
+    ('alice.morgan@example.com', 'Alice Morgan', '0412 345 678'),
+    ('ben.okafor@example.com',   'Ben Okafor',   '0423 456 789'),
+    ('mei.zhou@example.com',     'Mei Zhou',     '0434 567 890'),
+    ('tom.fraser@example.com',   'Tom Fraser',   NULL);
+
+INSERT INTO customer_address (customer_id, address_no, line1, suburb, state, postcode, is_active)
+SELECT c.customer_id, v.address_no, v.line1, v.suburb, v.state, v.postcode, v.is_active
+FROM (VALUES
+        ('alice.morgan@example.com', 1, '12 Harris St',    'Pyrmont',        'NSW', '2009', TRUE),
+        ('ben.okafor@example.com',   1, '4/88 Chapel St',  'Windsor',        'VIC', '3181', FALSE),  -- moved out: kept, never edited (BR16)
+        ('ben.okafor@example.com',   2, '27 Brunswick St', 'Fitzroy',        'VIC', '3065', TRUE),
+        ('mei.zhou@example.com',     1, '9 Grey St',       'South Brisbane', 'QLD', '4101', TRUE),
+        ('tom.fraser@example.com',   1, '150 Church St',   'Parramatta',     'NSW', '2150', TRUE)
+     ) AS v(email, address_no, line1, suburb, state, postcode, is_active)
+JOIN customer c ON c.email = v.email;
 
 COMMIT;
