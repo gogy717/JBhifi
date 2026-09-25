@@ -1,46 +1,39 @@
-from decimal import Decimal
-
-from fastapi import APIRouter, HTTPException
-from psycopg2.errors import ForeignKeyViolation
+from fastapi import APIRouter
 
 from app.db import DbCursor
-from app.schema import ProductIn, ProductOut
+from app.errors import ERROR_RESPONSES
+from app.schemas.products import ProductCreate, ProductDetail, ProductSummary, ProductUpdate, Spec
+from app.services import products
 
-router = APIRouter(prefix="/products", tags=["products"])
-
-
-@router.get("", response_model=list[ProductOut])
-def list_products(cur: DbCursor, min_price: Decimal = Decimal("0")):
-    cur.execute(
-        "SELECT id, name, price, stock, category_id FROM product WHERE price >= %s ORDER BY id",
-        (min_price,),
-    )
-    return cur.fetchall()
+router = APIRouter(prefix="/products", tags=["products"], responses=ERROR_RESPONSES)
 
 
-@router.get("/{product_id}", response_model=ProductOut)
+@router.get("", response_model=list[ProductSummary])
+def list_products(
+    cur: DbCursor,
+    q: str | None = None,
+    category_id: int | None = None,
+    brand_id: int | None = None,
+    include_inactive: bool = False,
+):
+    return products.list_products(cur, q, category_id, brand_id, include_inactive)
+
+
+@router.post("", response_model=ProductDetail, status_code=201)
+def create_product(body: ProductCreate, cur: DbCursor):
+    return products.create_product(cur, body)
+
+
+@router.get("/{product_id}", response_model=ProductDetail)
 def get_product(product_id: int, cur: DbCursor):
-    cur.execute(
-        "SELECT id, name, price, stock, category_id FROM product WHERE id = %s",
-        (product_id,),
-    )
-    row = cur.fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return row
+    return products.get_product(cur, product_id)
 
 
-@router.post("", response_model=ProductOut, status_code=201)
-def create_product(product: ProductIn, cur: DbCursor):
-    try:
-        cur.execute(
-            """
-            INSERT INTO product (name, price, stock, category_id)
-            VALUES (%s, %s, %s, %s)
-            RETURNING id, name, price, stock, category_id
-            """,
-            (product.name, product.price, product.stock, product.category_id),
-        )
-    except ForeignKeyViolation:
-        raise HTTPException(status_code=400, detail=f"Category {product.category_id} does not exist")
-    return cur.fetchone()
+@router.patch("/{product_id}", response_model=ProductDetail)
+def update_product(product_id: int, body: ProductUpdate, cur: DbCursor):
+    return products.update_product(cur, product_id, body.model_dump(exclude_unset=True, exclude_none=True))
+
+
+@router.put("/{product_id}/specs", response_model=list[Spec])
+def replace_specs(product_id: int, body: list[Spec], cur: DbCursor):
+    return products.replace_specs(cur, product_id, body)
