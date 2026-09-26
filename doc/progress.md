@@ -4,6 +4,50 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — Delivery: the whole scope, checked end to end
+
+T00–T18 are implemented and committed. This entry records the final verification, run on 2026-09-26 on
+this machine, and the limitations that remain.
+
+| Check (plan §6) | Command | Result |
+|---|---|---|
+| 2. Backend suite | `.\.venv\Scripts\python.exe -m pytest -q` | **208 passed** in 34 s |
+| 3. Generated types match the API | regenerate from `app.openapi()` and compare | **byte-identical** |
+| 4. Frontend unit tests | `cd web && npm run test:unit` | **30 passed** (9 files) |
+| 4. Types / lint / build | `cd web && npm run typecheck && npm run lint && npm run build` | clean; **21 routes** |
+| 5. Browser journeys | `cd web && npm run test:e2e` | **18 passed** in 42 s |
+| 6. Demo walkthrough | `scripts/demo_walkthrough.py`, run against a seeded demo database | **25/25** (recorded by T17) |
+| 7. Placeholder sweep | `rg 'ReservedPage\|ReservedCard\|TODO\|FIXME' 'web/src/app/(shop)'` | nothing |
+| 8. Final diff | `git status --short` | clean |
+
+`npm run test:e2e` starts its own stack: a disposable `jbhifi_e2e_demo` database built from `sql/` plus the
+documented scenarios, an API on :8100 pointed at it, and a Next server on :3100 proxying to that API. The
+18 journeys cover both checkout modes, the idempotent retry, staff fulfilment to `delivered`, a paid
+cancellation with its restock and refund, out-of-stock, a product retired between cart and checkout, an
+address retired between cart and checkout, the returns desk receiving and refunding, a customer's request
+bounded by what is left, a rejected return, and session isolation (guest, customer switch, and a staff
+session on the storefront behaving as a guest). They also found a real bug — the storefront and admin
+signed the session out during hydration, before `localStorage` could say who the browser had chosen, so a
+refresh dropped a signed-in session. That is fixed in `c2f62f0` and covered by the suite.
+
+**State left behind.** The demo database `jbhifi` was reset to exactly what `sql/` produces (48 products,
+4 customers, 0 orders, 624 inventory rows), because a scripted end-to-end checkout during development had
+written an order and a return into it. `jbhifi_demo` and `jbhifi_e2e_demo` are kept — `doc/demo.md` points
+at the first, and the browser suite builds the second. Two abandoned `jbhifi_seed*_test` databases left by
+repeat-run tests were dropped; the tests recreate theirs.
+
+**Limitations, stated rather than implied.** There is no authentication beyond the demo session: anyone
+can sign in as anyone while `DEMO_MODE=1`, which is what a demo needs and what a deployment must replace
+(`app/auth.py` is the only place that changes). Payments and refunds are rows, not money. The reports are
+the three proposed in `doc/reports.md`, no more. An index for the reports was deliberately not added,
+because at this volume it would not change the plan. The nested `JBhifi/` checkout is still there, still
+untouched, and still awaiting the team's keep-or-remove decision (`doc/requirements.md` §1).
+
+**AI use.** The implementation, the tests and this verification were produced with Codex (GPT-5) across
+several agent sessions on 2026-09-26; every command and count quoted here was actually run.
+
+---
+
 ## 2026-09-26 — T18: browser journeys, delivery checks, and one bug they found
 
 **Eighteen browser journeys** (`web/e2e/`, `npm run test:e2e`, Playwright against Chromium). The config

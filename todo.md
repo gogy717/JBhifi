@@ -21,13 +21,19 @@ is working where — read it before starting anything, so two workers do not tou
 | T17 (demo data + evidence) | done | `f4471e3`/`fa235e8`/`d3581f1`: `scripts/seed_demo.py`, `scripts/demo_walkthrough.py`, `tests/test_demo_seed.py`, `doc/demo.md`, `doc/data-model.md`, `doc/business-rules.md`. The last two items — cleaning the planning copy out of `web/src/lib/shop-pages.ts`, `web/README.md` and the home page — are the root agent's and are done too. |
 | T18 (e2e + CI) | done | `afa8cf3` one sanitised error envelope + `tests/test_api_errors.py` (13), `0b15dc0` `web/playwright.config.ts`, `web/e2e/**` (18 journeys), `web/package.json` (`test:e2e`), `web/e2e/README.md`, `.github/workflows/ci.yml`, `web/next.config.ts` (`NEXT_DIST_DIR`); `886c69f` address normalisation. The journeys found and `c2f62f0` fixed a session-sign-out race during hydration in `web/src/components/{shop/context,admin/session}.tsx` — the only two screen files T18 touched. |
 
-**Frozen contracts.** The API is complete for catalogue (`/products`, with `store_quantity`), orders
-(`/orders`, `/customers/{id}/orders`, `/stores/{id}/orders`, status + cancel) and returns
-(`/orders/{id}/returns`, `/customers/{id}/returns`, `/stores/{id}/returns`, receive/reject/process).
-`web/src/lib/api/schema.d.ts` was regenerated at `4d48349`. If you change the API, regenerate it and say so.
+**Every task in this plan is implemented.** The delivery verification is at the top of `doc/progress.md`:
+208 backend tests, 30 web unit tests, 21 built routes, 18 browser journeys and generated types in sync with
+the API. The limitations that remain are listed there too.
 
-**Rules for every worker.** `pytest -q` must stay green (177 passing before the screens started); never run
-`docker compose down -v`; `git add` only the files you own, never `git add -A`.
+**Frozen contracts.** The API covers catalogue (`/products`, with `store_quantity`), orders (`/orders`,
+`/customers/{id}/orders`, `/stores/{id}/orders`, status + cancel), returns (`/orders/{id}/returns`,
+`/customers/{id}/returns`, `/stores/{id}/returns`, receive/reject/process), addresses and reports
+(`/reports/{sales,low-stock,returns}`). If you change the API, run `npm run gen:api` and commit the result:
+CI fails on a drift between `web/src/lib/api/schema.d.ts` and the running API.
+
+**Rules for every worker.** `pytest -q` must stay green; never run `docker compose down -v`; `git add` only
+the files you own, never `git add -A`; and if two people run `pytest` at once, give each its own
+`POSTGRES_TEST_DB` ending in `_test`, or they will drop each other's database.
 
 > **For agentic workers:** Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task by task. Track work with the checkboxes below. This document is a plan; unchecked items have not been implemented.
 

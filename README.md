@@ -81,6 +81,7 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 | Run the tests (database must be up, venv active) | `pytest` |
 | Build a disposable demo database with every order/return scenario | `python scripts/seed_demo.py --database jbhifi_demo --create --seed 9120` |
 | Regenerate the frontend's API types after changing the API (API running) | `cd web && npm run gen:api` |
+| Run the browser journeys (starts its own database, API and web server) | `cd web && npm run test:e2e` |
 | Check the frontend | `cd web && npm run typecheck && npm run lint && npm run test:unit && npm run build` |
 
 `sql/*.sql` only run when the database volume is empty — **after editing or pulling changes to anything in
