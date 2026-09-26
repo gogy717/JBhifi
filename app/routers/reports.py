@@ -16,7 +16,9 @@ Threshold = Annotated[int, Query(ge=0, le=1000)]
 
 def _scope(actor, store_id: int | None) -> int | None:
     """One store's report: its own staff or support. All stores: support only."""
-    require_actor(actor)
+    actor = require_actor(actor)
+    if actor.kind != "staff":
+        raise ApiError(403, "staff_only", "Reports are for staff.")
     if store_id is None:
         if not actor.is_support:
             raise ApiError(403, "support_only",

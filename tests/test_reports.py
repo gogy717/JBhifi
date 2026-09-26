@@ -303,6 +303,8 @@ def test_reports_are_scoped_to_the_signed_in_store():
     from fastapi.testclient import TestClient
     from app.main import app
     assert TestClient(app).get(f"{API}/sales").status_code == 401
+    # Reports are a staff tool: a customer is told that, not told to choose a store.
+    assert error_of(customer_client_for_reports().get(f"{API}/sales", params=MARCH)) == (403, "staff_only")
 
     # Support may read everything, or one store; a store's staff only their own.
     assert staff_client(SUPPORT).get(f"{API}/sales", params=MARCH).status_code == 200
@@ -319,6 +321,11 @@ def test_reports_are_scoped_to_the_signed_in_store():
         == (403, "other_store")
     assert staff_client(SUPPORT).get(f"{API}/low-stock",
                                      params={"store_id": BONDI, "threshold": 3}).status_code == 200
+
+
+def customer_client_for_reports():
+    from tests.shop import a_customer, shop_client
+    return shop_client(a_customer()[0])
 
 
 def test_the_default_window_is_the_last_thirty_days():
