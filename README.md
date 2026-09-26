@@ -76,6 +76,7 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 | **Reset** the database to the seed data | `docker compose down -v && docker compose up -d` |
 | SQL shell | `docker compose exec db psql -U jbhifi -d jbhifi` |
 | Run the tests (database must be up, venv active) | `pytest` |
+| Build a disposable demo database with every order/return scenario | `python scripts/seed_demo.py --database jbhifi_demo --create --seed 9120` |
 | Regenerate the frontend's API types after changing the API (API running) | `cd web && npm run gen:api` |
 | Check the frontend | `cd web && npm run typecheck && npm run lint && npm run test:unit && npm run build` |
 
@@ -83,6 +84,29 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 `sql/`, reset the database** or you won't see the change. `pytest` never touches your data: it rebuilds a separate
 `jbhifi_test` database from `sql/` on every run. The fixtures refuse to run against a database whose name is not
 test-shaped (`POSTGRES_TEST_DB`, see `.env.example`), so the demo database is safe.
+
+## Demo data
+
+`sql/10_seed_reference.sql` supplies the catalogue, stores, staff and four demo customers. The demo seeder
+adds orders and returns on top of it, all positioned relative to one reference time:
+
+```powershell
+python scripts/seed_demo.py --database jbhifi_demo --create --seed 9120
+$env:POSTGRES_DB = "jbhifi_demo"      # point the API at the seeded database
+.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+`--create` drops and rebuilds `jbhifi_demo` from `sql/*.sql` first, so the whole thing is one command from
+a clean checkout. The seeder refuses any database that is the API's own (`jbhifi`) or whose name does not
+end in `_demo`/`_test`, and a second run against the same database stops with an "already contains the
+demo scenarios" message instead of duplicating orders — each scenario has a deterministic idempotency key
+(BR10). `doc/demo.md` walks through what is there.
+
+The scenarios are built with the same statements the application uses (real inserts and real status
+transitions, so BR03 and BR06–BR14 run), and only their recorded times are then aged inside a maintenance
+transaction. Before returning, the seeder re-runs the deferred financial checks and reconciles every
+touched stock row and every order's charges and refunds against the rows it wrote; a disagreement fails
+the run.
 
 ## Project layout
 
@@ -94,7 +118,11 @@ test-shaped (`POSTGRES_TEST_DB`, see `.env.example`), so the demo database is sa
 | `tests/` | `test_business_rules.py` (one test per BR), `test_transactions.py` (stock adjustments under concurrency), `test_api.py` |
 | `web/` | Next.js: the customer storefront (`/`) and the store admin (`/admin`) — see [`web/README.md`](web/README.md) |
 | `doc/requirements.md` | The recovered requirements (R#/BR#), the decisions that fill implementation gaps, and what is out of scope |
+| `doc/data-model.md` | The structure the SQL builds: keys, weak entities, the staff discriminator, the recursive category tree, the deferred manager key, controlled redundancy, the views, and the lock order |
+| `doc/business-rules.md` | BR01–BR18, each with its exact constraint/trigger name, the service responsible, and its tests |
+| `doc/demo.md` | The demonstration walkthrough over the seeded scenarios |
 | `doc/progress.md` | decisions, experiments and AI-use notes, newest first |
+| `scripts/seed_demo.py` | Reproducible demo scenarios: every order/return state, a cancellation, a logged stock correction and an empty-stock example |
 
 `JBhifi/` is a nested second checkout of this repository (a Git gitlink with no `.gitmodules`). It is a
 duplicate kept for reference and is **not** part of the working tree — make every change at the repository

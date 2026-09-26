@@ -4,6 +4,51 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — T17: reproducible demo data and project evidence
+
+**One command builds the demo.** `scripts/seed_demo.py --database jbhifi_demo --create --seed 9120` drops
+and rebuilds a disposable database from `sql/*.sql`, then adds ten scenarios on top of the reference seed:
+both fulfilment paths in flight (`paid`, `picking`, `ready`), completed orders that are still returnable
+and one that is 45 days old, a partial refund on a multi-line collection, a received return, a rejected
+return, a return still waiting at the desk, a paid delivery cancellation, and `LG-43UT8050` emptied at
+Sydney CBD as an out-of-stock example. The seeder refuses any database that is the API's own (`jbhifi`) or
+whose name does not end in `_demo`/`_test`; a repeat run stops with "already contains the demo scenarios"
+because each scenario has a deterministic `uuid5` idempotency key, so BR10 itself detects it and no marker
+table was needed.
+
+**How the scenarios are built.** Every row goes through the statements the application uses — real
+`customer_order`/`order_line` inserts, the price from `v_product_current_price`, a conditional
+`UPDATE … WHERE quantity >= n`, and real status `UPDATE`s so BR03, BR06–BR14 and BR18 run. Only the
+*recorded times* are then aged, inside one maintenance transaction, by disabling exactly the timestamp and
+immutability guards involved (`order_immutable`, the three append-only guards, `br18_adjustment_append_only`
+and `br11_return_window`) and restoring them in a `finally`. `SET CONSTRAINTS ALL IMMEDIATE` runs the
+deferred BR14 checks afterwards, and `reconcile()` recomputes every touched inventory row from opening
+stock + logged adjustments − purchases + cancellations + processed returns, re-checks each order's charges
+against its lines and its refunds against the charge, and re-checks BR12. A disagreement fails the run, so
+a half-seeded database cannot pass silently.
+
+**Documentation.** `doc/data-model.md` describes the keys, the four weak entities, the staff discriminator,
+the recursive category tree, the deferred store ↔ manager key, the controlled redundancy, the two views and
+the lock order. `doc/business-rules.md` maps BR01–BR18 to the exact constraint or trigger name, the
+service responsible and the tests, and lists the record guards no numbered rule covers. `doc/demo.md` is
+the walkthrough, and `scripts/demo_walkthrough.py` runs the customer → staff → customer journey over HTTP
+with the same bodies the browser posts.
+
+**Verification (actually run).** `pytest tests/test_demo_seed.py -q` → **9 passed**. The full suite with
+`POSTGRES_TEST_DB=jbhifi_seed2_test` → **184 passed** (the count includes T04's catalogue tests and the
+T11/T13/T14 lifecycle tests landed alongside this task). `seed_demo.py --database jbhifi_demo --create
+--seed 9120` → 10 orders, 5 returns, 1 cancellation, reconciliation "13 stock rows, 10 orders, no
+problems"; a second run exited 1 with the already-seeded message and `--database jbhifi` exited 2. With the
+API running against `jbhifi_demo` (a second uvicorn on :8001, stopped afterwards),
+`scripts/demo_walkthrough.py --api http://127.0.0.1:8001` → **25/25 steps passed**: both checkout modes,
+two safe retries, staff fulfilment to `collected`, a cross-store `403`, a return requested-received-processed
+with the refund equal to the purchase-time preview, and an `out_of_stock` refusal. The demo database
+`jbhifi_demo` was left seeded for the browser walkthrough; the shared `jbhifi` database was never touched.
+
+**AI use.** T17 implemented with Codex (GPT-5) on 2026-09-26. Every command and count above was run.
+
+---
+
 ## 2026-09-26 — T09: atomic checkout, idempotent retries and protected order reads
 
 **Checkout (transaction T1).** `app/services/orders.py` places one order per POST, in one transaction: lock
