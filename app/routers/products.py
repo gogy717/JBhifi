@@ -1,8 +1,11 @@
-from fastapi import APIRouter
+from decimal import Decimal
+from typing import Annotated
+
+from fastapi import APIRouter, Query
 
 from app.auth import RequiredActor, require_catalogue_writer
 from app.db import DbCursor
-from app.errors import ERROR_RESPONSES
+from app.errors import ERROR_RESPONSES, ApiError
 from app.schemas.products import ProductCreate, ProductDetail, ProductSummary, ProductUpdate, Spec
 from app.services import products
 
@@ -16,8 +19,14 @@ def list_products(
     category_id: int | None = None,
     brand_id: int | None = None,
     include_inactive: bool = False,
+    min_price: Annotated[Decimal | None, Query(ge=0)] = None,
+    max_price: Annotated[Decimal | None, Query(ge=0)] = None,
+    store_id: int | None = None,
 ):
-    return products.list_products(cur, q, category_id, brand_id, include_inactive)
+    if min_price is not None and max_price is not None and min_price > max_price:
+        raise ApiError(422, "invalid_price_range", "The lowest price is above the highest price.",
+                       {"min_price": str(min_price), "max_price": str(max_price)})
+    return products.list_products(cur, q, category_id, brand_id, include_inactive, min_price, max_price, store_id)
 
 
 @router.post("", response_model=ProductDetail, status_code=201)
