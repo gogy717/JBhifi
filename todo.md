@@ -1,5 +1,34 @@
 # JB Hi-Fi Full Implementation Plan
 
+## Status and ownership (keep this section current)
+
+Updated 2026-09-26. The checkbox list below is the original plan; this table is the live status, plus who
+is working where — read it before starting anything, so two workers do not touch the same file.
+
+| Task | Status | Commit / notes |
+|---|---|---|
+| T00 | done | `32e0b4e` requirements, test isolation, baseline recorded |
+| T01 | done | `6c5266d` signed demo session, actor permissions, role matrix |
+| T02 | done | `fcb1e49` purchase records frozen, history/payments append-only, `jbhifi_app` role |
+| T03 | done | `ad05e0b` retry fingerprints, cancellation source, return audit trail |
+| T04 | done | `4d48349` price filters, arbitrary-depth categories, `store_quantity` |
+| T05 | done | `12ea4eb` `useLoad.isCurrent` + keyed `setData`, a11y modal, Vitest runner |
+| T09 | done | `d4d2e0c`/`14773d7`/`52bc14c` atomic checkout, idempotent retries, order reads |
+| T11 | done | `ea97295` staff fulfilment moves, atomic cancellation |
+| T13, T14 | done | `16af842` return requests, receipt, rejection, atomic refund/restock |
+| T06, T07, T08, T10, T12, T15 | **in progress — owned by the root agent** | the customer and admin screens. Do not start these: they touch `web/src/app/(shop)/**`, `web/src/app/admin/orders/**`, `web/src/app/admin/returns/**`, `web/src/components/shop/**`, `web/src/components/admin/**` and `web/src/lib/cart.ts`. |
+| T16 (reports) | **not started — free to take** | `queries/reports.sql`, `app/schemas|services|routers/reports.py`, `tests/test_reports.py`, `doc/reports.md`; register the router in `app/main.py` (append to the tuple — nobody else edits that line now). |
+| T17 (demo data + evidence) | partially done | `scripts/seed_demo.py`, `tests/test_demo_seed.py`, `doc/demo.md` in flight; `doc/data-model.md` and `doc/business-rules.md` written. Free to finish. |
+| T18 (e2e + CI) | **not started — free to take** | `web/playwright.config.ts`, `web/e2e/**`, `.github/workflows/ci.yml`, `tests/test_api_errors.py`. Do not modify `web/src/app/(shop)/**` or `web/src/app/admin/**`. |
+
+**Frozen contracts.** The API is complete for catalogue (`/products`, with `store_quantity`), orders
+(`/orders`, `/customers/{id}/orders`, `/stores/{id}/orders`, status + cancel) and returns
+(`/orders/{id}/returns`, `/customers/{id}/returns`, `/stores/{id}/returns`, receive/reject/process).
+`web/src/lib/api/schema.d.ts` was regenerated at `4d48349`. If you change the API, regenerate it and say so.
+
+**Rules for every worker.** `pytest -q` must stay green (177 passing before the screens started); never run
+`docker compose down -v`; `git add` only the files you own, never `git add -A`.
+
 > **For agentic workers:** Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task by task. Track work with the checkboxes below. This document is a plan; unchecked items have not been implemented.
 
 **Goal:** Complete the existing COMP9120 retailer prototype so customers can browse, buy, track orders and request returns, while staff can fulfil orders, process refunds and manage the existing catalogue and stock.
