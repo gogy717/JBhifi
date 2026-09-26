@@ -22,7 +22,8 @@ export default function ProductPage() {
   const { notice, showSuccess, clear } = useNotice();
   const brands = useLoad("brands", () => call(api.GET("/api/v1/brands")));
   const categories = useLoad("categories", () => call(api.GET("/api/v1/categories")));
-  const product = useLoad(`product:${productId}`, () =>
+  const productKey = `product:${productId}`;
+  const product = useLoad(productKey, () =>
     call(api.GET("/api/v1/products/{product_id}", { params: { path: { product_id: productId } } })));
   const p = product.data;
 
@@ -36,7 +37,7 @@ export default function ProductPage() {
   }
 
   const saved = (updated: ProductDetail, what: string) => {
-    product.setData(() => updated);
+    product.setData(productKey, () => updated);
     showSuccess(<>{what} saved.</>);
   };
 

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.auth import RequiredActor, require_catalogue_writer
 from app.db import DbCursor
 from app.errors import ERROR_RESPONSES
 from app.schemas.products import ProductCreate, ProductDetail, ProductSummary, ProductUpdate, Spec
@@ -20,7 +21,8 @@ def list_products(
 
 
 @router.post("", response_model=ProductDetail, status_code=201)
-def create_product(body: ProductCreate, cur: DbCursor):
+def create_product(body: ProductCreate, actor: RequiredActor, cur: DbCursor):
+    require_catalogue_writer(actor)
     return products.create_product(cur, body)
 
 
@@ -30,10 +32,12 @@ def get_product(product_id: int, cur: DbCursor):
 
 
 @router.patch("/{product_id}", response_model=ProductDetail)
-def update_product(product_id: int, body: ProductUpdate, cur: DbCursor):
+def update_product(product_id: int, body: ProductUpdate, actor: RequiredActor, cur: DbCursor):
+    require_catalogue_writer(actor)
     return products.update_product(cur, product_id, body.model_dump(exclude_unset=True, exclude_none=True))
 
 
 @router.put("/{product_id}/specs", response_model=list[Spec])
-def replace_specs(product_id: int, body: list[Spec], cur: DbCursor):
+def replace_specs(product_id: int, body: list[Spec], actor: RequiredActor, cur: DbCursor):
+    require_catalogue_writer(actor)
     return products.replace_specs(cur, product_id, body)

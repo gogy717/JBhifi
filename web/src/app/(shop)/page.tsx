@@ -13,8 +13,10 @@ import { useLoad } from "@/lib/use-load";
 const discount = (p: Promotion) => 1 - Number(p.sale_price) / Number(p.base_price);
 
 export default function HomePage() {
-  const { customerLoading, customer, store, homeState, retailStores, setStoreId, categories, loadError, reload } =
-    useShop();
+  const { customerLoading, customer, store, homeState, retailStores, setStoreId, categories, loadError,
+    customerError, reload } = useShop();
+  // The greeting area reports whichever failure the viewer can act on first.
+  const greetingError = customerError ?? loadError;
   const storeId = store?.store_id;
 
   const deals = useLoad("deals:active", () =>
@@ -59,9 +61,9 @@ export default function HomePage() {
                 {customer ? `Hi, ${customer.full_name.split(" ")[0]}` : "Welcome to JB Hi-Fi"}
               </h1>
             )}
-          {loadError ? (
+          {greetingError ? (
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <ErrorBox error={loadError} />
+              <ErrorBox error={greetingError} />
               <Button onClick={retry}>Try again</Button>
             </div>
           ) : (

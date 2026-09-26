@@ -56,6 +56,8 @@ class ErrorResponse(BaseModel):
 
 # Documents the error shape in OpenAPI, so the generated TypeScript client knows it too.
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: {"model": ErrorResponse, "description": "Not signed in (demo session required)"},
+    403: {"model": ErrorResponse, "description": "Signed in, but not allowed to do that"},
     404: {"model": ErrorResponse, "description": "Not found"},
     409: {"model": ErrorResponse, "description": "Rejected by a database rule; code = constraint name"},
     422: {"model": ErrorResponse, "description": "Malformed request"},

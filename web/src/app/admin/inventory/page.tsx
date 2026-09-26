@@ -2,14 +2,14 @@
 
 import { useDeferredValue, useState } from "react";
 
+import { useAdminSession } from "@/components/admin/session";
 import { CategorySelect } from "@/components/category-select";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, LOW_STOCK, Modal, NoticeBanner, PageHeader,
   selectClass, StockBadge, useNotice,
 } from "@/components/ui";
 import {
-  type Adjustment, type AdjustmentReason, type ApiError, api, call, type InventoryRow, type Staff, type Store,
-  toApiError,
+  type Adjustment, type AdjustmentReason, type ApiError, api, call, type InventoryRow, type Store, toApiError,
 } from "@/lib/api/client";
 import { money, signed, timeAgo } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
@@ -24,7 +24,6 @@ const REASONS_FOR = { add: ["received", "stocktake"], remove: ["damaged", "stock
 
 export default function InventoryPage() {
   const [storeId, setStoreId] = useState(1);
-  const [chosenStaffId, setChosenStaffId] = useState<number>();
   const [search, setSearch] = useState("");
   const q = useDeferredValue(search.trim());
   const [categoryId, setCategoryId] = useState<number>();
@@ -33,46 +32,49 @@ export default function InventoryPage() {
   const [dialog, setDialog] = useState<{ row: InventoryRow; direction: "add" | "remove" }>();
   const [busyId, setBusyId] = useState<number>();
   const { notice, showError, showSuccess, clear } = useNotice();
+  const { session, signedIn } = useAdminSession();
 
   const stores = useLoad("stores", () => call(api.GET("/api/v1/stores")));
-  const staff = useLoad("staff", () => call(api.GET("/api/v1/staff")));
   const categories = useLoad("categories", () => call(api.GET("/api/v1/categories")));
-  const inventory = useLoad(`inventory:${storeId}:${q}:${categoryId}:${lowOnly}`, () =>
+  const inventoryKey = `inventory:${storeId}:${q}:${categoryId}:${lowOnly}`;
+  const inventory = useLoad(inventoryKey, () =>
     call(api.GET("/api/v1/stores/{store_id}/inventory", {
       params: {
         path: { store_id: storeId },
         query: { q: q || undefined, category_id: categoryId, low_stock_only: lowOnly, low_stock_threshold: LOW_STOCK },
       },
     })));
-  const history = useLoad(`adjustments:${storeId}`, () =>
-    call(api.GET("/api/v1/stores/{store_id}/adjustments", {
-      params: { path: { store_id: storeId }, query: { limit: 30 } },
-    })));
+  // The history is staff-only, so it is only requested once a staff session exists.
+  const historyKey = `adjustments:${storeId}:${signedIn ? "staff" : "guest"}`;
+  const history = useLoad(historyKey, () =>
+    !signedIn
+      ? Promise.resolve([])
+      : call(api.GET("/api/v1/stores/{store_id}/adjustments", {
+        params: { path: { store_id: storeId }, query: { limit: 30 } },
+      })));
 
   const store = stores.data?.find((s) => s.store_id === storeId);
-  // Until someone is picked, act as the store's manager.
-  const staffId = chosenStaffId ?? store?.manager_id;
-  const actor = staff.data?.find((s) => s.staff_id === staffId);
+  // The server decides this too; the UI only explains it in advance.
+  const canAdjust = signedIn && session?.staff_type === "store" && session.store_id === storeId;
   const rows = inventory.data ?? [];
 
   function changeStore(id: number) {
     setStoreId(id);
-    setChosenStaffId(undefined);
     clear();
   }
 
   /** One API call = one transaction: stock change + log row, or nothing (see app/services/inventory.py). */
   async function adjust(row: InventoryRow, delta: number, reason: AdjustmentReason, note?: string) {
-    if (staffId === undefined) return;
+    if (!canAdjust) return undefined;
     setBusyId(row.product_id);
     try {
       const result = await call(api.POST("/api/v1/stores/{store_id}/inventory/{product_id}/adjustments", {
         params: { path: { store_id: storeId, product_id: row.product_id } },
-        body: { staff_id: staffId, delta, reason, note: note || null },
+        body: { delta, reason, note: note || null },     // who: the session, never this body
       }));
-      inventory.setData((list) =>
+      inventory.setData(inventoryKey, (list) =>
         list.map((r) => (r.product_id === row.product_id ? { ...r, quantity: result.quantity_after } : r)));
-      history.setData((list) => [result, ...list].slice(0, 30));
+      history.setData(historyKey, (list) => [result, ...list].slice(0, 30));
       showSuccess(<>
         <b>{row.name}</b> at {store?.name}: {row.quantity} → <b>{result.quantity_after}</b>
         {" "}({signed(delta)}, {REASONS[reason].toLowerCase()}, by {result.staff_name})
@@ -110,10 +112,12 @@ export default function InventoryPage() {
             <StoreSelect stores={stores.data ?? []} value={storeId} onChange={changeStore} />
           </Field>
           <Field label="Acting as"
-            hint={actor && actor.store_id !== storeId
-              ? <span className="text-amber-700">Doesn&apos;t work here: the database will refuse (BR18).</span>
-              : "Who the log records. (Demo only; a login will replace this.)"}>
-            <StaffSelect staff={staff.data ?? []} value={staffId} onChange={setChosenStaffId} />
+            hint={canAdjust
+              ? "Who the log records — the session's staff member, never this page's request body."
+              : <span className="text-amber-700">
+                Sign in above as staff who work at this store. The database refuses anyone else (BR18).
+              </span>}>
+            <input className={inputClass} readOnly value={canAdjust ? session?.display_name ?? "" : "Not signed in"} />
           </Field>
           <Field label="Search">
             <input className={inputClass} placeholder="Name, SKU or brand" value={search}
@@ -188,10 +192,13 @@ export default function InventoryPage() {
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">
                           <Button size="sm" aria-label={`Remove one ${row.name}`}
-                            disabled={busyId === row.product_id} onClick={() => quickAdjust(row, -1)}>−1</Button>
+                            disabled={!canAdjust || busyId === row.product_id}
+                            onClick={() => quickAdjust(row, -1)}>−1</Button>
                           <Button size="sm" aria-label={`Add one ${row.name}`}
-                            disabled={busyId === row.product_id} onClick={() => quickAdjust(row, 1)}>+1</Button>
-                          <Button size="sm" tone="ghost" onClick={() => setDialog({ row, direction: "add" })}>
+                            disabled={!canAdjust || busyId === row.product_id}
+                            onClick={() => quickAdjust(row, 1)}>+1</Button>
+                          <Button size="sm" tone="ghost" disabled={!canAdjust}
+                            onClick={() => setDialog({ row, direction: "add" })}>
                             Adjust…
                           </Button>
                         </div>
@@ -214,7 +221,7 @@ export default function InventoryPage() {
           row={dialog.row}
           initialDirection={dialog.direction}
           storeName={store?.name ?? ""}
-          actor={actor}
+          actorName={session?.display_name ?? "nobody"}
           onClose={() => setDialog(undefined)}
           onSubmit={async (delta, reason, note) => {
             const error = await adjust(dialog.row, delta, reason, note);
@@ -240,27 +247,6 @@ function StoreSelect({ stores, value, onChange }: {
           {stores.filter((s) => s.state === state).map((s) => (
             <option key={s.store_id} value={s.store_id}>
               {s.name}{s.store_type === "warehouse" ? " (warehouse)" : ""}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
-  );
-}
-
-function StaffSelect({ staff, value, onChange }: {
-  staff: Staff[];
-  value?: number;
-  onChange: (id: number) => void;
-}) {
-  const groups = [...new Set(staff.map((s) => s.store_name ?? "Support (no store)"))];
-  return (
-    <select className={selectClass} value={value ?? ""} onChange={(e) => onChange(Number(e.target.value))}>
-      {groups.map((group) => (
-        <optgroup key={group} label={group}>
-          {staff.filter((s) => (s.store_name ?? "Support (no store)") === group).map((s) => (
-            <option key={s.staff_id} value={s.staff_id}>
-              {s.full_name}{s.is_manager ? " (manager)" : ""}
             </option>
           ))}
         </optgroup>
@@ -299,11 +285,11 @@ function AdjustmentList({ adjustments, loading, error }: {
   );
 }
 
-function AdjustDialog({ row, initialDirection, storeName, actor, onClose, onSubmit }: {
+function AdjustDialog({ row, initialDirection, storeName, actorName, onClose, onSubmit }: {
   row: InventoryRow;
   initialDirection: "add" | "remove";
   storeName: string;
-  actor?: Staff;
+  actorName: string;
   onClose: () => void;
   onSubmit: (delta: number, reason: AdjustmentReason, note: string) => Promise<ApiError | undefined>;
 }) {
@@ -385,7 +371,7 @@ function AdjustDialog({ row, initialDirection, storeName, actor, onClose, onSubm
           Below zero — the database will refuse this (BR03). Save anyway to see it happen.
         </p>
       )}
-      <p className="text-xs text-neutral-500">Logged as {actor?.full_name ?? "…"}.</p>
+      <p className="text-xs text-neutral-500">Logged as {actorName} — from the signed-in session.</p>
 
       {error && <ErrorBox error={error} />}
     </Modal>

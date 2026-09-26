@@ -4,6 +4,61 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — T01: demo sessions and enforced actor permissions
+
+**Identity.** `app/auth.py` issues one signed, HTTP-only cookie (`jbhifi_session`: base64url JSON plus an
+HMAC-SHA256 tag) and re-reads the identity from the database on every request, so a deleted customer or
+staff row ends the session instead of being trusted from the cookie. The cookie carries only
+`{kind, id}`; the store, the staff type and the manager flag come from the row, so a privilege change
+takes effect on the next request. `app/routers/auth.py` exposes the session as
+`GET/POST/DELETE /api/v1/session` — the plan named `POST /auth/demo-login`; one session resource for
+"who am I", set and cleared, is the smaller surface — and `DEMO_MODE=0` refuses to sign anyone in.
+
+**Role matrix (plan §3 decisions).** Public reads stay public: products, categories, brands, stores and
+per-store stock, plus the demo customer directory the storefront picker reads. That last one is a
+deliberate, recorded deviation from the strictest reading of the plan: `GET /customers` still lists
+id/name/email so the picker works before anyone signs in, while `GET /customers/{id}` serves a customer
+only their own record and support staff anyone's — another customer's id is `403 not_your_account`
+without revealing whether it exists. Catalogue and promotion writes need a store manager or support
+staff; stock adjustments and the adjustment log need that store's staff, or support; an absent session
+is `401 not_signed_in` and a wrong one `403` with a distinct code per case. 401 and 403 joined
+`ERROR_RESPONSES`, so the generated client knows them.
+
+**The actor is never in the body.** `staff_id` is gone from `AdjustmentCreate` (which now forbids extra
+fields) and from the admin payload: the API derives the logged staff member from the session, and the
+database still enforces BR18, so a forged body cannot attribute a stock change to someone else. The web
+side replaces the customer-in-localStorage identity with `web/src/lib/session.ts` (a thin `fetch`
+wrapper, deliberately outside the generated types so a sign-in cannot be broken by an API change) and
+per-surface session providers — `AdminSessionProvider` for `/admin`, the shop context for the
+storefront — which declare who that surface acts as, treat the browser's picker as a hint only, and drop
+it on switch.
+
+**Shared web prerequisite (T05's interface, landed here to keep the tree green).**
+`web/src/lib/use-load.ts` now exposes `isCurrent` and applies `setData(expectedKey, update)` only while
+the data on screen still belongs to `expectedKey`, so a late result cannot be written into another
+store's or product's rows.
+
+**Tests.** `tests/test_auth.py` adds 14: guest browsing, the signed HTTP-only cookie, sign-out, a
+tampered cookie, an unknown identity, demo sign-in switched off, a customer reading only their own
+record, support reading any customer, store staff refused customer records, a body that tries to choose
+the staff member, another store's stock, store-scoped history, and catalogue/promotion writes refused
+to customers and ordinary store staff. `tests/test_api.py` still covers every endpoint and rule, but now
+uses a per-test client with an explicit `sign_in(...)`, so one test's session never leaks into the next,
+and its stock cases prove the store-scope refusal (`403 other_store`) alongside the unchanged BR03 and
+BR18 `409`s.
+
+**Verification (actually run).** `pytest -q` → **85 passed** (was 71). `web/`: `npm run typecheck`,
+`npm run lint` and `npm run build` (15 routes) clean. `web/src/lib/api/schema.d.ts` was regenerated from
+the app's own OpenAPI (`app.openapi()`), which is where `SessionIn`/`SessionOut` and the
+`staff_id`-free `AdjustmentCreate` come from. Operational note for the demo: the API process that was
+already running on :8000 was started before this change, so restart it
+(`.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000`) to serve
+`/api/v1/session`.
+
+**AI use.** T01 implemented with Codex (GPT-5) on 2026-09-26. Every command quoted above was run.
+
+---
+
 ## 2026-09-26 — T03: retry keys, cancellation refunds and the return audit trail
 
 **Schema.** `customer_order.request_fingerprint` and `return_request.idempotency_key` /

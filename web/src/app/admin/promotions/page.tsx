@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { useAdminSession } from "@/components/admin/session";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, Modal, NoticeBanner, PageHeader, selectClass, useNotice,
 } from "@/components/ui";
@@ -21,21 +22,31 @@ const STATUS_TONE = { active: "green", upcoming: "blue", ended: "neutral" } as c
 export default function PromotionsPage() {
   const [status, setStatus] = useState<PromotionStatus>();
   const [creating, setCreating] = useState(false);
+  const [busyId, setBusyId] = useState<number>();
   const { notice, showError, showSuccess, clear } = useNotice();
+  const { session, signedIn } = useAdminSession();
+  // Only a store manager or support staff may change the catalogue (the API enforces it too).
+  const canEdit = signedIn && (session?.staff_type === "support" || session?.runs_store === true);
 
-  const promotions = useLoad(`promotions:${status}`, () =>
+  const promotionsKey = `promotions:${status}`;
+  const promotions = useLoad(promotionsKey, () =>
     call(api.GET("/api/v1/promotions", { params: { query: { status } } })));
   const products = useLoad("products", () => call(api.GET("/api/v1/products")));
 
   async function remove(promotion: Promotion) {
+    if (busyId !== undefined) return;              // one deletion at a time: no double-click duplicates
+    setBusyId(promotion.promotion_id);
     try {
       await call(api.DELETE("/api/v1/promotions/{promotion_id}", {
         params: { path: { promotion_id: promotion.promotion_id } },
       }));
-      promotions.setData((list) => list.filter((p) => p.promotion_id !== promotion.promotion_id));
+      promotions.setData(promotionsKey,
+        (list) => list.filter((p) => p.promotion_id !== promotion.promotion_id));
       showSuccess(<>Deleted the {money(promotion.sale_price)} promotion on <b>{promotion.product_name}</b>.</>);
     } catch (e) {
       showError(toApiError(e));
+    } finally {
+      setBusyId(undefined);
     }
   }
 
@@ -49,7 +60,9 @@ export default function PromotionsPage() {
           A sale price for one product over a period. The database refuses a sale price that isn&apos;t below the
           base price, and two promotions for the same product that overlap in time (BR15, a trigger).
         </>}
-        actions={<Button tone="primary" onClick={() => setCreating(true)}>New promotion</Button>}
+        actions={
+          <Button tone="primary" disabled={!canEdit} onClick={() => setCreating(true)}>New promotion</Button>
+        }
       />
       <NoticeBanner notice={notice} onClose={clear} />
 
@@ -101,7 +114,9 @@ export default function PromotionsPage() {
                       {formatDateTime(p.starts_at)}<br />→ {formatDateTime(p.ends_at)}
                     </td>
                     <td className="px-4 py-2.5"><Badge tone={STATUS_TONE[p.status]}>{p.status}</Badge></td>
-                    <td className="px-4 py-2.5 text-right"><DeleteButton onConfirm={() => remove(p)} /></td>
+                    <td className="px-4 py-2.5 text-right">
+                      <DeleteButton disabled={!canEdit || busyId !== undefined} onConfirm={() => remove(p)} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -126,8 +141,9 @@ export default function PromotionsPage() {
 }
 
 /** Two clicks instead of a browser confirm() dialog. */
-function DeleteButton({ onConfirm }: { onConfirm: () => void }) {
+function DeleteButton({ onConfirm, disabled }: { onConfirm: () => void; disabled?: boolean }) {
   const [armed, setArmed] = useState(false);
+  if (disabled) return <Button size="sm" tone="ghost" disabled>Delete…</Button>;
   return armed ? (
     <span className="inline-flex gap-1">
       <Button size="sm" tone="danger" onClick={onConfirm}>Delete</Button>
