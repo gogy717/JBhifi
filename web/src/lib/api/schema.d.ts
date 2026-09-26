@@ -267,6 +267,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Order */
+        post: operations["create_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Order */
+        get: operations["read_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customer_id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Customer Orders */
+        get: operations["list_customer_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -396,6 +447,19 @@ export interface components {
             /** Email */
             email: string;
         };
+        /** DeliveryAddress */
+        DeliveryAddress: {
+            /** Address No */
+            address_no: number;
+            /** Line1 */
+            line1: string;
+            /** Suburb */
+            suburb: string;
+            /** State */
+            state: string;
+            /** Postcode */
+            postcode: string;
+        };
         /** ErrorInfo */
         ErrorInfo: {
             /** Code */
@@ -429,6 +493,133 @@ export interface components {
             is_active: boolean;
             /** Quantity */
             quantity: number;
+        };
+        /** OrderCreate */
+        OrderCreate: {
+            /**
+             * Fulfilment Method
+             * @enum {string}
+             */
+            fulfilment_method: "delivery" | "click_collect";
+            /** Fulfilling Store Id */
+            fulfilling_store_id: number;
+            /** Delivery Address No */
+            delivery_address_no?: number | null;
+            /** Items */
+            items: components["schemas"]["OrderItemIn"][];
+            /** Expected Total */
+            expected_total: number | string;
+        };
+        /** OrderDetail */
+        OrderDetail: {
+            /** Order Id */
+            order_id: number;
+            /** Customer Id */
+            customer_id: number;
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            /** Status */
+            status: string;
+            /**
+             * Fulfilment Method
+             * @enum {string}
+             */
+            fulfilment_method: "delivery" | "click_collect";
+            /** Fulfilling Store Id */
+            fulfilling_store_id: number;
+            /** Fulfilling Store Name */
+            fulfilling_store_name: string;
+            /** Total */
+            total: string;
+            /** Line Count */
+            line_count: number;
+            /** Lines */
+            lines: components["schemas"]["OrderLine"][];
+            delivery_address: components["schemas"]["DeliveryAddress"] | null;
+            /** Payments */
+            payments: components["schemas"]["Payment"][];
+            /** History */
+            history: components["schemas"]["StatusChange"][];
+            /** Allowed Actions */
+            allowed_actions: string[];
+        };
+        /**
+         * OrderItemIn
+         * @description One requested line. There is no unit price and no customer: those are the server's.
+         */
+        OrderItemIn: {
+            /** Product Id */
+            product_id: number;
+            /** Quantity */
+            quantity: number;
+        };
+        /** OrderLine */
+        OrderLine: {
+            /** Line No */
+            line_no: number;
+            /** Product Id */
+            product_id: number;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: string;
+            /** Line Total */
+            line_total: string;
+        };
+        /** OrderSummary */
+        OrderSummary: {
+            /** Order Id */
+            order_id: number;
+            /** Customer Id */
+            customer_id: number;
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            /** Status */
+            status: string;
+            /**
+             * Fulfilment Method
+             * @enum {string}
+             */
+            fulfilment_method: "delivery" | "click_collect";
+            /** Fulfilling Store Id */
+            fulfilling_store_id: number;
+            /** Fulfilling Store Name */
+            fulfilling_store_name: string;
+            /** Total */
+            total: string;
+            /** Line Count */
+            line_count: number;
+        };
+        /** Payment */
+        Payment: {
+            /** Payment Id */
+            payment_id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "charge" | "refund";
+            /** Amount */
+            amount: string;
+            /** Return Id */
+            return_id: number | null;
+            /** Cancellation Id */
+            cancellation_id: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** ProductCreate */
         ProductCreate: {
@@ -627,6 +818,24 @@ export interface components {
             store_name: string | null;
             /** Is Manager */
             is_manager: boolean;
+        };
+        /** StatusChange */
+        StatusChange: {
+            /** Seq */
+            seq: number;
+            /** From Status */
+            from_status: string | null;
+            /** To Status */
+            to_status: string;
+            /**
+             * Changed At
+             * Format: date-time
+             */
+            changed_at: string;
+            /** Changed By Staff Id */
+            changed_by_staff_id: number | null;
+            /** Changed By Name */
+            changed_by_name: string | null;
         };
         /** StoreOut */
         StoreOut: {
@@ -1973,6 +2182,211 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_order: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_customer_orders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSummary"][];
                 };
             };
             /** @description Not signed in (demo session required) */
