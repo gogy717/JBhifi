@@ -59,13 +59,16 @@ Three terminals, each starting in the repo root:
 The first `docker compose up` creates the tables and loads the seed data from `sql/` (a few seconds).
 Port 5433 is deliberate, so it can't clash with a PostgreSQL you may already run on 5432.
 
-**Storefront** (`/`): the home page is live — current deals with stock at your store, categories, stores near
-you. Pick a demo customer under "Signed in as" and a store under "My store". The other customer pages (catalogue,
-product, cart, checkout, orders, returns, stores, account) are *reserved*: each says what it will do, which
-requirements and rules it covers, and which API it needs.
+**Storefront** (`/`): sign in (demo) under "Signed in as" and pick a store under "My store". Deals, the
+catalogue with search/category/brand/price filters, product details with per-store stock, a browser cart,
+checkout for delivery or Click & Collect, your orders with their timelines, return requests, and your
+account with add-and-retire addresses. Stock is only guaranteed when checkout commits — the database takes
+it in the same transaction that writes the order and the payment.
 
-**Store admin** (`/admin`): pick a store and use **±1** or **Adjust…** to change stock; edit products, specs and
-prices; create promotions. When the database refuses something (stock below zero, staff from another store,
+**Store admin** (`/admin`): pick a staff member in the sign-in bar. Use **±1** or **Adjust…** on Inventory
+to change stock, work the **Orders** queue (picking → ready/shipped → collected/delivered, or cancel with
+its refund), run the **Returns** desk (receive, reject, process the refund), and manage products, specs,
+prices and promotions. When the database refuses something (stock below zero, staff from another store,
 a sale price above the base price…) the page shows which rule refused it, e.g. `br03_inventory_qty_nonneg`.
 
 ## Everyday commands
