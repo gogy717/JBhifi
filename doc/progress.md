@@ -4,6 +4,48 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — T00: canonical project and runnable baseline
+
+Established the root checkout as the single working tree and recorded a verified starting point before
+implementation began.
+
+- **Working tree.** All work targets the repository root. The nested `JBhifi/` gitlink is documented as a
+  duplicate and left untouched (keep/remove is still a team decision). See `doc/requirements.md` §1.
+- **Requirements.** Wrote `doc/requirements.md` from the repository's own R#/BR# wording and the proposed
+  decisions, marking R7–R10 and R12 and the original T3+ tasks as **unknown** rather than inventing them.
+- **Test isolation.** `POSTGRES_TEST_DB` (default `jbhifi_test`) selects the disposable test database, and
+  `assert_is_test_database` refuses to let any fixture drop/rebuild the demo database or a name that is not
+  test-shaped. `docker-compose.yml` is untouched: the demo database and data survive a test run.
+- **Baseline checks (actually run on 2026-09-26, on this machine).**
+  - `docker compose up -d` → PostgreSQL 18.6 on `localhost:5433`, seed loaded (48 products, 4 customers).
+  - `pytest -q` → **42 passed** (31 business-rule + 4 stock-transaction + 7 API tests) in ~3 s.
+  - `web/`: `npm ci` (382 packages, 0 vulnerabilities) → `npm run typecheck`, `npm run lint`,
+    `npm run build` all clean. Node 24.19.0, npm 11.17.0, Python 3.12, `postgres:18`.
+  - Tool versions installed: fastapi 0.141.1, pydantic 2.13.5, psycopg2-binary 2.9.13, pytest 9.1.1,
+    next 16.3.6, react 19.2.8, typescript 5.
+- **AI use.** T00 executed with Codex (GPT-5) on 2026-09-26: environment provisioning, the test-isolation
+  guard and this record. All commands above were actually run and their real output recorded.
+
+---
+
+## 2026-09-26 — Implementation audit and detailed todo plan
+
+Reviewed the root project, with separate read-only backend, database and frontend audits, and wrote
+[`todo.md`](../todo.md). The user selected the current repository requirements as the source because the
+referenced `.claude/plan.md` is absent. The plan distinguishes existing code, missing workflows, confirmed
+requirements and proposed decisions, including retry support, cancellation refunds and reporting scope.
+
+**Verification during planning.** Compared all 82 regular tracked root files with the nested `JBhifi/`
+checkout: identical. Parsed 23 app and 6 test Python files successfully and counted 42 test functions.
+These are static checks only. Application tests, frontend checks and browser journeys were not rerun:
+this checkout lacks installed frontend dependencies, `.env` and the required runnable test/API setup.
+No application code or database content was changed.
+
+**AI use.** Repository audit and planning performed with Codex, including three read-only subsystem
+agents. Implementation tasks in `todo.md` remain unchecked.
+
+---
+
 ## 2026-09-26 — Branch `storefront`: customer home page, reserved customer pages
 
 **What's on the branch.**
@@ -335,4 +377,3 @@ print(f"  RESULT: stock left {stock_left()}")
 
 **AI use.** This experiment was designed and run with Claude Code; the output above is from an actual run.
 Include it in the submission's AI-use acknowledgement.
-

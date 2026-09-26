@@ -1,4 +1,9 @@
-"""How tests reach the test database. Imported by conftest.py before the app, so the app uses it too."""
+"""How tests reach the test database. Imported by conftest.py before the app, so the app uses it too.
+
+The test database is deliberately separate from the demo database, and its name is asserted before any
+fixture drops or rebuilds it (see ``assert_is_test_database``). Point ``POSTGRES_TEST_DB`` at another
+database only when that database is disposable.
+"""
 import os
 import uuid
 
@@ -7,9 +12,30 @@ from dotenv import load_dotenv
 from psycopg2.extras import RealDictCursor
 
 load_dotenv()
-TEST_DB = "jbhifi_test"
+
+# The name of the disposable database the fixtures drop and rebuild. Overridable, but must stay clearly
+# test-shaped so a misconfiguration can't point it at the demo database.
+TEST_DB = os.environ.get("POSTGRES_TEST_DB", "jbhifi_test")
 # app/db.py reads POSTGRES_DB on every connect, so the API under test talks to the test database.
 os.environ["POSTGRES_DB"] = TEST_DB
+
+
+def assert_is_test_database(dbname: str) -> None:
+    """Refuse to let a fixture destroy a database that doesn't look like a test one.
+
+    Every fixture that drops or rebuilds a database runs this first. ``jbhifi`` (the demo database named
+    in docker-compose.yml) can never be selected, so ``pytest`` is safe to run against the running stack.
+    """
+    if dbname == os.environ.get("POSTGRES_DB_DEMO", "jbhifi"):
+        raise RuntimeError(
+            f"refusing to run tests against the demo database {dbname!r}: "
+            f"set POSTGRES_TEST_DB to a disposable database name"
+        )
+    if not dbname.endswith(("_test", "_demo")):
+        raise RuntimeError(
+            f"refusing to drop/rebuild {dbname!r}: the test database name must end in _test or _demo "
+            f"(POSTGRES_TEST_DB)"
+        )
 
 
 def connect(dbname: str = TEST_DB):

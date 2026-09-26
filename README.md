@@ -81,7 +81,8 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 
 `sql/*.sql` only run when the database volume is empty — **after editing or pulling changes to anything in
 `sql/`, reset the database** or you won't see the change. `pytest` never touches your data: it rebuilds a separate
-`jbhifi_test` database from `sql/` on every run.
+`jbhifi_test` database from `sql/` on every run. The fixtures refuse to run against a database whose name is not
+test-shaped (`POSTGRES_TEST_DB`, see `.env.example`), so the demo database is safe.
 
 ## Project layout
 
@@ -91,7 +92,12 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 | `app/` | FastAPI. `routers/` handle HTTP only; `services/` hold the SQL (one call = one transaction); `errors.py` turns a rule violation into a 409 whose `code` is the constraint name |
 | `tests/` | `test_business_rules.py` (one test per BR), `test_transactions.py` (stock adjustments under concurrency), `test_api.py` |
 | `web/` | Next.js: the customer storefront (`/`) and the store admin (`/admin`) — see [`web/README.md`](web/README.md) |
+| `doc/requirements.md` | The recovered requirements (R#/BR#), the decisions that fill implementation gaps, and what is out of scope |
 | `doc/progress.md` | decisions, experiments and AI-use notes, newest first |
+
+`JBhifi/` is a nested second checkout of this repository (a Git gitlink with no `.gitmodules`). It is a
+duplicate kept for reference and is **not** part of the working tree — make every change at the repository
+root. See `doc/requirements.md` §1 for the team's still-open keep/remove decision.
 
 ## Troubleshooting
 
