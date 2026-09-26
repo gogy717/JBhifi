@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas import Money
+from app.schemas.returns import ReturnEligibility
 
 FulfilmentMethod = Literal["delivery", "click_collect"]
 OrderStatus = Literal["placed", "paid", "picking", "shipped", "delivered", "ready", "collected", "cancelled"]
@@ -83,6 +84,8 @@ class OrderDetail(OrderSummary):
     history: list[StatusHistoryEntry]
     # What this actor may do next, computed by the server from the order's status.
     allowed_actions: list[str]
+    # Whether and how much of this order can still be returned (T13).
+    return_eligibility: ReturnEligibility
 
 
 class StatusChange(BaseModel):

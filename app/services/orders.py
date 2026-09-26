@@ -8,6 +8,7 @@ Lock order (see doc/data-model.md): the customer, then the fulfilment address, t
 ascending id order, then inventory in ascending (store, product) order. Every workflow that touches these
 tables uses the same order, so two of them cannot deadlock.
 """
+from datetime import timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -300,6 +301,7 @@ def _detail(cur, actor: Actor, order: dict) -> dict:
         "payments": payments,
         "history": history,
         "allowed_actions": allowed_actions(cur, actor, order),
+        "return_eligibility": order_eligibility(cur, order),
     })
     return detail
 
@@ -323,8 +325,63 @@ def allowed_actions(cur, actor: Actor, order: dict) -> list[str]:
 
 
 def customer_actions(cur, actor: Actor, order: dict) -> list[str]:
-    """A customer may ask to return a completed order (T13 fills in the deadline and quantities)."""
-    return []
+    """A customer may ask to return a completed order while the 30-day window is open."""
+    if actor.kind != "customer" or order["customer_id"] != actor.id:
+        return []
+    return ["request_return"] if order_eligibility(cur, order)["eligible"] else []
+
+
+# ---------------------------------------------------------------- return eligibility (T13)
+
+RETURN_WINDOW = timedelta(days=30)
+
+RETURNABLE_LINES = """
+    SELECT l.line_no, l.product_id, p.sku, p.name, l.quantity, l.unit_price,
+           COALESCE(r.returned, 0)                    AS returned_quantity,
+           l.quantity - COALESCE(r.returned, 0)       AS remaining_quantity
+    FROM order_line l
+    JOIN product p ON p.product_id = l.product_id
+    LEFT JOIN (
+        SELECT rl.order_id, rl.line_no, sum(rl.quantity) AS returned
+        FROM return_line rl
+        JOIN return_request rr ON rr.return_id = rl.return_id
+        WHERE rr.status <> 'rejected'                 -- a rejected request releases its quantities
+        GROUP BY rl.order_id, rl.line_no
+    ) r ON r.order_id = l.order_id AND r.line_no = l.line_no
+    WHERE l.order_id = %s
+    ORDER BY l.line_no
+"""
+
+
+def return_window(cur, order: dict) -> dict:
+    """When the order was completed and when its 30-day window closes — BR11's subject, nothing else."""
+    cur.execute(
+        "SELECT max(h.changed_at) AS completed_at, now() AS at FROM order_status_history h "
+        "WHERE h.order_id = %s AND h.to_status = %s",
+        (order["order_id"], order["status"]),
+    )
+    timing = cur.fetchone()
+    completed_at, at = timing["completed_at"], timing["at"]
+    deadline = completed_at + RETURN_WINDOW if completed_at is not None else None
+    completed = order["status"] in ("delivered", "collected") and completed_at is not None
+    return {"completed_at": completed_at, "deadline": deadline, "open": completed and at <= deadline}
+
+
+def order_eligibility(cur, order: dict) -> dict:
+    """May this order still be returned? Combines the window with what is actually left to send back."""
+    window = return_window(cur, order)
+    cur.execute(RETURNABLE_LINES, (order["order_id"],))
+    lines = cur.fetchall()
+
+    if window["completed_at"] is None or order["status"] not in ("delivered", "collected"):
+        reason = "Only a delivered or collected order can be returned."
+    elif not window["open"]:
+        reason = f"The 30-day return window closed on {window['deadline'].date().isoformat()}."
+    elif not any(line["remaining_quantity"] > 0 for line in lines):
+        reason = "Every item on this order has already been returned."
+    else:
+        reason = None
+    return {"eligible": reason is None, "deadline": window["deadline"], "reason": reason, "lines": lines}
 
 
 # ---------------------------------------------------------------- staff fulfilment (T11)

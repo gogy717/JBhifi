@@ -85,6 +85,54 @@ def staff_client(staff_id: int) -> TestClient:
     return sign_in(TestClient(app), "staff", staff_id)
 
 
+def a_completed_order(*, method="click_collect", store_id=SYDNEY_CBD, quantity=2, price="189.00",
+                      stock=5, staff_id=AIDEN, name="Test item"):
+    """A charged order taken all the way to collected (or delivered).
+
+    Returns (customer client, staff client, product, order detail) — the customer's own client still
+    carries the customer's cookie while the staff client carries the store's.
+    """
+    customer_id, numbers = a_customer()
+    product = a_product(price=price, stock=stock, store_id=store_id, name=name)
+    customer = shop_client(customer_id)
+    response = place(customer, order_body([(product, quantity)], method=method, store_id=store_id,
+                                          address_no=numbers[0] if method == "delivery" else None))
+    assert response.status_code == 201, response.text
+    staff = staff_client(staff_id)
+    order = response.json()
+    moves = ("picking", "shipped", "delivered") if method == "delivery" else ("picking", "ready", "collected")
+    for to_status in moves:
+        order = staff.patch(f"{API}/orders/{order['order_id']}/status",
+                            json={"to_status": to_status, "expected_status": order["status"]}).json()
+    return customer, staff, product, order
+
+
+def backdate_completion(order_id: int, when):
+    """Move a committed order's recorded status times back. Maintenance: needs table ownership."""
+    conn = connect()
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute("ALTER TABLE order_status_history DISABLE TRIGGER order_status_history_append_only")
+            cur.execute("UPDATE order_status_history SET changed_at = %s WHERE order_id = %s", (when, order_id))
+            cur.execute("ALTER TABLE order_status_history ENABLE TRIGGER order_status_history_append_only")
+    finally:
+        conn.close()
+
+
+def request_return(client: TestClient, order_id: int, lines, reason="Changed my mind", key=None):
+    """POST a return request. `lines` is [(line_no, quantity)]."""
+    return client.post(
+        f"{API}/orders/{order_id}/returns",
+        json={"reason": reason, "lines": [{"line_no": line_no, "quantity": quantity}
+                                          for line_no, quantity in lines]},
+        headers={"Idempotency-Key": str(key or uuid.uuid4())},
+    )
+
+
+def return_action(client: TestClient, return_id: int, action: str, expected_status: str):
+    return client.post(f"{API}/returns/{return_id}/{action}", json={"expected_status": expected_status})
+
+
 def order_body(items, *, method="click_collect", store_id=SYDNEY_CBD, address_no=None,
                expected_total=None):
     """An OrderCreate payload. `items` is [(product, quantity)] using a_product()'s dict."""
