@@ -11,6 +11,8 @@ tables uses the same order, so two of them cannot deadlock.
 from decimal import Decimal
 from uuid import UUID
 
+from psycopg2 import sql
+
 from app.auth import Actor
 from app.errors import ApiError, NotFound
 from app.services.idempotency import money, order_fingerprint
@@ -90,8 +92,8 @@ def checkout(cur, actor: Actor, key: UUID, body) -> tuple[dict, bool]:
 
     _take_stock(cur, store["store_id"], lines)
     record_charge(cur, order_id, total)               # nothing at all for a zero-total order
-    _set_status(cur, order_id, "paid", staff_id=None)  # the customer's own change: no staff actor
-    _flush_deferred(cur)
+    set_status(cur, order_id, "paid", staff_id=None)   # the customer's own change: no staff actor
+    flush_deferred(cur)
     return get_order(cur, actor, order_id), False
 
 
@@ -184,13 +186,13 @@ def _take_stock(cur, store_id: int, lines: list[dict]) -> None:
                             "requested": line["quantity"], "available": available})
 
 
-def _set_status(cur, order_id: int, status: str, staff_id: int | None) -> None:
+def set_status(cur, order_id: int, status: str, staff_id: int | None) -> None:
     """Move the status, telling BR09's log who did it (NULL = the customer or the system)."""
     cur.execute("SELECT set_config('app.staff_id', %s, true)", ("" if staff_id is None else str(staff_id),))
     cur.execute("UPDATE customer_order SET status = %s WHERE order_id = %s", (status, order_id))
 
 
-def _flush_deferred(cur) -> None:
+def flush_deferred(cur) -> None:
     """Run any DEFERRED constraints now, so a rule that only fails at COMMIT fails inside the request."""
     cur.execute("SET CONSTRAINTS ALL IMMEDIATE")
 
@@ -305,7 +307,7 @@ def _detail(cur, actor: Actor, order: dict) -> dict:
 def allowed_actions(cur, actor: Actor, order: dict) -> list[str]:
     """What this actor may do next — the server's answer, so no page keeps its own copy of the rules."""
     if actor.kind != "staff" or actor.is_support:
-        return []                                    # customers act through /returns (T13)
+        return customer_actions(cur, actor, order)
     if order["fulfilling_store_id"] != actor.store_id:
         return []
     cur.execute(
@@ -318,6 +320,77 @@ def allowed_actions(cur, actor: Actor, order: dict) -> list[str]:
     if "cancelled" in moves:
         actions.append("cancel")                     # cancellation is its own transaction (T11)
     return actions
+
+
+def customer_actions(cur, actor: Actor, order: dict) -> list[str]:
+    """A customer may ask to return a completed order (T13 fills in the deadline and quantities)."""
+    return []
+
+
+# ---------------------------------------------------------------- staff fulfilment (T11)
+
+def lock_order(cur, order_id: int) -> dict:
+    """Lock the order row, which is what makes every status check below decisive."""
+    cur.execute(
+        "SELECT order_id, customer_id, status, fulfilment_method, fulfilling_store_id "
+        "FROM customer_order WHERE order_id = %s FOR UPDATE",
+        (order_id,),
+    )
+    order = cur.fetchone()
+    if order is None:
+        raise NotFound("Order", order_id)
+    return order
+
+
+def require_own_store(actor: Actor, order: dict) -> None:
+    """Fulfilment is done by the fulfilling store's own staff; support may look but not move."""
+    if actor.kind != "staff":
+        raise ApiError(403, "staff_only", "Only staff can move an order along.")
+    if actor.is_support:
+        raise ApiError(403, "store_staff_only", "Support staff can read orders but not fulfil them.")
+    if actor.store_id != order["fulfilling_store_id"]:
+        raise ApiError(403, "other_store", "That order is fulfilled by another store.")
+
+
+def transition_order(cur, actor: Actor, order_id: int, body) -> dict:
+    """One legal status move, or a precise reason it did not happen."""
+    order = lock_order(cur, order_id)
+    require_own_store(actor, order)
+    if body.to_status == "cancelled":
+        raise ApiError(409, "cancellation_required",
+                       "Cancelling an order restores stock and refunds money, so it has its own endpoint: "
+                       "POST /api/v1/orders/{order_id}/cancel.")
+    if order["status"] == body.to_status:
+        return get_order(cur, actor, order_id)        # already there: no second history entry
+    if order["status"] != body.expected_status:
+        raise ApiError(409, "stale_status", "This order has already moved on.",
+                       {"status": order["status"]})
+    cur.execute(
+        "SELECT 1 FROM order_status_transition WHERE fulfilment_method = %s AND from_status = %s "
+        "AND to_status = %s",
+        (order["fulfilment_method"], order["status"], body.to_status),
+    )
+    if cur.fetchone() is None:
+        raise ApiError(409, "br09_order_status_transition",
+                       f"A {order['fulfilment_method']} order cannot move from {order['status']} "
+                       f"to {body.to_status}.")
+    set_status(cur, order_id, body.to_status, staff_id=actor.id)
+    flush_deferred(cur)
+    return get_order(cur, actor, order_id)
+
+
+def list_store_orders(cur, store_id: int, status: str | None = None) -> list[dict]:
+    """The store's queue: newest first, optionally one status."""
+    conditions, params = [sql.SQL("o.fulfilling_store_id = %s")], [store_id]
+    if status is not None:
+        conditions.append(sql.SQL("o.status = %s"))
+        params.append(status)
+    cur.execute(
+        sql.SQL(ORDER_SELECT) + sql.SQL(" WHERE ") + sql.SQL(" AND ").join(conditions)
+        + sql.SQL(" ORDER BY o.placed_at DESC, o.order_id DESC"),
+        params,
+    )
+    return [_summary(row) for row in cur.fetchall()]
 
 
 def _line_json(line: dict) -> dict:

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas import Money
 
 FulfilmentMethod = Literal["delivery", "click_collect"]
+OrderStatus = Literal["placed", "paid", "picking", "shipped", "delivered", "ready", "collected", "cancelled"]
 
 
 class OrderItemIn(BaseModel):
@@ -54,10 +55,10 @@ class Payment(BaseModel):
     created_at: datetime
 
 
-class StatusChange(BaseModel):
+class StatusHistoryEntry(BaseModel):
     seq: int
-    from_status: str | None
-    to_status: str
+    from_status: OrderStatus | None
+    to_status: OrderStatus
     changed_at: datetime
     changed_by_staff_id: int | None
     changed_by_name: str | None
@@ -67,7 +68,7 @@ class OrderSummary(BaseModel):
     order_id: int
     customer_id: int
     placed_at: datetime
-    status: str
+    status: OrderStatus
     fulfilment_method: FulfilmentMethod
     fulfilling_store_id: int
     fulfilling_store_name: str
@@ -79,6 +80,21 @@ class OrderDetail(OrderSummary):
     lines: list[OrderLine]
     delivery_address: DeliveryAddress | None
     payments: list[Payment]
-    history: list[StatusChange]
+    history: list[StatusHistoryEntry]
     # What this actor may do next, computed by the server from the order's status.
     allowed_actions: list[str]
+
+
+class StatusChange(BaseModel):
+    """A staff fulfilment move. `expected_status` is what the screen was showing, so a stale one is told."""
+    model_config = ConfigDict(extra="forbid")
+
+    to_status: OrderStatus
+    expected_status: OrderStatus
+
+
+class CancellationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_status: OrderStatus
+    reason: str = Field(min_length=1, max_length=500)
