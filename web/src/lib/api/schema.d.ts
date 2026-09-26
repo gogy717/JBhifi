@@ -543,6 +543,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sales
+         * @description Money captured and refunded in the period, by each payment's own event time, per store.
+         */
+        get: operations["sales"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/low-stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Low Stock
+         * @description Active products at or below the threshold, including ones never stocked at that store.
+         */
+        get: operations["low_stock"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/returns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Returns
+         * @description The cohort of return requests created in the period, with their current status and refunds.
+         */
+        get: operations["returns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -753,6 +813,36 @@ export interface components {
             is_active: boolean;
             /** Quantity */
             quantity: number;
+        };
+        /** LowStockReport */
+        LowStockReport: {
+            /** Store Id */
+            store_id: number;
+            /** Store Name */
+            store_name: string;
+            /** Threshold */
+            threshold: number;
+            /** Rows */
+            rows: components["schemas"]["LowStockRow"][];
+        };
+        /** LowStockRow */
+        LowStockRow: {
+            /** Product Id */
+            product_id: number;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Brand */
+            brand: string;
+            /** Category */
+            category: string;
+            /** Current Price */
+            current_price: string;
+            /** Quantity */
+            quantity: number;
+            /** Has Inventory Row */
+            has_inventory_row: boolean;
         };
         /** OrderCreate */
         OrderCreate: {
@@ -1040,6 +1130,32 @@ export interface components {
             name: string;
         };
         /**
+         * ReportWindow
+         * @description The interval every report is measured over: Sydney calendar dates, `from` inclusive, `to` exclusive.
+         */
+        ReportWindow: {
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+            /**
+             * From At
+             * Format: date-time
+             */
+            from_at: string;
+            /**
+             * To At
+             * Format: date-time
+             */
+            to_at: string;
+        };
+        /**
          * ReturnAction
          * @description A staff action on a return. `expected_status` is what the screen was showing.
          */
@@ -1191,6 +1307,58 @@ export interface components {
             returned_quantity: number;
             /** Remaining Quantity */
             remaining_quantity: number;
+        };
+        /** ReturnsReport */
+        ReturnsReport: {
+            window: components["schemas"]["ReportWindow"];
+            /** Rows */
+            rows: components["schemas"]["ReturnsRow"][];
+            totals: components["schemas"]["ReturnsRow"];
+        };
+        /** ReturnsRow */
+        ReturnsRow: {
+            /** Store Id */
+            store_id: number;
+            /** Store Name */
+            store_name: string;
+            /** Requested Count */
+            requested_count: number;
+            /** Received Count */
+            received_count: number;
+            /** Refunded Count */
+            refunded_count: number;
+            /** Rejected Count */
+            rejected_count: number;
+            /** Refunded Amount */
+            refunded_amount: string;
+            /** Receiving Stores */
+            receiving_stores: string | null;
+        };
+        /** SalesReport */
+        SalesReport: {
+            window: components["schemas"]["ReportWindow"];
+            /** Rows */
+            rows: components["schemas"]["SalesRow"][];
+            totals: components["schemas"]["SalesRow"];
+        };
+        /** SalesRow */
+        SalesRow: {
+            /** Store Id */
+            store_id: number;
+            /** Store Name */
+            store_name: string;
+            /** Captured Amount */
+            captured_amount: string;
+            /** Refunded Amount */
+            refunded_amount: string;
+            /** Net Receipts */
+            net_receipts: string;
+            /** Order Count */
+            order_count: number;
+            /** Charged Orders */
+            charged_orders: number;
+            /** Refund Count */
+            refund_count: number;
         };
         /**
          * SessionIn
@@ -3683,6 +3851,212 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReturnDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sales: {
+        parameters: {
+            query?: {
+                store_id?: number | null;
+                from_date?: string | null;
+                to_date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalesReport"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    low_stock: {
+        parameters: {
+            query?: {
+                store_id?: number | null;
+                threshold?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LowStockReport"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    returns: {
+        parameters: {
+            query?: {
+                store_id?: number | null;
+                from_date?: string | null;
+                to_date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnsReport"];
                 };
             };
             /** @description Not signed in (demo session required) */

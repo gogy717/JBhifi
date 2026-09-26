@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/admin/returns", label: "Returns", hint: "Receive, reject, refund" },
   { href: "/admin/products", label: "Products", hint: "Catalogue, prices, specs" },
   { href: "/admin/promotions", label: "Promotions", hint: "Sale prices over a period" },
+  { href: "/admin/reports", label: "Reports", hint: "Sales, low stock, returns" },
 ];
 
 export function Sidebar() {
