@@ -4,6 +4,7 @@ import Form from "next/form";
 import Link from "next/link";
 
 import { useShop } from "@/components/shop/context";
+import { useCart } from "@/lib/cart-context";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 
 const pickerClass =
@@ -12,6 +13,7 @@ const pickerClass =
 
 export function ShopHeader() {
   const { customers, chosenCustomerId, setCustomerId, retailStores, store, setStoreId, categories } = useShop();
+  const { count } = useCart();
   const states = [...new Set(retailStores.map((s) => s.state))];
 
   return (
@@ -66,6 +68,12 @@ export function ShopHeader() {
           <Link href={SHOP_PAGES.cart.href}
             className="flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-neutral-900 hover:bg-yellow-400">
             <CartIcon /> Cart
+            {count > 0 && (
+              <span className="rounded-full bg-neutral-900 px-1.5 text-xs font-bold text-yellow-300"
+                aria-label={`${count} items in the cart`}>
+                {count}
+              </span>
+            )}
           </Link>
         </div>
       </div>
