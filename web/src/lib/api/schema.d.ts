@@ -267,6 +267,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/{customer_id}/addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Address */
+        post: operations["add_address"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customer_id}/addresses/{address_no}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Retire Address
+         * @description Retire an address (is_active: false only). Order history keeps pointing at it unchanged (BR16).
+         */
+        patch: operations["retire_address"];
+        trace?: never;
+    };
     "/api/v1/orders": {
         parameters: {
             query?: never;
@@ -318,6 +355,194 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stores/{store_id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Store Orders
+         * @description The store's fulfilment queue. Support staff may read any store; store staff only their own.
+         */
+        get: operations["list_store_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change Order Status
+         * @description One legal fulfilment move. Cancelling has its own endpoint, so it cannot slip in as a status.
+         */
+        patch: operations["change_order_status"];
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Order
+         * @description Cancel in one transaction: restock, refund the captured balance, record the cancellation.
+         */
+        post: operations["cancel_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}/returns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request Return */
+        post: operations["request_return"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customer_id}/returns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Customer Returns */
+        get: operations["list_customer_returns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stores/{store_id}/returns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Store Returns
+         * @description The store's returns desk: requests to take in, and the ones it has already taken in.
+         */
+        get: operations["list_store_returns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/returns/{return_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Return */
+        get: operations["read_return"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/returns/{return_id}/receive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Return
+         * @description Take the item in at the actor's own retail store. Nothing is restocked yet.
+         */
+        post: operations["receive_return"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/returns/{return_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Return */
+        post: operations["reject_return"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/returns/{return_id}/process": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Process Return
+         * @description Restock and refund in one transaction, from the prices the items were bought at.
+         */
+        post: operations["process_return"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -353,6 +578,31 @@ export interface components {
             postcode: string;
             /** Is Active */
             is_active: boolean;
+        };
+        /**
+         * AddressCreate
+         * @description A new address. An address is never edited afterwards (BR16): add one, retire the old one.
+         */
+        AddressCreate: {
+            /** Line1 */
+            line1: string;
+            /** Suburb */
+            suburb: string;
+            /** State */
+            state: string;
+            /** Postcode */
+            postcode: string;
+        };
+        /**
+         * AddressRetire
+         * @description Retiring is the only change an address accepts, and it only ever goes one way.
+         */
+        AddressRetire: {
+            /**
+             * Is Active
+             * @constant
+             */
+            is_active: false;
         };
         /**
          * AdjustmentCreate
@@ -408,6 +658,16 @@ export interface components {
             brand_id: number;
             /** Name */
             name: string;
+        };
+        /** CancellationCreate */
+        CancellationCreate: {
+            /**
+             * Expected Status
+             * @enum {string}
+             */
+            expected_status: "placed" | "paid" | "picking" | "shipped" | "delivered" | "ready" | "collected" | "cancelled";
+            /** Reason */
+            reason: string;
         };
         /** CategoryOut */
         CategoryOut: {
@@ -521,8 +781,11 @@ export interface components {
              * Format: date-time
              */
             placed_at: string;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "placed" | "paid" | "picking" | "shipped" | "delivered" | "ready" | "collected" | "cancelled";
             /**
              * Fulfilment Method
              * @enum {string}
@@ -542,9 +805,10 @@ export interface components {
             /** Payments */
             payments: components["schemas"]["Payment"][];
             /** History */
-            history: components["schemas"]["StatusChange"][];
+            history: components["schemas"]["StatusHistoryEntry"][];
             /** Allowed Actions */
             allowed_actions: string[];
+            return_eligibility: components["schemas"]["ReturnEligibility"];
         };
         /**
          * OrderItemIn
@@ -584,8 +848,11 @@ export interface components {
              * Format: date-time
              */
             placed_at: string;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "placed" | "paid" | "picking" | "shipped" | "delivered" | "ready" | "collected" | "cancelled";
             /**
              * Fulfilment Method
              * @enum {string}
@@ -660,6 +927,8 @@ export interface components {
             is_active: boolean;
             /** Total Stock */
             total_stock: number;
+            /** Store Quantity */
+            store_quantity?: number | null;
             /** Specs */
             specs: components["schemas"]["Spec"][];
             /** Stock */
@@ -693,6 +962,8 @@ export interface components {
             is_active: boolean;
             /** Total Stock */
             total_stock: number;
+            /** Store Quantity */
+            store_quantity?: number | null;
         };
         /**
          * ProductUpdate
@@ -761,6 +1032,166 @@ export interface components {
              */
             status: "upcoming" | "active" | "ended";
         };
+        /** ReceivingStore */
+        ReceivingStore: {
+            /** Store Id */
+            store_id: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * ReturnAction
+         * @description A staff action on a return. `expected_status` is what the screen was showing.
+         */
+        ReturnAction: {
+            /**
+             * Expected Status
+             * @enum {string}
+             */
+            expected_status: "requested" | "received" | "refunded" | "rejected";
+        };
+        /**
+         * ReturnCreate
+         * @description A return request. The customer, the order, the time and the refund are the server's.
+         */
+        ReturnCreate: {
+            /** Reason */
+            reason: string;
+            /** Lines */
+            lines: components["schemas"]["ReturnLineIn"][];
+        };
+        /** ReturnDetail */
+        ReturnDetail: {
+            /** Return Id */
+            return_id: number;
+            /** Order Id */
+            order_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "requested" | "received" | "refunded" | "rejected";
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /** Reason */
+            reason: string;
+            /** Refund Amount */
+            refund_amount: string | null;
+            /** Lines */
+            lines: components["schemas"]["ReturnLine"][];
+            receiving_store: components["schemas"]["ReceivingStore"] | null;
+            /** History */
+            history: components["schemas"]["ReturnStatusEntry"][];
+            /** Allowed Actions */
+            allowed_actions: string[];
+            /** Refund Preview */
+            refund_preview: string;
+        };
+        /**
+         * ReturnEligibility
+         * @description Whether this order can still be returned, why not, and how much of each line is left.
+         */
+        ReturnEligibility: {
+            /** Eligible */
+            eligible: boolean;
+            /** Deadline */
+            deadline: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Lines */
+            lines: components["schemas"]["ReturnableLine"][];
+        };
+        /** ReturnLine */
+        ReturnLine: {
+            /** Line No */
+            line_no: number;
+            /** Product Id */
+            product_id: number;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: string;
+            /** Line Total */
+            line_total: string;
+        };
+        /**
+         * ReturnLineIn
+         * @description One requested line of a return, named by the order line it comes from.
+         */
+        ReturnLineIn: {
+            /** Line No */
+            line_no: number;
+            /** Quantity */
+            quantity: number;
+        };
+        /** ReturnStatusEntry */
+        ReturnStatusEntry: {
+            /** Seq */
+            seq: number;
+            /** From Status */
+            from_status: ("requested" | "received" | "refunded" | "rejected") | null;
+            /**
+             * To Status
+             * @enum {string}
+             */
+            to_status: "requested" | "received" | "refunded" | "rejected";
+            /**
+             * Changed At
+             * Format: date-time
+             */
+            changed_at: string;
+            /** Changed By Staff Id */
+            changed_by_staff_id: number | null;
+            /** Changed By Name */
+            changed_by_name: string | null;
+        };
+        /** ReturnSummary */
+        ReturnSummary: {
+            /** Return Id */
+            return_id: number;
+            /** Order Id */
+            order_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "requested" | "received" | "refunded" | "rejected";
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /** Reason */
+            reason: string;
+            /** Refund Amount */
+            refund_amount: string | null;
+        };
+        /** ReturnableLine */
+        ReturnableLine: {
+            /** Line No */
+            line_no: number;
+            /** Product Id */
+            product_id: number;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: string;
+            /** Returned Quantity */
+            returned_quantity: number;
+            /** Remaining Quantity */
+            remaining_quantity: number;
+        };
         /**
          * SessionIn
          * @description The demo sign-in request. The server issues the session; the body only says who to become.
@@ -819,14 +1250,33 @@ export interface components {
             /** Is Manager */
             is_manager: boolean;
         };
-        /** StatusChange */
+        /**
+         * StatusChange
+         * @description A staff fulfilment move. `expected_status` is what the screen was showing, so a stale one is told.
+         */
         StatusChange: {
+            /**
+             * To Status
+             * @enum {string}
+             */
+            to_status: "placed" | "paid" | "picking" | "shipped" | "delivered" | "ready" | "collected" | "cancelled";
+            /**
+             * Expected Status
+             * @enum {string}
+             */
+            expected_status: "placed" | "paid" | "picking" | "shipped" | "delivered" | "ready" | "collected" | "cancelled";
+        };
+        /** StatusHistoryEntry */
+        StatusHistoryEntry: {
             /** Seq */
             seq: number;
             /** From Status */
-            from_status: string | null;
-            /** To Status */
-            to_status: string;
+            from_status: ("placed" | "paid" | "picking" | "shipped" | "delivered" | "ready" | "collected" | "cancelled") | null;
+            /**
+             * To Status
+             * @enum {string}
+             */
+            to_status: "placed" | "paid" | "picking" | "shipped" | "delivered" | "ready" | "collected" | "cancelled";
             /**
              * Changed At
              * Format: date-time
@@ -1556,6 +2006,9 @@ export interface operations {
                 category_id?: number | null;
                 brand_id?: number | null;
                 include_inactive?: boolean;
+                min_price?: number | string | null;
+                max_price?: number | string | null;
+                store_id?: number | null;
             };
             header?: never;
             path?: never;
@@ -2231,6 +2684,149 @@ export interface operations {
             };
         };
     };
+    add_address: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Address"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retire_address: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+                address_no: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressRetire"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Address"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     create_order: {
         parameters: {
             query?: never;
@@ -2387,6 +2983,706 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderSummary"][];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_store_orders: {
+        parameters: {
+            query?: {
+                status?: ("placed" | "paid" | "picking" | "shipped" | "delivered" | "ready" | "collected" | "cancelled") | null;
+            };
+            header?: never;
+            path: {
+                store_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSummary"][];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    change_order_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancellationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    request_return: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_customer_returns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnSummary"][];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_store_returns: {
+        parameters: {
+            query?: {
+                status?: ("requested" | "received" | "refunded" | "rejected") | null;
+            };
+            header?: never;
+            path: {
+                store_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnSummary"][];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_return: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                return_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    receive_return: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                return_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reject_return: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                return_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnDetail"];
+                };
+            };
+            /** @description Not signed in (demo session required) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do that */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    process_return: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                return_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnDetail"];
                 };
             };
             /** @description Not signed in (demo session required) */
