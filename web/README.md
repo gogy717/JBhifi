@@ -25,6 +25,20 @@ cd web && npm install && npm run dev                   # http://localhost:3000 a
 The browser only talks to Next.js. `next.config.ts` forwards `/api/*` to FastAPI (set `API_URL` to point
 elsewhere), so there is no CORS setup.
 
+## Demo data
+
+To demonstrate orders and returns rather than an empty storefront, build the seeded demo database and point
+the API at it (`doc/demo.md` has the full walkthrough and the scenario list):
+
+```bash
+python scripts/seed_demo.py --database jbhifi_demo --create --seed 9120
+POSTGRES_DB=jbhifi_demo .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+cd web && npm run dev
+```
+
+Then use **Signed in as** and **My store** in the storefront: Alice, Ben, Mei and Tom each have orders and
+returns at a different stage, and Sydney CBD has one product deliberately out of stock.
+
 ## After changing the API
 
 With the API running, `npm run gen:api` regenerates `src/lib/api/schema.d.ts` — the TypeScript types for
