@@ -4,9 +4,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { useShop } from "@/components/shop/context";
+import { StatusBadge } from "@/components/shop/order-timeline";
 import { Badge, Button, ErrorBox, LOW_STOCK } from "@/components/ui";
-import { api, call, type Promotion, type Store } from "@/lib/api/client";
-import { formatDate, formatLastDay, money, percentOff } from "@/lib/format";
+import { api, call, type Promotion, type ReturnSummary, type Store } from "@/lib/api/client";
+import { productCountsByCategory } from "@/lib/categories";
+import { formatDate, formatDateTime, formatLastDay, money, percentOff } from "@/lib/format";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 import { useLoad } from "@/lib/use-load";
 
@@ -17,6 +19,7 @@ export default function HomePage() {
     customerError, reload } = useShop();
   // The greeting area reports whichever failure the viewer can act on first.
   const greetingError = customerError ?? loadError;
+  const customerId = customer?.customer_id;
   const storeId = store?.store_id;
 
   const deals = useLoad("deals:active", () =>
@@ -24,6 +27,14 @@ export default function HomePage() {
   const upcoming = useLoad("deals:upcoming", () =>
     call(api.GET("/api/v1/promotions", { params: { query: { status: "upcoming" } } })));
   const products = useLoad("products", () => call(api.GET("/api/v1/products")));
+  const myOrders = useLoad(`home-orders:${customerId ?? "guest"}`, () =>
+    customerId === undefined
+      ? Promise.resolve([])
+      : call(api.GET("/api/v1/customers/{customer_id}/orders", { params: { path: { customer_id: customerId } } })));
+  const myReturns = useLoad(`home-returns:${customerId ?? "guest"}`, () =>
+    customerId === undefined
+      ? Promise.resolve([])
+      : call(api.GET("/api/v1/customers/{customer_id}/returns", { params: { path: { customer_id: customerId } } })));
   const stock = useLoad(`stock:${storeId}`, () =>
     storeId === undefined
       ? Promise.resolve([])
@@ -38,6 +49,8 @@ export default function HomePage() {
     upcoming.reload();
     products.reload();
     stock.reload();
+    myOrders.reload();
+    myReturns.reload();
   };
   // A retired product's promotion isn't advertised: it can't be bought.
   const liveDeals = (deals.data ?? []).filter((d) => d.product_active).sort((a, b) => discount(b) - discount(a));
@@ -45,6 +58,10 @@ export default function HomePage() {
   const address = customer?.addresses.find((a) => a.is_active);
   // "Stores near you": the customer's state if it has a retail store, else the state of my store.
   const nearState = homeState && retailStores.some((s) => s.state === homeState) ? homeState : store?.state;
+  // Counts come from the shared recursive walk, so a grandchild's products count towards its ancestors.
+  const counts = productCountsByCategory(categories, (products.data ?? []).map((p) => p.category_id));
+  const recentOrders = (myOrders.data ?? []).slice(0, 3);
+  const activeReturns = (myReturns.data ?? []).filter((row) => row.status !== "rejected").slice(0, 3);
 
   return (
     <div className="space-y-10">
@@ -128,9 +145,8 @@ export default function HomePage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {categories.filter((c) => c.parent_id === null).map((parent) => {
             const children = categories.filter((c) => c.parent_id === parent.category_id);
-            const count = (id: number) => products.data?.filter((p) => p.category_id === id).length ?? 0;
-            // Same set the catalogue link shows: the category itself plus its subcategories.
-            const total = count(parent.category_id) + children.reduce((n, c) => n + count(c.category_id), 0);
+            const count = (id: number) => counts.get(id) ?? 0;
+            const total = count(parent.category_id);
             return (
               <div key={parent.category_id} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200">
                 <Link href={`${SHOP_PAGES.catalogue.href}?category=${parent.category_id}`}
@@ -154,12 +170,35 @@ export default function HomePage() {
 
       {/* ---------------------------------------------------------------- orders and returns (reserved) */}
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <ReservedCard title="My orders" href={SHOP_PAGES.orders.href} waitsFor="checkout (T1)"
-          body={customer
-            ? `${customer.full_name.split(" ")[0]}'s orders will be listed here with their status — Click & Collect orders that are ready first.`
-            : "Sign in (demo) to see your orders here."} />
-        <ReservedCard title="Returns" href={SHOP_PAGES.returns.href} waitsFor="returns processing (T2)"
-          body="Returns in progress will appear here: requested → received → refunded, within the 30-day window." />
+        <HomePanel title="My orders" href={SHOP_PAGES.orders.href} action="All orders →"
+          empty={customer ? "No orders yet." : "Sign in (demo) to see your orders here."}>
+          {recentOrders.map((order) => (
+            <a key={order.order_id} href={`/orders/${order.order_id}`}
+              className="flex items-center justify-between gap-3 py-2.5 hover:bg-neutral-50">
+              <span>
+                <span className="font-medium">Order #{order.order_id}</span>
+                <span className="block text-xs text-neutral-500">{formatDateTime(order.placed_at)}</span>
+              </span>
+              <span className="flex items-center gap-3">
+                <span className="text-sm tabular-nums">{money(order.total)}</span>
+                <StatusBadge status={order.status} />
+              </span>
+            </a>
+          ))}
+        </HomePanel>
+        <HomePanel title="Returns" href={SHOP_PAGES.returns.href} action="All returns →"
+          empty={customer ? "No returns in progress." : "Sign in (demo) to track returns here."}>
+          {activeReturns.map((row: ReturnSummary) => (
+            <a key={row.return_id} href={`/orders/${row.order_id}`}
+              className="flex items-center justify-between gap-3 py-2.5 hover:bg-neutral-50">
+              <span>
+                <span className="font-medium">Return #{row.return_id}</span>
+                <span className="block text-xs text-neutral-500">order #{row.order_id} · “{row.reason}”</span>
+              </span>
+              <StatusBadge status={row.status} />
+            </a>
+          ))}
+        </HomePanel>
       </section>
 
       {/* ---------------------------------------------------------------- stores */}
@@ -233,17 +272,20 @@ function StockLine({ quantity, store }: { quantity?: number; store?: Store }) {
   );
 }
 
-function ReservedCard({ title, href, waitsFor, body }: { title: string; href: string; waitsFor: string; body: string }) {
+function HomePanel({ title, href, action, empty, children }: {
+  title: string; href: string; action: string; empty: string; children: ReactNode;
+}) {
+  const hasRows = Array.isArray(children) ? children.length > 0 : Boolean(children);
   return (
-    <div className="rounded-xl border-2 border-dashed border-neutral-300 bg-white/60 p-5">
+    <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-bold">{title}</h2>
-        <Badge tone="amber">Reserved</Badge>
+        <Link href={href} className="text-sm font-medium hover:underline">{action}</Link>
       </div>
-      <p className="mt-2 text-sm text-neutral-600">{body}</p>
-      <p className="mt-1 text-xs text-neutral-500">Appears once {waitsFor} is built.</p>
-      <Link href={href} className="mt-3 inline-block text-sm font-medium hover:underline">Open {title} →</Link>
-    </div>
+      {hasRows
+        ? <div className="mt-2 divide-y divide-neutral-100">{children}</div>
+        : <p className="mt-2 text-sm text-neutral-500">{empty}</p>}
+    </section>
   );
 }
 
