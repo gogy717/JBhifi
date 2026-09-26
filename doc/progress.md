@@ -128,6 +128,53 @@ tree with — T09's checkout and order reads — is green, `pytest -q` → **114
 
 ---
 
+## 2026-09-26 — T16: the agreed reporting slice
+
+The repository names a reporting slice but supplies no specification, so `doc/requirements.md` §6 records
+these three reports as the retained scope and `doc/reports.md` defines each one's grain and filter.
+
+**Definitions.** *Sales* counts money by each payment's **own** event time and orders by when they were
+placed, with the three aggregates built in separate CTEs and only then joined to `store` — joining
+`payment` to `order_line` first would multiply a 300.00 charge by the number of lines on its order.
+*Low stock* lists active products at or below a threshold at one store, including products with **no
+inventory row** there (a quantity of zero, not a missing row). *Returns* is the **cohort** of requests
+created in the window, attributed to the store that fulfilled the order, with the refund joined on the
+request rather than on the refund's date and the receiving store shown separately.
+
+**Boundaries and access.** `from_date` is inclusive and `to_date` exclusive, both Sydney calendar dates;
+the conversion to instants happens in SQL (`AT TIME ZONE 'Australia/Sydney'`), because a bare Windows
+Python has no zone database while PostgreSQL always does, and each report returns the instants it used so
+a figure can be checked by hand. Store staff see their own store; support may see any store, or all of
+them for sales and returns; a guest gets 401.
+
+**Artefacts.** `queries/reports.sql` holds the three queries with their explanations and expected shapes,
+plus the read-only `NOT EXISTS` division example the plan asks for — deliberately outside `sql/`, whose
+files all run during database creation. `app/services/reports.py` keeps the service copies, `doc/reports.md`
+is the definition of record, and `/admin/reports` shows all three with a store picker and a date range.
+No index was added: with this volume an index does not change the plan, and `doc/reports.md` records which
+ones a real deployment should measure rather than claiming an unmeasured improvement.
+
+**Tests.** `tests/test_reports.py` — 11 tests, each building committed rows in a month no other suite
+touches (2025, because everything else commits "now") and checking a hand-calculated answer:
+`test_sales_does_not_multiply_payments`, `test_only_that_stores_trade_is_reported`,
+`test_refunds_use_their_own_event_date_and_net_off`, `test_an_impossible_period_is_refused`,
+`test_low_stock_includes_products_with_no_inventory_row`, `test_low_stock_is_for_one_store_only`,
+`test_return_report_cohort_is_the_request_date_not_the_refund_date`,
+`test_return_report_counts_every_status`, `test_the_window_is_sydney_midnight_inclusive_to_exclusive`,
+`test_reports_are_scoped_to_the_signed_in_store` and `test_the_default_window_is_the_last_thirty_days`.
+The return fixtures use the same maintenance path as `scripts/seed_demo.py` for the two timestamps the API
+generates for itself, and flush deferred constraints (`SET CONSTRAINTS ALL IMMEDIATE`) before the
+`ALTER TABLE … DISABLE TRIGGER` that ages `requested_at`.
+
+**Verification (actually run).** `pytest -q` → **208 passed**. In `web/`: `npm run test:unit` → 30 passed,
+`typecheck`, `lint` and `build` clean with 21 routes (`/admin/reports` among them), and
+`web/src/lib/api/schema.d.ts` regenerated from the app's own OpenAPI (the running server on :8000 predated
+this router, so the document was taken from `app.openapi()` directly).
+
+**AI use.** T16 implemented with Codex (GPT-5) on 2026-09-26. All commands and counts above were run.
+
+---
+
 ## 2026-09-26 — T06–T15: the customer and staff screens
 
 The storefront and the store admin are now real applications on top of the frozen API. Every screen talks
