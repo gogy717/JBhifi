@@ -4,6 +4,49 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — T09: atomic checkout, idempotent retries and protected order reads
+
+**Checkout (transaction T1).** `app/services/orders.py` places one order per POST, in one transaction: lock
+the customer, resolve the retry key, validate the reviewed request against current data, write
+`customer_order` and `order_line` at the *server's* prices from `v_product_current_price`, take stock with a
+conditional `UPDATE … WHERE quantity >= n` (BR03: the last unit has exactly one buyer), record the charge
+through `app/services/payments.py` — nothing at all for a zero total — and move the status to `paid` with a
+NULL staff actor. Locks are taken in a fixed order (customer, address, products by ascending id, then
+inventory by store and product), so concurrent checkouts queue instead of deadlocking. `SET CONSTRAINTS ALL
+IMMEDIATE` flushes the deferred rules inside the request, so a commit-time failure is the API's 409 rather
+than a 500 at close. The client cannot supply a price, a customer or a line total: they are not in the body,
+and the submitted `expected_total` is only compared — a mismatch is `409 price_changed` with the reviewed
+lines, raised before anything is written.
+
+**Retries.** `Idempotency-Key` is a required UUID header. `app/services/idempotency.py` fingerprints the
+validated request canonically (sorted keys and lines, money as exact two-decimal strings), so the same key
+with the same meaning replays the committed order — 200, no second side effect, even after a price change —
+while the same key with a different body is `409 idempotency_conflict`.
+
+**Reads.** `GET /api/v1/orders/{order_id}` and `GET /api/v1/customers/{customer_id}/orders` (newest first)
+serve the customer's own orders, support staff any of them and store staff only their own store's; anything
+else is a 404 — the same answer as an order that does not exist, so ids cannot be probed. The detail keeps
+the sold prices, the address the order was placed with, the whole status timeline, and the moves the caller
+may legally make next. `app/auth.py` gains `require_customer`, so a staff session cannot shop.
+
+**Tests.** `tests/shop.py` is the shared harness (create a customer and a stocked product, place an order
+through the API). `tests/test_checkout.py` (18) covers Click & Collect and delivery, a running promotion's
+price, a zero-total order with no payment row, the warehouse refusal for collection, delivery needing the
+customer's own active address, a malformed or duplicate basket, a retired or unknown product, the
+reviewed-total check with nothing committed, out of stock, a later line failing and rolling back the earlier
+ones, replay, key reuse with a different body, replay after a price change, and a guest being refused.
+`tests/test_checkout_transactions.py` (4) races checkouts on their own connections: two buyers for the last
+unit, the same key from two threads, overlapping baskets, and a checkout racing a retirement.
+`tests/test_order_reads.py` (7) covers the read permissions, the timeline and the price snapshots.
+
+**Verification (actually run).** `pytest -q` → **114 passed** (was 85) on the tree this landed in. The task
+changes no frontend; the web checks were run against the same tree and are clean (`npm run test:unit` → 11
+passed, `npm run typecheck`, `npm run lint`, `npm run build`).
+
+**AI use.** T09 implemented with Codex (GPT-5) on 2026-09-26. Every command quoted above was run.
+
+---
+
 ## 2026-09-26 — T05: shared web state you cannot act on by accident
 
 **The loader names the resource, not just the request.** `web/src/lib/use-load.ts` keeps the logical key
