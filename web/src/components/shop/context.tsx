@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, type ReactNode, useContext } from "react";
+import { createContext, type ReactNode, useContext, useSyncExternalStore } from "react";
 
 import { type ApiError, api, call, type Category, type Customer, type CustomerDetail, type Store } from "@/lib/api/client";
 import { useStoredId } from "@/lib/browser-storage";
@@ -42,6 +42,21 @@ type Shop = {
 
 const ShopContext = createContext<Shop | null>(null);
 
+/**
+ * False for the server render and the first client render, true afterwards.
+ *
+ * The stored demo choice lives in `localStorage`, so it is not known until the browser has hydrated. That
+ * matters because the storefront *declares* who it acts as: during hydration `chosenCustomerId` is still
+ * undefined, and acting on that ("no customer chosen, so sign out") races the load that is about to read
+ * the choice out of storage — cancelling a session the customer already had, which is what a refresh or a
+ * pasted URL would do. Until hydration says otherwise, ask nobody.
+ */
+const neverChanges = () => () => {};
+
+function useHydrated(): boolean {
+  return useSyncExternalStore(neverChanges, () => true, () => false);
+}
+
 export function useShop(): Shop {
   const shop = useContext(ShopContext);
   if (!shop) throw new Error("useShop() must be used inside <ShopProvider>");
@@ -52,14 +67,16 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   // The picker's choice is a browser convenience; the API trusts only the signed cookie it issues.
   const [chosenCustomerId, setCustomerId] = useStoredId("jb.shop.customerId");
   const [storeId, setStoreId] = useStoredId("jb.shop.storeId");
+  const hydrated = useHydrated();
 
   const customers = useLoad("customers", () => call(api.GET("/api/v1/customers")));
   const stores = useLoad("stores", () => call(api.GET("/api/v1/stores")));
   const categories = useLoad("categories", () => call(api.GET("/api/v1/categories")));
   // Declare who this surface acts as (the storefront is always a customer), then read that customer's
   // own record — which the API only serves to the session that owns it.
-  const session = useLoad(`shop-session:${chosenCustomerId ?? "guest"}`,
-    () => ensureSession("customer", chosenCustomerId));
+  const session = useLoad(
+    hydrated ? `shop-session:${chosenCustomerId ?? "guest"}` : "shop-session:hydrating",
+    () => (hydrated ? ensureSession("customer", chosenCustomerId) : Promise.resolve(null)));
   const sessionCustomerId = session.data?.kind === "customer" ? session.data.id : undefined;
   const detail = useLoad(`customer:${sessionCustomerId ?? "guest"}`, () =>
     sessionCustomerId === undefined
