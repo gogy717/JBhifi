@@ -56,23 +56,30 @@ export default function InventoryPage() {
   const store = stores.data?.find((s) => s.store_id === storeId);
   // The server decides this too; the UI only explains it in advance.
   const canAdjust = signedIn && session?.staff_type === "store" && session.store_id === storeId;
+  // Rows that belong to another store, or to a request still on its way, are never actionable (T05).
+  const stockIsCurrent = inventory.isCurrent;
+  const canChangeStock = canAdjust && stockIsCurrent;
   const rows = inventory.data ?? [];
 
   function changeStore(id: number) {
     setStoreId(id);
+    setDialog(undefined);            // the open dialog belonged to the previous store
     clear();
   }
 
   /** One API call = one transaction: stock change + log row, or nothing (see app/services/inventory.py). */
   async function adjust(row: InventoryRow, delta: number, reason: AdjustmentReason, note?: string) {
-    if (!canAdjust) return undefined;
+    if (!canChangeStock) return undefined;
     setBusyId(row.product_id);
     try {
       const result = await call(api.POST("/api/v1/stores/{store_id}/inventory/{product_id}/adjustments", {
         params: { path: { store_id: storeId, product_id: row.product_id } },
         body: { delta, reason, note: note || null },     // who: the session, never this body
       }));
-      inventory.setData(inventoryKey, (list) =>
+      // With "low stock only" on, a change can move a row in or out of the filter, which a local edit
+      // cannot reproduce — ask the server for the filtered list again instead.
+      if (lowOnly) inventory.reload();
+      else inventory.setData(inventoryKey, (list) =>
         list.map((r) => (r.product_id === row.product_id ? { ...r, quantity: result.quantity_after } : r)));
       history.setData(historyKey, (list) => [result, ...list].slice(0, 30));
       showSuccess(<>
@@ -109,7 +116,8 @@ export default function InventoryPage() {
       <Card className="mb-4">
         <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[repeat(2,minmax(0,1.25fr))_repeat(3,minmax(0,1fr))]">
           <Field label="Store">
-            <StoreSelect stores={stores.data ?? []} value={storeId} onChange={changeStore} />
+            <StoreSelect stores={stores.data ?? []} value={storeId} onChange={changeStore}
+              disabled={stores.error !== undefined} />
           </Field>
           <Field label="Acting as"
             hint={canAdjust
@@ -125,7 +133,7 @@ export default function InventoryPage() {
           </Field>
           <Field label="Category">
             <CategorySelect categories={categories.data ?? []} value={categoryId} onChange={setCategoryId}
-              allLabel="All categories" />
+              allLabel="All categories" disabled={categories.error !== undefined} />
           </Field>
           <Field label="Reason for ± buttons">
             <select className={selectClass} value={quickReason}
@@ -137,6 +145,11 @@ export default function InventoryPage() {
       </Card>
 
       <NoticeBanner notice={notice} onClose={clear} />
+
+      {(stores.error || categories.error) && (
+        <ErrorBox error={(stores.error ?? categories.error)!} className="mb-4"
+          onRetry={() => { stores.reload(); categories.reload(); }} />
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Card
@@ -192,12 +205,12 @@ export default function InventoryPage() {
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">
                           <Button size="sm" aria-label={`Remove one ${row.name}`}
-                            disabled={!canAdjust || busyId === row.product_id}
+                            disabled={!canChangeStock || busyId === row.product_id}
                             onClick={() => quickAdjust(row, -1)}>−1</Button>
                           <Button size="sm" aria-label={`Add one ${row.name}`}
-                            disabled={!canAdjust || busyId === row.product_id}
+                            disabled={!canChangeStock || busyId === row.product_id}
                             onClick={() => quickAdjust(row, 1)}>+1</Button>
-                          <Button size="sm" tone="ghost" disabled={!canAdjust}
+                          <Button size="sm" tone="ghost" disabled={!canChangeStock}
                             onClick={() => setDialog({ row, direction: "add" })}>
                             Adjust…
                           </Button>
@@ -234,14 +247,16 @@ export default function InventoryPage() {
   );
 }
 
-function StoreSelect({ stores, value, onChange }: {
+function StoreSelect({ stores, value, onChange, disabled }: {
   stores: Store[];
   value: number;
   onChange: (id: number) => void;
+  disabled?: boolean;
 }) {
   const states = [...new Set(stores.map((s) => s.state))];
   return (
-    <select className={selectClass} value={value} onChange={(e) => onChange(Number(e.target.value))}>
+    <select className={selectClass} value={value} disabled={disabled}
+      onChange={(e) => onChange(Number(e.target.value))}>
       {states.map((state) => (
         <optgroup key={state} label={state}>
           {stores.filter((s) => s.state === state).map((s) => (

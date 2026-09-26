@@ -77,7 +77,7 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 | SQL shell | `docker compose exec db psql -U jbhifi -d jbhifi` |
 | Run the tests (database must be up, venv active) | `pytest` |
 | Regenerate the frontend's API types after changing the API (API running) | `cd web && npm run gen:api` |
-| Check the frontend | `cd web && npm run typecheck && npm run lint && npm run build` |
+| Check the frontend | `cd web && npm run typecheck && npm run lint && npm run test:unit && npm run build` |
 
 `sql/*.sql` only run when the database volume is empty — **after editing or pulling changes to anything in
 `sql/`, reset the database** or you won't see the change. `pytest` never touches your data: it rebuilds a separate

@@ -20,6 +20,8 @@ type AdminSessionValue = {
   /** The verified session, when it is a staff member. */
   session?: Session;
   signedIn: boolean;
+  /** The staff directory failed to load: the picker has nothing to offer. */
+  staffError?: ApiError;
   /** The staff directory or the session failed to load. */
   error?: ApiError;
   reload: () => void;
@@ -47,6 +49,7 @@ export function AdminSessionProvider({ children }: { children: ReactNode }) {
     setStaffId,
     session: signedIn ? session.data ?? undefined : undefined,
     signedIn,
+    staffError: staff.error,
     error: staff.error ?? session.error,
     reload: () => {
       staff.reload();

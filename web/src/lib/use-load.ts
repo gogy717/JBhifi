@@ -19,24 +19,26 @@ import { type ApiError, toApiError } from "./api/client";
  */
 export function useLoad<T>(key: string, load: () => Promise<T>) {
   const [version, setVersion] = useState(0);
-  const [result, setResult] = useState<{ key: string; data?: T; error?: ApiError }>();
+  const [result, setResult] = useState<{ key: string; request: string; data?: T; error?: ApiError }>();
   const requestKey = `${key}#${version}`;
   const runLoad = useEffectEvent(load);
 
   useEffect(() => {
     let cancelled = false;
     runLoad().then(
-      (data) => !cancelled && setResult({ key: requestKey, data }),
-      (error) => !cancelled && setResult({ key: requestKey, error: toApiError(error) }),
+      (data) => !cancelled && setResult({ key, request: requestKey, data }),
+      (error) => !cancelled && setResult({ key, request: requestKey, error: toApiError(error) }),
     );
     return () => {
       cancelled = true;
     };
-  }, [requestKey]);
+  }, [key, requestKey]);
 
-  const settled = result?.key === requestKey;
+  const settled = result?.request === requestKey;
   return {
-    data: result?.data,
+    /** Only this resource's data: another store's rows are never shown under this heading, not even
+     *  while its own request is still on its way. A refresh of the same key keeps them on screen. */
+    data: result?.key === key ? result.data : undefined,
     error: settled ? result.error : undefined,
     loading: !settled,
     /** True when the data on screen came from this key, rather than a request still on its way. */
@@ -47,7 +49,7 @@ export function useLoad<T>(key: string, load: () => Promise<T>) {
     setData: (expectedKey: string, update: (data: T) => T) =>
       setResult((r) => {
         if (r?.data === undefined) return r;
-        if (r.key !== requestKey || expectedKey !== key) return r;    // the screen has moved on
+        if (r.key !== expectedKey || r.key !== key) return r;         // the screen has moved on
         return { ...r, data: update(r.data) };
       }),
   };

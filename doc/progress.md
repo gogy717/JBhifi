@@ -4,6 +4,42 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — T05: shared web state you cannot act on by accident
+
+**The loader names the resource, not just the request.** `web/src/lib/use-load.ts` keeps the logical key
+next to the in-flight request id, so `data` is only ever *this* store's (or product's, or filter's) rows; a
+same-key refresh keeps them on screen, and `isCurrent` says whether what is displayed came from the key
+being asked for now. `setData(expectedKey, update)` applies only while the data still belongs to that key,
+so a response that lands after the viewer moved on cannot be written into another record's screen. The
+product page's one local update ("saved") is keyed the same way.
+
+**Screens.** Stock: actions need `canAdjust && isCurrent`; changing store closes an open adjust dialog; and
+a change made while "low stock only" is on re-reads the filtered list instead of editing it locally, since
+a local edit cannot know whether a row still belongs in a ≤3 list. Product detail: while the route's
+product is not current, Save and the brand picker are disabled, and the spec rows carry explicit labels.
+Reference data a screen cannot work without — stores, categories, brands, the product list behind "New
+promotion", the staff directory — now shows a retryable error (`ErrorBox` gained the optional `Retry`)
+instead of an empty picker that still looks choosable.
+
+**Dialogs.** The shared `Modal` has an accessible name (`aria-labelledby` on the title), moves focus inside
+on open (deferring to a control's own `autoFocus`), keeps Tab cycling inside, closes on Escape, restores
+focus to whatever opened it, and locks page scrolling while it is open.
+
+**Tests.** `npm run test:unit` (new: Vitest + React Testing Library in jsdom, 11 tests in 5 files). The
+network is mocked at the API-client boundary and resolved by hand, so every race is real: an answer for
+store A arriving after the viewer switched to store B — asserted against store B's rows *and* its history —
+a save started on one product while the route moves to another, out-of-order and same-key reloads and a
+rejected load, the demo-customer switch never showing the previous customer's record and a failed record
+surfacing with a retry, and the dialog's keyboard behaviour plus named controls.
+
+**Verification (actually run).** `web/`: `npm run test:unit` → **11 passed**; `npm run typecheck`,
+`npm run lint` and `npm run build` (15 routes) clean. This task changes no Python; the suite it shares the
+tree with — T09's checkout and order reads — is green, `pytest -q` → **114 passed**.
+
+**AI use.** T05 implemented with Codex (GPT-5) on 2026-09-26. Every command quoted above was run.
+
+---
+
 ## 2026-09-26 — T01: demo sessions and enforced actor permissions
 
 **Identity.** `app/auth.py` issues one signed, HTTP-only cookie (`jbhifi_session`: base64url JSON plus an

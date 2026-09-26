@@ -41,9 +41,15 @@ every endpoint, read from FastAPI's OpenAPI spec. Commit the regenerated file.
 | `src/components/shop/` | storefront header, shop context (demo customer, my store), `ReservedPage` |
 | `src/lib/shop-pages.ts` | the customer page list: what each does, what it covers, the API it needs |
 | `src/lib/api/client.ts` | typed client (`openapi-fetch`) and `ApiError` (`code` = database constraint name) |
-| `src/lib/use-load.ts` | load data in a client component, keep the old data while reloading |
+| `src/lib/use-load.ts` | load one resource in a client component: `isCurrent`, and `setData(key, update)` that a late response cannot aim at another store or product |
 | `src/components/ui.tsx` | small UI pieces: buttons, fields, cards, modal, error box |
+| `src/test/`, `vitest.config.ts` | unit tests (`npm run test:unit`) for that shared state and the dialogs |
 
-Checks: `npm run typecheck`, `npm run lint`, `npm run build`.
+Checks: `npm run typecheck`, `npm run lint`, `npm run test:unit`, `npm run build`.
+
+`npm run test:unit` runs Vitest with React Testing Library in jsdom over `src/**/*.test.tsx`. They cover
+what a build cannot see: an answer that arrives after the viewer switched store, product or filter, a
+same-key refresh, a rejected request, and the keyboard behaviour of the shared dialog. Network responses
+are mocked at the API-client boundary and resolved by hand, so the race itself is real.
 
 This is Next.js 16: read `AGENTS.md` before relying on what you know about older versions.

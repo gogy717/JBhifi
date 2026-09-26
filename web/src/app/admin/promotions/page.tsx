@@ -66,6 +66,8 @@ export default function PromotionsPage() {
       />
       <NoticeBanner notice={notice} onClose={clear} />
 
+      {products.error && <ErrorBox error={products.error} className="mb-4" onRetry={products.reload} />}
+
       <Card
         title={
           <div className="flex gap-1">
@@ -128,6 +130,7 @@ export default function PromotionsPage() {
       {creating && (
         <NewPromotionDialog
           products={products.data ?? []}
+          disabled={products.error !== undefined}
           onClose={() => setCreating(false)}
           onCreated={(created) => {
             setCreating(false);
@@ -166,8 +169,10 @@ function startOfDay(day: string, plusDays = 0): string {
   return new Date(y, m - 1, d + plusDays).toISOString();
 }
 
-function NewPromotionDialog({ products, onClose, onCreated }: {
+function NewPromotionDialog({ products, disabled = false, onClose, onCreated }: {
   products: ProductSummary[];
+  /** The catalogue failed to load, so there is nothing to choose from. */
+  disabled?: boolean;
   onClose: () => void;
   onCreated: (promotion: Promotion) => void;
 }) {
@@ -207,7 +212,8 @@ function NewPromotionDialog({ products, onClose, onCreated }: {
       <Button tone="primary" disabled={!complete || saving} onClick={save}>{saving ? "Creating…" : "Create"}</Button>
     </>}>
       <Field label="Product">
-        <select className={selectClass} value={productId} onChange={(e) => setProductId(e.target.value)}>
+        <select className={selectClass} value={productId} disabled={disabled}
+          onChange={(e) => setProductId(e.target.value)}>
           <option value="">Choose…</option>
           {sorted.map((p) => (
             <option key={p.product_id} value={p.product_id}>{p.brand} {p.name} — {money(p.base_price)}</option>

@@ -8,7 +8,8 @@ import { Badge, ErrorBox, selectClass } from "@/components/ui";
  * choosing an identity here is a stand-in for a login.
  */
 export function StaffSessionBar() {
-  const { staff, staffLoading, chosenStaffId, setStaffId, session, signedIn, error, reload } = useAdminSession();
+  const { staff, staffLoading, staffError, chosenStaffId, setStaffId, session, signedIn, error, reload } =
+    useAdminSession();
   const groups = [...new Set(staff.map((s) => s.store_name ?? "Support (no store)"))];
 
   return (
@@ -18,7 +19,7 @@ export function StaffSessionBar() {
         {staffLoading
           ? <span className="text-neutral-400">Loading staff…</span>
           : (
-            <select className={`${selectClass} max-w-xs`}
+            <select className={`${selectClass} max-w-xs`} disabled={staffError !== undefined}
               value={staff.some((s) => s.staff_id === chosenStaffId) ? chosenStaffId : ""}
               onChange={(event) => setStaffId(event.target.value ? Number(event.target.value) : undefined)}
               aria-label="Demo staff sign-in">
@@ -56,7 +57,7 @@ export function StaffSessionBar() {
           </span>
         )}
       </div>
-      {error && <ErrorBox error={error} className="mt-3" />}
+      {error && <ErrorBox error={error} className="mt-3" onRetry={reload} />}
     </div>
   );
 }

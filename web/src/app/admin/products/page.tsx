@@ -53,10 +53,10 @@ export default function ProductsPage() {
           </Field>
           <Field label="Category">
             <CategorySelect categories={categories.data ?? []} value={categoryId} onChange={setCategoryId}
-              allLabel="All categories" />
+              allLabel="All categories" disabled={categories.error !== undefined} />
           </Field>
           <Field label="Brand">
-            <select className={selectClass} value={brandId ?? ""}
+            <select className={selectClass} value={brandId ?? ""} disabled={brands.error !== undefined}
               onChange={(e) => setBrandId(e.target.value ? Number(e.target.value) : undefined)}>
               <option value="">All brands</option>
               {(brands.data ?? []).map((b) => <option key={b.brand_id} value={b.brand_id}>{b.name}</option>)}
@@ -68,6 +68,10 @@ export default function ProductsPage() {
             Show retired products
           </label>
         </div>
+        {(brands.error || categories.error) && (
+          <ErrorBox error={(brands.error ?? categories.error)!} className="mx-4 mb-4"
+            onRetry={() => { brands.reload(); categories.reload(); }} />
+        )}
       </Card>
 
       <Card title={<>{rows.length} products</>}>
