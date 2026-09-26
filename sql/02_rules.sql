@@ -276,9 +276,28 @@ CREATE TRIGGER return_status_transition
     FOR EACH ROW EXECUTE FUNCTION check_return_status_transition();
 
 -- ---------------------------------------------------------------- BR14
--- Refunds for an order never exceed what was charged. (Once per return: UNIQUE in 01_tables.sql.)
+-- Refunds never exceed what was charged (UNIQUE per source in 01_tables.sql), and a refund's amount is
+-- exactly what its source entitles: the returned lines at their purchase prices, or the balance left on
+-- a cancelled order. The amount part is checked immediately; that the source really reached a completed
+-- state is a deferred check, because the service may write the payment and the status in either order
+-- inside one transaction (see the constraint triggers at the end of this file).
 
-CREATE FUNCTION br14_check_refund_total() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION return_expected_refund(p_return_id INT) RETURNS NUMERIC LANGUAGE sql STABLE AS $$
+    SELECT COALESCE(sum(rl.quantity * ol.unit_price), 0)
+    FROM return_line rl
+    JOIN order_line ol ON ol.order_id = rl.order_id AND ol.line_no = rl.line_no
+    WHERE rl.return_id = p_return_id;
+$$;
+
+-- The money still captured on an order: charges minus every other refund (0 if the order was never charged).
+CREATE FUNCTION order_captured_balance(p_order_id INT, p_exclude_payment_id INT) RETURNS NUMERIC
+LANGUAGE sql STABLE AS $$
+    SELECT COALESCE(sum(CASE WHEN kind = 'charge' THEN amount ELSE -amount END), 0)
+    FROM payment
+    WHERE order_id = p_order_id AND payment_id IS DISTINCT FROM p_exclude_payment_id;
+$$;
+
+CREATE FUNCTION br14_check_refund() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
     charged  NUMERIC(10,2);
     refunded NUMERIC(10,2);
@@ -292,7 +311,7 @@ BEGIN
         INTO charged, refunded
         FROM payment
         WHERE order_id = NEW.order_id
-          AND payment_id <> NEW.payment_id;
+          AND payment_id IS DISTINCT FROM NEW.payment_id;
 
         IF refunded + NEW.amount > charged THEN
             RAISE EXCEPTION 'Refunds for order % would total % but only % was charged',
@@ -305,7 +324,34 @@ END $$;
 
 CREATE TRIGGER br14_refunds_within_charged
     BEFORE INSERT OR UPDATE OF kind, amount, order_id ON payment
-    FOR EACH ROW EXECUTE FUNCTION br14_check_refund_total();
+    FOR EACH ROW EXECUTE FUNCTION br14_check_refund();
+
+-- The exact amount is checked AFTER the row is in place, so a declarative constraint that also applies
+-- (a second refund for the same return, say) is the one reported: AFTER triggers run after CHECKs and
+-- UNIQUE indexes have had their say.
+CREATE FUNCTION br14_check_refund_matches_source() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    due NUMERIC(10,2);
+BEGIN
+    IF NEW.kind <> 'refund' OR num_nonnulls(NEW.return_id, NEW.cancellation_id) <> 1 THEN
+        RETURN NULL;                                  -- br14_refund_has_source reports this case
+    END IF;
+    IF NEW.return_id IS NOT NULL THEN
+        due := return_expected_refund(NEW.return_id);
+    ELSE
+        -- A cancellation refunds what is left captured: the charges less any other refund.
+        due := order_captured_balance(NEW.order_id, NEW.payment_id);
+    END IF;
+    IF NEW.amount <> due THEN
+        RAISE EXCEPTION 'Refund % does not match its source: % is due', NEW.amount, due
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_refund_matches_source';
+    END IF;
+    RETURN NULL;
+END $$;
+
+CREATE TRIGGER br14_refund_matches_source
+    AFTER INSERT OR UPDATE OF kind, amount, order_id, return_id, cancellation_id ON payment
+    FOR EACH ROW EXECUTE FUNCTION br14_check_refund_matches_source();
 
 -- ---------------------------------------------------------------- BR15
 -- A promotion's sale price is below the product's base price, and one product's promotions never
@@ -442,3 +488,139 @@ END $$;
 CREATE TRIGGER category_no_cycle
     BEFORE INSERT OR UPDATE OF parent_id ON category
     FOR EACH ROW EXECUTE FUNCTION category_no_cycle();
+
+-- ---------------------------------------------------------------- R11 for returns
+-- The return timeline mirrors the order timeline: written by a trigger, never by the caller, append-only.
+
+CREATE FUNCTION log_return_status_change() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public AS $$
+DECLARE
+    previous TEXT;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+            RETURN NULL;                              -- a retry that sets the same status adds no history
+        END IF;
+        previous := OLD.status;
+    END IF;
+
+    INSERT INTO return_status_history (return_id, seq, from_status, to_status, changed_by_staff_id)
+    SELECT NEW.return_id, COALESCE(max(h.seq), 0) + 1, previous, NEW.status,
+           NULLIF(current_setting('app.staff_id', true), '')::int
+    FROM return_status_history h
+    WHERE h.return_id = NEW.return_id;
+    RETURN NULL;
+END $$;
+
+CREATE TRIGGER return_status_history_log
+    AFTER INSERT OR UPDATE OF status ON return_request
+    FOR EACH ROW EXECUTE FUNCTION log_return_status_change();
+
+CREATE TRIGGER return_status_history_append_only
+    BEFORE UPDATE OR DELETE ON return_status_history
+    FOR EACH ROW EXECUTE FUNCTION record_is_append_only();
+
+-- A cancellation is a financial source record: append-only, like a payment.
+CREATE TRIGGER order_cancellation_append_only
+    BEFORE UPDATE OR DELETE ON order_cancellation
+    FOR EACH ROW EXECUTE FUNCTION record_is_append_only();
+
+-- ---------------------------------------------------------------- BR14 completion (deferred)
+-- These run at COMMIT (or when a service asks for them with SET CONSTRAINTS ALL IMMEDIATE), so a service
+-- may write the payment and move the status in whichever order reads best — but a half-finished financial
+-- state can never commit.
+
+CREATE FUNCTION br14_check_refund_source_complete() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    source_status TEXT;
+BEGIN
+    IF NEW.kind <> 'refund' THEN
+        RETURN NULL;
+    END IF;
+    IF NEW.return_id IS NOT NULL THEN
+        SELECT status INTO source_status FROM return_request WHERE return_id = NEW.return_id;
+        IF source_status IS DISTINCT FROM 'refunded' THEN
+            RAISE EXCEPTION 'Refund % points at return %, which is % rather than refunded',
+                            NEW.payment_id, NEW.return_id, COALESCE(source_status, 'missing')
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_source_complete';
+        END IF;
+    ELSIF NOT EXISTS (SELECT 1 FROM customer_order o
+                      JOIN order_cancellation c ON c.order_id = o.order_id
+                      WHERE c.cancellation_id = NEW.cancellation_id
+                        AND o.order_id = NEW.order_id
+                        AND o.status = 'cancelled') THEN
+        RAISE EXCEPTION 'Refund % points at cancellation %, but order % is not cancelled',
+                        NEW.payment_id, NEW.cancellation_id, NEW.order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_source_complete';
+    END IF;
+    RETURN NULL;
+END $$;
+
+CREATE CONSTRAINT TRIGGER br14_refund_source_complete
+    AFTER INSERT OR UPDATE ON payment
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION br14_check_refund_source_complete();
+
+CREATE FUNCTION br14_check_return_complete() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    expected NUMERIC(10,2);
+    refunds  INT;
+BEGIN
+    IF NEW.status <> 'refunded' THEN
+        RETURN NULL;
+    END IF;
+    expected := return_expected_refund(NEW.return_id);
+    SELECT count(*) INTO refunds FROM payment WHERE return_id = NEW.return_id;
+    IF expected > 0 AND refunds <> 1 THEN
+        RAISE EXCEPTION 'Refunded return % is due % but has % refund(s)', NEW.return_id, expected, refunds
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_source_complete';
+    END IF;
+    IF expected = 0 AND refunds <> 0 THEN
+        RAISE EXCEPTION 'Zero-value return % must not record a refund', NEW.return_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_source_complete';
+    END IF;
+    RETURN NULL;
+END $$;
+
+CREATE CONSTRAINT TRIGGER br14_return_complete
+    AFTER INSERT OR UPDATE ON return_request
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION br14_check_return_complete();
+
+CREATE FUNCTION br14_check_cancellation_complete() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    balance       NUMERIC(10,2);
+    refunds       INT;
+    cancellations INT;
+BEGIN
+    IF NEW.status <> 'cancelled' THEN
+        RETURN NULL;
+    END IF;
+    SELECT count(*) INTO cancellations FROM order_cancellation WHERE order_id = NEW.order_id;
+    IF cancellations <> 1 THEN
+        RAISE EXCEPTION 'Cancelled order % must have exactly one cancellation record (it has %)',
+                        NEW.order_id, cancellations
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_source_complete';
+    END IF;
+    -- Money captured before the cancellation: charges less any refund that came from a return.
+    SELECT COALESCE(sum(CASE WHEN kind = 'charge' THEN amount ELSE -amount END), 0) INTO balance
+    FROM payment WHERE order_id = NEW.order_id AND cancellation_id IS NULL;
+    SELECT count(*) INTO refunds FROM payment
+    WHERE order_id = NEW.order_id AND cancellation_id IS NOT NULL;
+    IF balance > 0 AND refunds <> 1 THEN
+        RAISE EXCEPTION 'Cancelled order % has % captured but % cancellation refund(s)',
+                        NEW.order_id, balance, refunds
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_source_complete';
+    END IF;
+    IF balance <= 0 AND refunds <> 0 THEN
+        RAISE EXCEPTION 'Cancelled order % has nothing captured, so it must not record a refund',
+                        NEW.order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_source_complete';
+    END IF;
+    RETURN NULL;
+END $$;
+
+CREATE CONSTRAINT TRIGGER br14_cancellation_complete
+    AFTER UPDATE ON customer_order
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION br14_check_cancellation_complete();

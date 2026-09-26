@@ -35,9 +35,12 @@ GRANT SELECT, INSERT ON stock_adjustment TO jbhifi_app;
 GRANT SELECT, INSERT, UPDATE ON customer_order, return_request TO jbhifi_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON order_line, return_line TO jbhifi_app;
 
+-- A cancellation record is a financial source: append-only, so INSERT only.
+GRANT SELECT, INSERT ON order_cancellation TO jbhifi_app;
+
 -- Append-only records, written by triggers and services: the role reads them, never edits them.
 GRANT SELECT, INSERT ON payment TO jbhifi_app;
-GRANT SELECT ON order_status_history TO jbhifi_app;
+GRANT SELECT ON order_status_history, return_status_history TO jbhifi_app;
 
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO jbhifi_app;
 

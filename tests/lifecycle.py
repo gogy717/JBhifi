@@ -11,13 +11,17 @@ from decimal import Decimal
 import uuid
 
 ORDER = """
-    INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id,
-                                delivery_address_no)
-    VALUES (%s, %s, %s, %s, %s)
+    INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint, fulfilment_method,
+                                fulfilling_store_id, delivery_address_no)
+    VALUES (%s, %s, %s, %s, %s, %s)
     RETURNING order_id
 """
 LINE = "INSERT INTO order_line (order_id, line_no, product_id, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)"
-RETURN_REQUEST = "INSERT INTO return_request (order_id, reason) VALUES (%s, 'Changed my mind') RETURNING return_id"
+RETURN_REQUEST = """
+    INSERT INTO return_request (order_id, idempotency_key, request_fingerprint, reason)
+    VALUES (%s, %s, %s, 'Changed my mind')
+    RETURNING return_id
+"""
 RETURN_LINE = "INSERT INTO return_line (return_id, line_no, order_id, quantity) VALUES (%s, %s, %s, %s)"
 CHARGE = "INSERT INTO payment (order_id, kind, amount) VALUES (%s, 'charge', %s) RETURNING payment_id"
 
@@ -39,7 +43,8 @@ def make_customer(cur, email: str, with_address: bool = True) -> int:
 
 def place_order(cur, customer_id, lines, method="click_collect", store_id=1, address_no=None) -> int:
     """Insert a placed order and its lines; lines = [(product_id, quantity, unit_price), ...]."""
-    cur.execute(ORDER, (customer_id, str(uuid.uuid4()), method, store_id, address_no))
+    key = str(uuid.uuid4())
+    cur.execute(ORDER, (customer_id, key, f"fingerprint:{key}", method, store_id, address_no))
     order_id = cur.fetchone()["order_id"]
     for line_no, (product_id, quantity, unit_price) in enumerate(lines, start=1):
         cur.execute(LINE, (order_id, line_no, product_id, quantity, unit_price))
@@ -55,11 +60,17 @@ def advance(cur, order_id, *statuses, staff_id=None):
 
 def request_return(cur, order_id, lines) -> int:
     """A return of lines = [(line_no, quantity), ...]; the request time is the server's own (BR11)."""
-    cur.execute(RETURN_REQUEST, (order_id,))
+    cur.execute(RETURN_REQUEST, return_request_args(order_id))
     return_id = cur.fetchone()["return_id"]
     for line_no, quantity in lines:
         cur.execute(RETURN_LINE, (return_id, line_no, order_id, quantity))
     return return_id
+
+
+def return_request_args(order_id, key=None):
+    """The parameters RETURN_REQUEST expects; `key` lets a test deliberately reuse an idempotency key."""
+    key = str(key or uuid.uuid4())
+    return (order_id, key, f"fingerprint:{key}")
 
 
 def order_total(lines) -> Decimal:

@@ -8,7 +8,7 @@ import pytest
 # Building a valid history is shared with the lifecycle tests, so there is exactly one way to create an
 # order, advance it and request a return.
 from tests.lifecycle import (RETURN_LINE, RETURN_REQUEST, advance, make_customer, place_order,
-                             request_return)
+                             request_return, return_request_args)
 
 
 @pytest.fixture
@@ -75,9 +75,9 @@ def test_br05_store_staff_have_a_store_and_support_staff_do_not(violates):
 # ---------------------------------------------------------------- BR06–BR10: orders
 
 ORDER = """
-    INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id,
-                                delivery_address_no)
-    VALUES (%s, gen_random_uuid(), %s, %s, %s)
+    INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint, fulfilment_method,
+                                fulfilling_store_id, delivery_address_no)
+    VALUES (%s, gen_random_uuid(), gen_random_uuid()::text, %s, %s, %s)
 """
 
 
@@ -104,8 +104,10 @@ def test_br08_unit_price_never_changes(collected_order, violates):
 
 def test_br09_new_orders_start_as_placed(customer, violates):
     violates("br09_order_status_transition",
-             """INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id, status)
-                VALUES (%s, gen_random_uuid(), 'click_collect', 1, 'paid')""", (customer,))
+             """INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint,
+                                            fulfilment_method, fulfilling_store_id, status)
+                VALUES (%s, gen_random_uuid(), gen_random_uuid()::text, 'click_collect', 1, 'paid')""",
+             (customer,))
 
 
 def test_br09_status_moves_only_along_allowed_transitions(cur, customer, product_id, violates):
@@ -129,8 +131,9 @@ def test_br09_every_status_change_is_logged_with_who_made_it(cur, collected_orde
 
 
 def test_br10_one_order_per_idempotency_key(cur, customer, violates):
-    insert = """INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id)
-                VALUES (%s, '0b6f1d4e-5c3a-4a8e-9f2b-7d1e3c5a9b0f', 'click_collect', 1)"""
+    insert = """INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint,
+                                            fulfilment_method, fulfilling_store_id)
+                VALUES (%s, '0b6f1d4e-5c3a-4a8e-9f2b-7d1e3c5a9b0f', 'same-request', 'click_collect', 1)"""
     cur.execute(insert, (customer,))
     violates("br10_order_idempotency_unique", insert, (customer,))
 
@@ -140,12 +143,12 @@ def test_br10_one_order_per_idempotency_key(cur, customer, violates):
 def test_br11_only_completed_orders_can_be_returned(cur, customer, product_id, violates):
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
     advance(cur, order_id, "paid")
-    violates("br11_return_window", RETURN_REQUEST, (order_id,))
+    violates("br11_return_window", RETURN_REQUEST, return_request_args(order_id))
 
 
 def test_br11_a_just_completed_order_can_be_returned(cur, collected_order):
     # The exact 30-day boundary is covered by test_lifecycle_rules.py through the SQL predicate.
-    cur.execute(RETURN_REQUEST, (collected_order,))
+    cur.execute(RETURN_REQUEST, return_request_args(collected_order))
     assert cur.fetchone()["return_id"] is not None
 
 
@@ -180,8 +183,8 @@ def test_br14_refunds(cur, collected_order, violates):
     cur.execute("""UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14
                    WHERE return_id = %s""", (return_id,))
     payment = "INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, %s, %s, %s)"
-    violates("br14_refund_has_return", payment, (collected_order, "refund", "189.00", None))
-    violates("br14_refund_has_return", payment, (collected_order, "charge", "1.00", return_id))
+    violates("br14_refund_has_source", payment, (collected_order, "refund", "189.00", None))
+    violates("br14_refund_has_source", payment, (collected_order, "charge", "1.00", return_id))
     violates("br14_refunds_within_charged", payment, (collected_order, "refund", "600.00", return_id))
     cur.execute(payment, (collected_order, "refund", "189.00", return_id))
     violates("br14_refund_once_per_return", payment, (collected_order, "refund", "10.00", return_id))

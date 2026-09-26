@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 import psycopg2
 import pytest
 
-from tests.lifecycle import (RETURN_LINE, RETURN_REQUEST, backdate_history, completed_order, request_return)
+from tests.lifecycle import (RETURN_REQUEST, backdate_history, completed_order, request_return,
+                             return_request_args)
 from tests.support import connect_app
 
 CUSTOMER_EMAIL = "lifecycle.customer@example.com"
@@ -99,7 +100,6 @@ def test_return_line_cannot_move_between_requests(cur, order, violates):
 
 def test_return_lines_freeze_once_received(cur, order, violates):
     return_id = request_return(cur, order, [(1, 1)])
-    assert RETURN_LINE is not None
     cur.execute(
         "UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14 "
         "WHERE return_id = %s",
@@ -126,7 +126,7 @@ def test_return_window_predicate_is_exact(cur):
 
 def test_return_window_rejects_an_expired_order(cur, order, violates):
     backdate_history(cur, order, datetime.now().astimezone() - timedelta(days=31))
-    violates("br11_return_window", RETURN_REQUEST, (order,))
+    violates("br11_return_window", RETURN_REQUEST, return_request_args(order))
 
 
 def test_return_request_time_is_the_servers_and_immutable(cur, order, violates):

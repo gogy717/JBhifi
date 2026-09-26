@@ -4,6 +4,41 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — T03: retry keys, cancellation refunds and the return audit trail
+
+**Schema.** `customer_order.request_fingerprint` and `return_request.idempotency_key` /
+`request_fingerprint` make a retry distinguishable from changed content; a return request is unique per
+`(order_id, idempotency_key)` (`return_idempotency_unique`), so the same key on another order is a
+different request. `order_cancellation` records a cancellation separately from a merchandise return (one
+per order, composite key as an FK target, append-only), and `payment.cancellation_id` gives a refund a
+second legal source. `br14_refund_has_return` is replaced by `br14_refund_has_source`: a charge has no
+source and a refund has exactly one, with `br14_refund_once_per_return` and
+`br14_refund_once_per_cancellation` keeping each source refundable once.
+
+**Rules.** `return_status_history` mirrors the order timeline and is written only by a `SECURITY DEFINER`
+trigger (`log_return_status_change`), including the actor from the transaction's `app.staff_id`; a retry
+that sets the same status appends nothing. BR14 now has two layers: a BEFORE trigger keeps the ceiling
+(`br14_refunds_within_charged`), an AFTER trigger requires the amount to equal what the source entitles
+(`br14_refund_matches_source` — the returned lines at purchase prices, or the balance left captured on a
+cancelled order), and three deferred constraint triggers (`br14_source_complete`) run at COMMIT so a
+service may write the payment and move the status in either order, while a half-finished financial state
+cannot commit. The AFTER placement is deliberate: a declarative constraint that also applies (say the
+once-per-return UNIQUE) is then the one reported, which keeps the rule names informative.
+
+**Tests.** `tests/test_lifecycle_schema.py` covers the key uniqueness, exactly-one-source,
+amount-matches-source, once-per-cancellation, append-only history and actor attribution, plus six
+commit-time completeness cases run on their own connection (so a COMMIT-time failure is observed exactly
+as the API sees it). Existing fixtures now supply the new NOT NULL columns, and `br14_refund_has_return`
+assertions moved to `br14_refund_has_source` deliberately.
+
+**Verification (actually run).** `pytest -q` → **71 passed** (was 57). A full database rebuild from an
+empty volume re-runs `sql/*.sql` in order, loads the seed (48 products) and creates the new tables; the
+running API still answers `/health` with `{"status":"ok","db":"jbhifi"}`.
+
+**AI use.** T03 implemented with Codex (GPT-5) on 2026-09-26. All tests and commands above were run.
+
+---
+
 ## 2026-09-26 — T02: close the lifecycle and audit bypasses
 
 The purchase record, the audit trail and the payment ledger are now immutable, the return window is

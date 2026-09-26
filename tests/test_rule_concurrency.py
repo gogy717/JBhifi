@@ -74,8 +74,9 @@ def committed_order():
             """)
             customer_id = cur.fetchone()["customer_id"]
             cur.execute("""
-                INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id)
-                VALUES (%s, gen_random_uuid(), 'click_collect', %s) RETURNING order_id
+                INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint,
+                                            fulfilment_method, fulfilling_store_id)
+                VALUES (%s, gen_random_uuid(), gen_random_uuid()::text, 'click_collect', %s) RETURNING order_id
             """, (customer_id, SYDNEY_CBD))
             order_id = cur.fetchone()["order_id"]
             for line_no, (product_id, qty, price) in enumerate(lines, start=1):
@@ -101,7 +102,8 @@ def test_concurrent_return_requests_cannot_exceed_purchase(committed_product, co
 
     def request_two(_):
         def work(cur):
-            cur.execute("INSERT INTO return_request (order_id, reason) VALUES (%s, 'Changed my mind') "
+            cur.execute("INSERT INTO return_request (order_id, idempotency_key, request_fingerprint, reason) "
+                        "VALUES (%s, gen_random_uuid(), gen_random_uuid()::text, 'Changed my mind') "
                         "RETURNING return_id", (order_id,))
             return_id = cur.fetchone()["return_id"]
             cur.execute("INSERT INTO return_line (return_id, line_no, order_id, quantity) "
@@ -129,7 +131,8 @@ def test_concurrent_refunds_cannot_exceed_the_charge(committed_product, committe
 
     def received_return():
         def work(cur):
-            cur.execute("INSERT INTO return_request (order_id, reason) VALUES (%s, 'Changed my mind') "
+            cur.execute("INSERT INTO return_request (order_id, idempotency_key, request_fingerprint, reason) "
+                        "VALUES (%s, gen_random_uuid(), gen_random_uuid()::text, 'Changed my mind') "
                         "RETURNING return_id", (order_id,))
             return_id = cur.fetchone()["return_id"]
             cur.execute("INSERT INTO return_line (return_id, line_no, order_id, quantity) "
