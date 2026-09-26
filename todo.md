@@ -16,7 +16,7 @@ is working where — read it before starting anything, so two workers do not tou
 | T09 | done | `d4d2e0c`/`14773d7`/`52bc14c` atomic checkout, idempotent retries, order reads |
 | T11 | done | `ea97295` staff fulfilment moves, atomic cancellation |
 | T13, T14 | done | `16af842` return requests, receipt, rejection, atomic refund/restock |
-| T06, T07, T08, T10, T12, T15 | **in progress — owned by the root agent** | the customer and admin screens. Do not start these: they touch `web/src/app/(shop)/**`, `web/src/app/admin/orders/**`, `web/src/app/admin/returns/**`, `web/src/components/shop/**`, `web/src/components/admin/**` and `web/src/lib/cart.ts`. |
+| T06, T07, T08, T10, T12, T15 | done | the customer and admin screens: catalogue, product, stores, cart, checkout, orders, returns, account, the staff order queue and the returns desk (see `doc/progress.md`) |
 | T16 (reports) | **not started — free to take** | `queries/reports.sql`, `app/schemas|services|routers/reports.py`, `tests/test_reports.py`, `doc/reports.md`; register the router in `app/main.py` (append to the tuple — nobody else edits that line now). |
 | T17 (demo data + evidence) | partially done | `scripts/seed_demo.py`, `tests/test_demo_seed.py`, `doc/demo.md` in flight; `doc/data-model.md` and `doc/business-rules.md` written. Free to finish. |
 | T18 (e2e + CI) | **not started — free to take** | `web/playwright.config.ts`, `web/e2e/**`, `.github/workflows/ci.yml`, `tests/test_api_errors.py`. Do not modify `web/src/app/(shop)/**` or `web/src/app/admin/**`. |

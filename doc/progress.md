@@ -128,6 +128,44 @@ tree with — T09's checkout and order reads — is green, `pytest -q` → **114
 
 ---
 
+## 2026-09-26 — T06–T15: the customer and staff screens
+
+The storefront and the store admin are now real applications on top of the frozen API. Every screen talks
+to the API through the same-origin proxy, and no customer route renders a placeholder any more.
+
+**Storefront.** `/products` is a URL-backed catalogue (search, category at any depth, brand, inclusive
+price range, store-aware stock, one request per view); `/products/[id]` shows specs, promotions and stock
+at every store with mine first; `/stores` groups the 13 locations by state and answers "who has it?" for a
+searched product; `/cart` keeps product ids and quantities in the browser and shows the current prices and
+that store's stock, with all arithmetic in integer cents; `/checkout` offers delivery or Click & Collect
+and sends one request keyed by an Idempotency-Key that is reused only while the reviewed body is identical;
+`/orders` and `/orders/[id]` show the purchase-time lines, the recorded address, the payments and the full
+timeline, with the return form driven by the server's `return_eligibility`; `/returns` lists requests and
+their outcome; `/account` adds and retires addresses (a dialog for each, with the API allocating numbers
+and the customer re-read afterwards). The home page's placeholder cards became real "My orders" and
+"Returns" panels, and the category counts now use the same recursive walk as the catalogue.
+
+**Store admin.** `/admin/orders` is the store-scoped queue with a status filter; `/admin/orders/[id]` shows
+the pick list, address, payments and timeline, and offers exactly the moves the server reports in
+`allowed_actions` — with cancellation as its own dialog that spells out the refund and the restock before
+it happens. `/admin/returns` is the returns desk (requests to take in, and what it has already taken in)
+with receipt, rejection and processing as separate confirmed actions showing the refund preview. Both
+screens keep the *displayed* `expected_status`, so a colleague's move is reported as `stale_status` rather
+than silently applied, and every mutation is keyed to the record the screen is showing.
+
+**Verification (actually run).** `pytest -q` → **197 passed**. In `web/`: `npm run test:unit` → 30 passed,
+and `typecheck`, `lint` and `build` (17 routes) are clean. A scripted journey against the running demo
+stack (Alice signs in → 2 × Xbox consoles collected at Sydney CBD → the same request replayed → staff move
+placed → paid → picking → ready → collected → customer requests 1 back → staff receive → process) left
+exactly one order, one charge of 1598.00, one refund of 799.00, stock 8 → 6 → 7, and the customer's
+returns list showing `refunded`. `rg 'ReservedPage' 'web/src/app/(shop)'` finds nothing; the obsolete
+placeholder component was deleted and `shop-pages.ts` is kept as the route/requirement catalogue.
+
+**AI use.** The screens were built with Codex (GPT-5) on 2026-09-26, in several agent sessions working on
+different routes at once. All commands and counts above were actually run.
+
+---
+
 ## 2026-09-26 — T01: demo sessions and enforced actor permissions
 
 **Identity.** `app/auth.py` issues one signed, HTTP-only cookie (`jbhifi_session`: base64url JSON plus an
