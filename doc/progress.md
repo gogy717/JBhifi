@@ -4,6 +4,56 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — T02: close the lifecycle and audit bypasses
+
+The purchase record, the audit trail and the payment ledger are now immutable, the return window is
+exact, the category tree cannot cycle, and the API runs as a least-privilege role.
+
+**Schema and triggers (`sql/01_tables.sql`, `sql/02_rules.sql`, `sql/05_permissions.sql`).**
+
+- **Order lines** (BR08) are guarded by one function that raises both codes: a unit-price change is still
+  `br08_unit_price_immutable` (the existing test still asserts that name), while any other change to
+  `order_id`, `line_no`, `product_id`, `quantity`, or inserting into / deleting from a committed order is
+  `br08_order_line_immutable`. Lines can only be assembled while the order is `placed`.
+- **Order headers** are frozen after placement (customer, idempotency key, fulfilment method, store,
+  address, placement time): only `status` may move, so `order_immutable` stops an UPDATE re-pointing an
+  order at another customer, store or address.
+- **Payments and both status histories are append-only** (`payment_append_only`,
+  `order_status_history_append_only`). A charge can no longer be reduced or deleted after a refund was
+  accepted against it, so BR14's ceiling stays meaningful.
+- **BR12** now fires on INSERT, UPDATE *and* DELETE, refuses to let a return line change its request,
+  order or line (`br12_return_line_ownership`), and refuses any edit once the request is no longer
+  `requested` (`br12_return_line_editable`) — closing the "move a rejected line onto a live request"
+  hole.
+- **BR11** generates `requested_at` on the server (a supplied value is overwritten) and makes it
+  immutable. The window is the extracted predicate
+  `return_request_is_in_window(completed_at, requested_at)`, so the exact boundary is testable: 30 days
+  is inside, 30 days + 1 µs is not.
+- **Category cycles** are refused by `category_no_cycle`, which walks the subtree with a recursive CTE.
+  This is the precondition for T04's arbitrary-depth traversal.
+- **`jbhifi_app`** is a login role with the table/sequence privileges the application needs: it can
+  append to `stock_adjustment` but not edit it, read but never write `order_status_history`,
+  `return_status_history` and `payment` (beyond INSERT), and cannot change the schema. The two history
+  triggers are `SECURITY DEFINER` with a fixed `search_path`, so the audit row can still be written
+  without giving the role INSERT on the history tables. `app/db.py` connects as this role when
+  `POSTGRES_APP_USER` is set, and the bootstrap/test owner connection is unchanged.
+
+**Tests.** `tests/lifecycle.py` builds histories through real statements and exposes `backdate_history`
+(a maintenance-only path that briefly suspends the history guard) for the expiry case.
+`tests/test_lifecycle_rules.py` adds the charge/history/line/return-line immutability tests, the exact
+window predicate, the three-level category cycle and the two role-permission tests;
+`tests/test_rule_concurrency.py` adds BR12, BR14 and BR15 races driven by `tests/concurrency.py`
+(bounded barrier and bounded join, so a stuck lock fails loudly instead of hanging).
+
+**Verification (actually run).** `pytest -q` → **57 passed** (was 42). Full database rebuild from an
+empty volume re-runs `sql/*.sql` in order and loads the seed (48 products) with the role created. The API
+was started and confirmed to connect as `jbhifi_app` (`select current_user` → `jbhifi_app`), serving
+`/health`, `/api/v1/products` and a stock adjustment.
+
+**AI use.** T02 implemented with Codex (GPT-5) on 2026-09-26. All tests and commands above were run.
+
+---
+
 ## 2026-09-26 — T00: canonical project and runnable baseline
 
 Established the root checkout as the single working tree and recorded a verified starting point before

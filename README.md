@@ -90,6 +90,7 @@ test-shaped (`POSTGRES_TEST_DB`, see `.env.example`), so the demo database is sa
 |---|---|
 | `sql/` | `00_domains` → `01_tables` → `02_rules` (triggers) → `03_views` → `10_seed_reference`, run in that order |
 | `app/` | FastAPI. `routers/` handle HTTP only; `services/` hold the SQL (one call = one transaction); `errors.py` turns a rule violation into a 409 whose `code` is the constraint name |
+| `sql/05_permissions.sql` | Creates `jbhifi_app`, the least-privilege role the API connects as (no history writes, no payment edits, no schema changes) |
 | `tests/` | `test_business_rules.py` (one test per BR), `test_transactions.py` (stock adjustments under concurrency), `test_api.py` |
 | `web/` | Next.js: the customer storefront (`/`) and the store admin (`/admin`) — see [`web/README.md`](web/README.md) |
 | `doc/requirements.md` | The recovered requirements (R#/BR#), the decisions that fill implementation gaps, and what is out of scope |

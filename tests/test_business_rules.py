@@ -2,70 +2,13 @@
 stopped it. Those names are the error codes the API returns, so this file doubles as the
 rule → mechanism table for the report appendix.
 """
-import uuid
-
 import pytest
 
 # ---------------------------------------------------------------- helpers
-
-
-def make_customer(cur, email: str, with_address: bool = True) -> int:
-    cur.execute("INSERT INTO customer (email, full_name) VALUES (%s, 'Test Customer') RETURNING customer_id",
-                (email,))
-    customer_id = cur.fetchone()["customer_id"]
-    if with_address:
-        cur.execute(
-            """
-            INSERT INTO customer_address (customer_id, address_no, line1, suburb, state, postcode)
-            VALUES (%s, 1, '1 George St', 'Sydney', 'NSW', '2000')
-            """,
-            (customer_id,),
-        )
-    return customer_id
-
-
-def place_order(cur, customer_id, lines, method="click_collect", store_id=1, address_no=None) -> int:
-    """Insert an order and its lines; lines = [(product_id, quantity, unit_price), ...]."""
-    cur.execute(
-        """
-        INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id,
-                                    delivery_address_no)
-        VALUES (%s, %s, %s, %s, %s)
-        RETURNING order_id
-        """,
-        (customer_id, str(uuid.uuid4()), method, store_id, address_no),
-    )
-    order_id = cur.fetchone()["order_id"]
-    for line_no, (product_id, quantity, unit_price) in enumerate(lines, start=1):
-        cur.execute(
-            "INSERT INTO order_line (order_id, line_no, product_id, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)",
-            (order_id, line_no, product_id, quantity, unit_price),
-        )
-    return order_id
-
-
-def advance(cur, order_id, *statuses, staff_id=None):
-    """Move an order through the statuses in turn, acting as staff_id (None = the customer or system)."""
-    cur.execute("SELECT set_config('app.staff_id', %s, true)", ("" if staff_id is None else str(staff_id),))
-    for status in statuses:
-        cur.execute("UPDATE customer_order SET status = %s WHERE order_id = %s", (status, order_id))
-
-
-RETURN_REQUEST = """
-    INSERT INTO return_request (order_id, reason, requested_at)
-    VALUES (%s, 'Changed my mind', now() + %s * interval '1 day')
-    RETURNING return_id
-"""
-RETURN_LINE = "INSERT INTO return_line (return_id, line_no, order_id, quantity) VALUES (%s, %s, %s, %s)"
-
-
-def request_return(cur, order_id, lines, days_from_now=0) -> int:
-    """A return of lines = [(line_no, quantity), ...]."""
-    cur.execute(RETURN_REQUEST, (order_id, days_from_now))
-    return_id = cur.fetchone()["return_id"]
-    for line_no, quantity in lines:
-        cur.execute(RETURN_LINE, (return_id, line_no, order_id, quantity))
-    return return_id
+# Building a valid history is shared with the lifecycle tests, so there is exactly one way to create an
+# order, advance it and request a return.
+from tests.lifecycle import (RETURN_LINE, RETURN_REQUEST, advance, make_customer, place_order,
+                             request_return)
 
 
 @pytest.fixture
@@ -197,12 +140,13 @@ def test_br10_one_order_per_idempotency_key(cur, customer, violates):
 def test_br11_only_completed_orders_can_be_returned(cur, customer, product_id, violates):
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
     advance(cur, order_id, "paid")
-    violates("br11_return_window", RETURN_REQUEST, (order_id, 0))
+    violates("br11_return_window", RETURN_REQUEST, (order_id,))
 
 
-def test_br11_returns_within_30_days_of_completion(cur, collected_order, violates):
-    cur.execute(RETURN_REQUEST, (collected_order, 30))                # day 30 is still inside the window
-    violates("br11_return_window", RETURN_REQUEST, (collected_order, 31))
+def test_br11_a_just_completed_order_can_be_returned(cur, collected_order):
+    # The exact 30-day boundary is covered by test_lifecycle_rules.py through the SQL predicate.
+    cur.execute(RETURN_REQUEST, (collected_order,))
+    assert cur.fetchone()["return_id"] is not None
 
 
 def test_br12_cannot_return_more_than_was_bought(cur, collected_order, violates):

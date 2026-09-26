@@ -49,5 +49,21 @@ def connect(dbname: str = TEST_DB):
     )
 
 
+APP_USER = os.environ.get("POSTGRES_APP_USER", "jbhifi_app")
+APP_PASSWORD = os.environ.get("POSTGRES_APP_PASSWORD", "apppassword")
+
+
+def connect_app(dbname: str = TEST_DB):
+    """A connection as the least-privilege application role, for permission tests."""
+    return psycopg2.connect(
+        host=os.environ["POSTGRES_HOST"],
+        port=os.environ["POSTGRES_PORT"],
+        dbname=dbname,
+        user=APP_USER,
+        password=APP_PASSWORD,
+        cursor_factory=RealDictCursor,
+    )
+
+
 def unique_sku() -> str:
     return f"TEST-{uuid.uuid4().hex[:10].upper()}"
