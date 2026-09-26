@@ -4,6 +4,55 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — T18: browser journeys, delivery checks, and one bug they found
+
+**Eighteen browser journeys** (`web/e2e/`, `npm run test:e2e`, Playwright against Chromium). The config
+gives the suite its own stack: `scripts/seed_demo.py --database jbhifi_e2e_demo --create --seed 9120`
+rebuilds a disposable database from `sql/*.sql` plus the documented scenarios, `uvicorn` serves it on
+`:8100`, and `next dev` on `:3100` proxies to *that* API (`NEXT_DIST_DIR=.next/e2e` gives it its own build
+directory, because `next dev` allows one server per directory and a developer's storefront is usually
+running). No journey can read or write `jbhifi`. What the specs cover: catalogue search, a product page,
+the cart; delivery checkout and Click & Collect; a lost reply retried under the same `Idempotency-Key`
+(one order, not two); staff fulfilment to `delivered` with the customer's timeline; staff cancellation with
+the stock back and a refund recorded; the returns desk (receive → process → refunded) and a final rejection;
+the seeded empty store (`409 out_of_stock`), a product retired while it sits in the cart, and an address
+retired between the cart and the checkout; a guest, a customer switch, another customer's order by URL
+(`not_found`), a staff session on the storefront; and every customer route at phone width with no
+`ReservedPage` copy left. Journeys assert in the browser *and* against the API, and prepare awkward state
+through an isolated `request` context as the person entitled to create it.
+
+**The browser suite found a real defect, and it is fixed.** Both providers declare who their surface acts
+as (`ensureSession`), while the chosen identity lives in `localStorage` — unreadable until hydration.
+During hydration the choice was still `undefined`, so the provider asked the API to *sign out*, racing the
+load that was about to read the choice: a refresh, a pasted URL or a deep link cancelled a signed-in
+session, and the next write came back `401 not_signed_in`. The Playwright trace shows it plainly — a
+`DELETE /api/v1/session` between the reads and the writes. `context.tsx` and `admin/session.tsx` now hold
+the session load until hydration has said who the browser chose.
+
+**The error contract is now tested, and what a failure may say is part of it.** `tests/test_api_errors.py`
+(13) pins the envelope, the status and the code for 401/403/404/409/422, the smoke endpoints, the rule names
+(`br03_…`, `br18_…`, `product_sku_unique`, `br06_collect_at_retail_store`), malformed requests, unknown
+routes and methods, a foreign order reading exactly like a missing one, and a commit-time deferred failure
+returned as the ordinary 409 rather than a 500. It also pins what a failure may *not* say: the API answers a
+database outage with a `503 database_unavailable` whose message is a sentence and whose driver text goes to
+the log, and an unexpected traceback becomes `internal_error` plus one sentence, logged server-side.
+
+**CI.** `.github/workflows/ci.yml` runs the backend suite, the web checks (`typecheck`, `lint`, `test:unit`,
+`build`), an OpenAPI regeneration that fails if `web/src/lib/api/schema.d.ts` is stale, and these journeys —
+all against a PostgreSQL 18 service, with no `.env` and no reliance on a developer's machine.
+
+**Also.** A new address is normalised in the schema (trimmed, state upper-cased) before its length checks,
+so a pasted ` nsw ` is accepted as `NSW`; `requirements.txt` had `httpx2` where the TestClient needs `httpx`.
+
+**Verification (actually run, 2026-09-26).** `pytest -q` → **208 passed**; `npm run typecheck` → clean;
+`npm run lint` → clean; `npm run test:unit` → **30 passed**; `npm run build` → succeeded; `npm run test:e2e`
+→ **18 passed** (46.9 s once the database and caches exist). CI was written but not executed here — it needs
+a GitHub runner.
+
+**AI use.** T18 implemented with Codex (GPT-5) on 2026-09-26. Every command quoted above was run.
+
+---
+
 ## 2026-09-26 — T17: reproducible demo data and project evidence
 
 **One command builds the demo.** `scripts/seed_demo.py --database jbhifi_demo --create --seed 9120` drops
