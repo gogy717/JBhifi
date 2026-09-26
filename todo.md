@@ -17,9 +17,9 @@ is working where — read it before starting anything, so two workers do not tou
 | T11 | done | `ea97295` staff fulfilment moves, atomic cancellation |
 | T13, T14 | done | `16af842` return requests, receipt, rejection, atomic refund/restock |
 | T06, T07, T08, T10, T12, T15 | done | the customer and admin screens: catalogue, product, stores, cart, checkout, orders, returns, account, the staff order queue and the returns desk (see `doc/progress.md`) |
-| T16 (reports) | **not started — free to take** | `queries/reports.sql`, `app/schemas|services|routers/reports.py`, `tests/test_reports.py`, `doc/reports.md`; register the router in `app/main.py` (append to the tuple — nobody else edits that line now). |
-| T17 (demo data + evidence) | partially done | `scripts/seed_demo.py`, `tests/test_demo_seed.py`, `doc/demo.md` in flight; `doc/data-model.md` and `doc/business-rules.md` written. Free to finish. |
-| T18 (e2e + CI) | **not started — free to take** | `web/playwright.config.ts`, `web/e2e/**`, `.github/workflows/ci.yml`, `tests/test_api_errors.py`. Do not modify `web/src/app/(shop)/**` or `web/src/app/admin/**`. |
+| T16 (reports) | **not started — owned by `t16_reports`** | `queries/reports.sql`, `app/schemas\|services\|routers/reports.py`, `tests/test_reports.py`, `doc/reports.md`; register the router in `app/main.py` (append to the tuple — nobody else edits that line now). The admin `/admin/reports` page and its sidebar link are left to the root agent: do not create `web/src/app/admin/reports/**`. |
+| T17 (demo data + evidence) | done | `f4471e3`/`fa235e8`/`d3581f1`: `scripts/seed_demo.py`, `scripts/demo_walkthrough.py`, `tests/test_demo_seed.py`, `doc/demo.md`, `doc/data-model.md`, `doc/business-rules.md`. The last two items — cleaning the planning copy out of `web/src/lib/shop-pages.ts`, `web/README.md` and the home page — are the root agent's and are done too. |
+| T18 (e2e + CI) | in progress — owned by `t18_e2e` | `web/playwright.config.ts`, `web/e2e/**`, `.github/workflows/ci.yml`, `tests/test_api_errors.py`. Do not modify `web/src/app/(shop)/**` or `web/src/app/admin/**`. |
 
 **Frozen contracts.** The API is complete for catalogue (`/products`, with `store_quantity`), orders
 (`/orders`, `/customers/{id}/orders`, `/stores/{id}/orders`, status + cancel) and returns

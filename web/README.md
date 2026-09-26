@@ -2,12 +2,14 @@
 
 Two apps in one Next.js project, on the same FastAPI backend:
 
-- **Storefront** at `/` — what customers see. The home page is live: current deals with stock at your store,
-  shop by category, stores near you. A demo "Signed in as" picker and a "My store" picker stand in for login.
-  The other customer pages are **reserved**: each shows what it will do, which requirements (R#), rules (BR#)
-  and transaction it covers, the API it needs (existing or to build) and the owner slice. Their content comes
-  from `src/lib/shop-pages.ts` — build a page by replacing its `<ReservedPage>`.
-- **Store admin** at `/admin` — stock per store with ± adjustments, products (prices, specs), promotions.
+- **Storefront** at `/` — what customers see, and it is all live: deals with stock at your store, shop by
+  category, stores near you, the catalogue (`/products`) with search/category/brand/price filters, product
+  detail, a browser cart, checkout (delivery or Click & Collect), your orders and their timelines, return
+  requests and their progress, and account/address management. The "Signed in as" and "My store" pickers
+  stand in for login; the API issues the session.
+- **Store admin** at `/admin` — stock per store with ± adjustments, the order queue and fulfilment, the
+  returns desk (receive, reject, refund), products (prices, specs) and promotions. Every change needs a demo
+  staff session, and the API refuses one store acting on another store's records.
 
 Every rule is enforced by the database; when it refuses a request, the page shows the constraint that fired
 (e.g. `br03_inventory_qty_nonneg`).
@@ -50,10 +52,11 @@ every endpoint, read from FastAPI's OpenAPI spec. Commit the regenerated file.
 |---|---|
 | `src/app/(shop)/` | storefront pages; `(shop)` is a route group, so it adds nothing to the URL |
 | `src/app/(shop)/page.tsx` | the home page (live) |
-| `src/app/(shop)/{products,cart,checkout,orders,returns,stores,account}` | reserved customer pages |
-| `src/app/admin/` | store admin: `inventory`, `products`, `promotions` |
-| `src/components/shop/` | storefront header, shop context (demo customer, my store), `ReservedPage` |
-| `src/lib/shop-pages.ts` | the customer page list: what each does, what it covers, the API it needs |
+| `src/app/(shop)/{products,cart,checkout,orders,returns,stores,account}` | the customer pages |
+| `src/app/admin/` | store admin: `inventory`, `orders`, `returns`, `products`, `promotions` |
+| `src/components/shop/`, `src/components/admin/` | storefront header and context; product, order and return pieces; the staff session bar and the order/return actions |
+| `src/lib/cart.ts`, `src/lib/cart-context.tsx`, `src/lib/checkout-attempt.ts` | the browser cart (ids and quantities, money in cents) and one reviewed checkout attempt with its retry key |
+| `src/lib/shop-pages.ts` | the route catalogue: which requirement, rule and transaction each page answers for |
 | `src/lib/api/client.ts` | typed client (`openapi-fetch`) and `ApiError` (`code` = database constraint name) |
 | `src/lib/use-load.ts` | load one resource in a client component: `isCurrent`, and `setData(key, update)` that a late response cannot aim at another store or product |
 | `src/components/ui.tsx` | small UI pieces: buttons, fields, cards, modal, error box |
