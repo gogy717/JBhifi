@@ -62,11 +62,14 @@ every endpoint, read from FastAPI's OpenAPI spec. Commit the regenerated file.
 | `src/components/ui.tsx` | small UI pieces: buttons, fields, cards, modal, error box |
 | `src/test/`, `vitest.config.ts` | unit tests (`npm run test:unit`) for that shared state and the dialogs |
 
-Checks: `npm run typecheck`, `npm run lint`, `npm run test:unit`, `npm run build`.
+Checks: `npm run typecheck`, `npm run lint`, `npm run test:unit`, `npm run build`, `npm run test:e2e`.
 
 `npm run test:unit` runs Vitest with React Testing Library in jsdom over `src/**/*.test.tsx`. They cover
 what a build cannot see: an answer that arrives after the viewer switched store, product or filter, a
 same-key refresh, a rejected request, and the keyboard behaviour of the shared dialog. Network responses
 are mocked at the API-client boundary and resolved by hand, so the race itself is real.
+
+`npm run test:e2e` runs the Playwright journeys in `web/e2e/` against a *disposable* database and its own
+API and web server, so it neither depends on nor disturbs a running stack — see [`e2e/README.md`](e2e/README.md).
 
 This is Next.js 16: read `AGENTS.md` before relying on what you know about older versions.
