@@ -20,7 +20,7 @@ def add_address(cur, customer_id: int, body):
         FROM customer_address WHERE customer_id = %s
         RETURNING {ADDRESS_COLUMNS}
         """,
-        (customer_id, body.line1.strip(), body.suburb.strip(), body.state, body.postcode, customer_id),
+        (customer_id, body.line1, body.suburb, body.state, body.postcode, customer_id),
     )
     return cur.fetchone()
 
