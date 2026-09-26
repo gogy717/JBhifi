@@ -16,7 +16,7 @@ describe("the reviewed checkout attempt", () => {
     window.sessionStorage.clear();
   });
 
-  it("reuses the key when the review has not changed", () => {
+  it("same_attempt_reuses_key", () => {
     const first = getOrCreateAttempt(1, body);
     const again = getOrCreateAttempt(1, body);
     expect(again.key).toBe(first.key);
@@ -26,20 +26,25 @@ describe("the reviewed checkout attempt", () => {
     expect(twoDecimals("19.9")).toBe("19.90");
   });
 
-  it("uses a new key when anything the customer reviewed changes", () => {
+  it("changed_payload_uses_new_key", () => {
     const first = getOrCreateAttempt(1, body);
     expect(getOrCreateAttempt(1, { ...body, expected_total: "40.00" }).key).not.toBe(first.key);
     expect(getOrCreateAttempt(1, { ...body, fulfilment_method: "delivery", delivery_address_no: 1 }).key)
       .not.toBe(first.key);
     expect(getOrCreateAttempt(1, { ...body, items: [{ product_id: 3, quantity: 2 }] }).key).not.toBe(first.key);
-    // A different customer is a different attempt, and discards the previous one.
+  });
+
+  it("customer_switch_discards_pending_attempt", () => {
+    const first = getOrCreateAttempt(1, body);
     const other = getOrCreateAttempt(2, body);
     expect(other.key).not.toBe(first.key);
     expect(other.customer_id).toBe(2);
-    expect(pendingAttempt()?.customer_id).toBe(2);
+    expect(pendingAttempt()?.customer_id).toBe(2);      // the first customer's attempt is gone
+    // And switching back is a new attempt too, not the old key resurrected.
+    expect(getOrCreateAttempt(1, body).key).not.toBe(first.key);
   });
 
-  it("keeps an unresolved attempt, body and key together, until it is cleared", () => {
+  it("unknown_outcome_preserves_body_and_key", () => {
     const attempt = getOrCreateAttempt(1, body);
     const kept = pendingAttempt();
     expect(kept).toEqual(attempt);

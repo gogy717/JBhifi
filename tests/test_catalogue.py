@@ -68,7 +68,7 @@ def find(client, params=None):
 
 # ---------------------------------------------------------------- price
 
-def test_price_filter_uses_the_sale_price(client):
+def test_price_filter_uses_sale_price(client):
     product = a_product(price="100.00", sale="80.00")
     inside = find(client, {"min_price": "75.00", "max_price": "85.00"})
     assert product["product_id"] in inside                     # 80.00 is what it sells for
@@ -92,7 +92,7 @@ def test_a_malformed_price_range_is_refused(client):
 
 # ---------------------------------------------------------------- categories
 
-def test_category_filter_includes_grandchildren(client):
+def test_category_includes_grandchildren(client):
     root = a_category(f"Root {unique_sku()}")
     child = a_category(f"Child {unique_sku()}", parent_id=root)
     grandchild = a_category(f"Grandchild {unique_sku()}", parent_id=child)
@@ -120,7 +120,7 @@ def test_the_store_inventory_uses_the_same_category_walk(client):
 
 # ---------------------------------------------------------------- store stock
 
-def test_a_missing_inventory_row_is_zero_not_missing(client):
+def test_missing_inventory_is_zero(client):
     product = a_product(stock=0, store_id=2)                 # a row exists at store 2 only
     found = find(client, {"store_id": 1})[product["product_id"]]
     assert found["store_quantity"] == 0

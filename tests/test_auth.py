@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 
 from app.auth import COOKIE_NAME
 from app.main import app
-from tests.support import unique_sku
+from tests.shop import a_customer, a_product
+from tests.support import connect, unique_sku
 
 API = "/api/v1"
 AIDEN = 14        # store staff at Sydney CBD (store 1), not its manager
@@ -30,6 +31,16 @@ def sign_in(client, kind, identity):
     return response.json()
 
 
+def one(sql, params=None):
+    conn = connect()
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.fetchone()
+    finally:
+        conn.close()
+
+
 def error_of(response):
     return response.status_code, response.json()["error"]["code"]
 
@@ -42,6 +53,31 @@ def test_a_guest_can_browse_the_shop(client):
     assert client.get(f"{API}/promotions").status_code == 200
     assert client.get(f"{API}/customers").status_code == 200          # the demo directory
     assert client.get(f"{API}/session").json() is None
+
+
+def test_guest_cannot_mutate(client):
+    """Every mutation needs a session; a guest gets 401 and no row changes."""
+    product = a_product(stock=2)
+    customer_id, numbers = a_customer()
+    attempts = [
+        ("POST", f"{API}/stores/1/inventory/{product['product_id']}/adjustments",
+         {"delta": 1, "reason": "received"}),
+        ("POST", f"{API}/products",
+         {"sku": unique_sku(), "name": "Guest", "brand_id": 15, "category_id": 1, "base_price": "1.00"}),
+        ("DELETE", f"{API}/promotions/1", None),
+        ("PATCH", f"{API}/customers/{customer_id}/addresses/{numbers[0]}", {"is_active": False}),
+        ("POST", f"{API}/orders", {"fulfilment_method": "click_collect", "fulfilling_store_id": 1,
+                                   "items": [{"product_id": product["product_id"], "quantity": 1}],
+                                   "expected_total": "1.00"}),
+        ("POST", f"{API}/returns/1/receive", {"expected_status": "requested"}),
+    ]
+    for method, path, body in attempts:
+        response = client.request(method, path, json=body,
+                                  headers={"Idempotency-Key": "0b6f1d4e-5c3a-4a8e-9f2b-7d1e3c5a9b0f"})
+        assert error_of(response) == (401, "not_signed_in"), (method, path, response.text)
+
+    assert one("SELECT quantity FROM inventory WHERE store_id = 1 AND product_id = %s",
+               (product["product_id"],))["quantity"] == 2
 
 
 # ---------------------------------------------------------------- the session itself
@@ -63,7 +99,7 @@ def test_signing_out_ends_the_session(client):
     assert client.get(f"{API}/session").json() is None
 
 
-def test_a_tampered_cookie_is_ignored(client):
+def test_forged_actor_is_ignored(client):
     client.cookies.set(COOKIE_NAME, "eyJraW5kIjoic3RhZmYiLCJpZCI6MX0.forged-signature")
     assert client.get(f"{API}/session").json() is None
     response = client.post(f"{API}/stores/1/inventory/1/adjustments",
@@ -77,7 +113,7 @@ def test_sign_in_requires_an_identity_that_exists(client):
     assert client.get(f"{API}/session").json() is None
 
 
-def test_demo_sign_in_can_be_turned_off(client, monkeypatch):
+def test_demo_login_disabled(client, monkeypatch):
     monkeypatch.setenv("DEMO_MODE", "0")
     assert error_of(client.post(f"{API}/session", json={"kind": "customer", "id": ALICE})) \
         == (403, "demo_sign_in_disabled")
@@ -85,9 +121,52 @@ def test_demo_sign_in_can_be_turned_off(client, monkeypatch):
     assert client.post(f"{API}/session", json={"kind": "customer", "id": ALICE}).status_code == 201
 
 
+# ---------------------------------------------------------------- cookie and cross-origin hardening
+
+def test_the_session_cookie_is_marked_secure_when_the_deployment_is(client, monkeypatch):
+    """Plain HTTP locally (no `Secure`, or the browser would drop it); HTTPS deployments set COOKIE_SECURE."""
+    assert "secure" not in client.post(f"{API}/session", json={"kind": "customer", "id": ALICE}) \
+        .headers["set-cookie"].lower()
+    monkeypatch.setenv("COOKIE_SECURE", "1")
+    signed_in = client.post(f"{API}/session", json={"kind": "customer", "id": ALICE})
+    assert "secure" in signed_in.headers["set-cookie"].lower()
+    monkeypatch.delenv("COOKIE_SECURE")
+
+
+def test_a_mutation_from_another_site_is_refused(client):
+    """SameSite=Lax is the first line; this is the second, for a client that ignores it."""
+    body = {"kind": "customer", "id": ALICE}
+    cross_site = client.post(f"{API}/session", json=body, headers={"Origin": "https://evil.example"})
+    assert error_of(cross_site) == (403, "cross_origin_refused")
+    assert client.get(f"{API}/session").json() is None            # the refusal changed nothing
+
+    # The same request from the web app (another loopback port, as the Next.js proxy arranges) is allowed.
+    assert client.post(f"{API}/session", json=body, headers={"Origin": "http://localhost:3000"}).status_code == 201
+    assert client.post(f"{API}/session", json=body, headers={"Origin": "http://127.0.0.1:3000"}).status_code == 201
+    # A configured origin is trusted too; a look-alike host is not.
+    import os
+    os.environ["TRUSTED_ORIGINS"] = "https://shop.example.test"
+    try:
+        assert client.post(f"{API}/session", json=body,
+                           headers={"Origin": "https://shop.example.test"}).status_code == 201
+        assert error_of(client.post(f"{API}/session", json=body,
+                                   headers={"Origin": "https://shop.example.test.evil"})) \
+            == (403, "cross_origin_refused")
+    finally:
+        del os.environ["TRUSTED_ORIGINS"]
+
+
+def test_a_request_without_an_origin_is_not_a_browser_session(client):
+    """curl, a script or a test client sends no Origin; the permission checks still apply."""
+    assert client.post(f"{API}/session", json={"kind": "customer", "id": ALICE}).status_code == 201
+    assert error_of(client.post(f"{API}/stores/1/inventory/1/adjustments",
+                                json={"delta": 1, "reason": "received"})) == (403, "staff_only")
+    assert client.get(f"{API}/session").json()["id"] == ALICE
+
+
 # ---------------------------------------------------------------- customers
 
-def test_a_customer_can_only_read_their_own_record(client):
+def test_customer_cannot_read_another_customer(client):
     assert client.get(f"{API}/customers/{ALICE}").status_code == 401
     sign_in(client, "customer", ALICE)
     assert client.get(f"{API}/customers/{ALICE}").status_code == 200
@@ -113,7 +192,7 @@ def test_the_body_cannot_choose_the_staff_member(client):
     assert error_of(response) == (422, "validation_error")     # extra fields are refused
 
 
-def test_only_staff_of_that_store_may_adjust_its_stock(client):
+def test_staff_store_scope(client):
     body = {"delta": 1, "reason": "received"}
     assert error_of(client.post(f"{API}/stores/1/inventory/1/adjustments", json=body)) \
         == (401, "not_signed_in")

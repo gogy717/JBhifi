@@ -32,7 +32,7 @@ def test_a_completed_order_reports_its_eligibility_and_deadline():
     assert detail["allowed_actions"] == ["request_return"]
 
 
-def test_only_the_orders_own_customer_can_request_a_return():
+def test_only_owner_can_request_return():
     _, _, _, order = a_completed_order()
     stranger = shop_client(a_customer()[0])
     # Another customer's order is a 404 — the same answer as an order that is not there.
@@ -41,7 +41,7 @@ def test_only_the_orders_own_customer_can_request_a_return():
         == (404, "not_found")
 
 
-def test_an_undelivered_order_cannot_be_returned():
+def test_returns_require_completed_order():
     from tests.shop import SYDNEY_CBD, a_product, order_body, place
     customer_id, _ = a_customer()
     product = a_product(stock=2)
@@ -89,7 +89,7 @@ def test_a_request_creates_its_lines_and_keeps_the_bought_price():
     assert (remaining["returned_quantity"], remaining["remaining_quantity"]) == (2, 1)
 
 
-def test_returned_quantities_are_bounded_by_what_was_bought():
+def test_cumulative_quantities_are_bounded():
     customer, _, _, order = a_completed_order(quantity=2)
     assert request_return(customer, order["order_id"], [(1, 2)]).status_code == 201
 
@@ -101,7 +101,7 @@ def test_returned_quantities_are_bounded_by_what_was_bought():
         == (409, "br12_return_qty_within_purchased")
 
 
-def test_a_rejected_request_releases_its_quantities():
+def test_rejected_quantities_are_released():
     customer, staff, _, order = a_completed_order(quantity=2)
     first = request_return(customer, order["order_id"], [(1, 2)]).json()
     staff.post(f"/api/v1/returns/{first['return_id']}/reject", json={"expected_status": "requested"})
@@ -134,6 +134,29 @@ def test_a_malformed_request_is_refused():
     assert TestClient(app) is not None
 
 
+def test_request_cannot_supply_time():
+    """The request time, the customer, the order and the refund are the server's: supplying any of them
+    is refused as an unknown field, so a caller cannot claim an earlier request or a bigger refund."""
+    customer, _, _, order = a_completed_order(quantity=2)
+    url = f"/api/v1/orders/{order['order_id']}/returns"
+    key = {"Idempotency-Key": "7c2b1a90-4d3e-4f5a-8b6c-9d0e1f2a3b4c"}
+    base = {"reason": "x", "lines": [{"line_no": 1, "quantity": 1}]}
+
+    for extra in (
+        {"requested_at": "2020-01-01T00:00:00Z"},       # an earlier request would beat the 30-day window
+        {"customer_id": 999},
+        {"order_id": order["order_id"] + 1},
+        {"refund_amount": "999.00"},
+        {"status": "refunded"},
+    ):
+        response = customer.post(url, json={**base, **extra}, headers=key)
+        assert error_of(response) == (422, "validation_error"), (extra, response.text)
+
+    # And the time that was recorded is the server's own, not anything from the body.
+    created = request_return(customer, order["order_id"], [(1, 1)]).json()
+    assert created["requested_at"] > order["placed_at"]
+
+
 def test_a_replay_returns_the_same_request_without_touching_it_again():
     customer, _, _, order = a_completed_order(quantity=2)
     key = "0f9c2d7e-3b41-4c8a-96d5-1e2f3a4b5c6d"
@@ -149,7 +172,7 @@ def test_a_replay_returns_the_same_request_without_touching_it_again():
     assert error_of(changed) == (409, "idempotency_conflict")
 
 
-def test_a_replay_still_works_after_the_window_has_closed():
+def test_return_replay_after_window_closes():
     customer, _, _, order = a_completed_order(quantity=2)
     key = "5c7e1a90-2d4b-4f6a-8e3c-9b0a1d2e3f40"
     first = request_return(customer, order["order_id"], [(1, 1)], key=key)

@@ -72,17 +72,25 @@ def checkout(cur, actor: Actor, key: UUID, body) -> tuple[dict, bool]:
         raise ApiError(409, "price_changed", "The price changed while you were reviewing your order.",
                        {"total": money(total), "lines": [_line_json(line) for line in lines]})
 
+    # Claim the key with ON CONFLICT DO NOTHING rather than letting a UNIQUE violation abort the
+    # transaction: the customer lock above already makes this the only claimant for a real double-click,
+    # but if something else did claim the key (a fixture, or a future writer that skips the lock) the
+    # request is resolved as the replay it is instead of failing the whole transaction.
     cur.execute(
         """
         INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint, fulfilment_method,
                                     fulfilling_store_id, delivery_address_no)
         VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT ON CONSTRAINT br10_order_idempotency_unique DO NOTHING
         RETURNING order_id
         """,
         (customer_id, str(key), fingerprint, body.fulfilment_method, store["store_id"],
          body.delivery_address_no),
     )
-    order_id = cur.fetchone()["order_id"]
+    claimed = cur.fetchone()
+    if claimed is None:
+        return _replay_without_the_lock(cur, actor, customer_id, key, fingerprint)
+    order_id = claimed["order_id"]
 
     for line in lines:
         cur.execute(
@@ -96,6 +104,23 @@ def checkout(cur, actor: Actor, key: UUID, body) -> tuple[dict, bool]:
     set_status(cur, order_id, "paid", staff_id=None)   # the customer's own change: no staff actor
     flush_deferred(cur)
     return get_order(cur, actor, order_id), False
+
+
+def _replay_without_the_lock(cur, actor: Actor, customer_id: int, key, fingerprint: str):
+    """Someone else claimed this key while we were validating: answer with their order, or refuse."""
+    cur.execute(
+        "SELECT order_id, request_fingerprint FROM customer_order "
+        "WHERE customer_id = %s AND idempotency_key = %s FOR UPDATE",
+        (customer_id, str(key)),
+    )
+    existing = cur.fetchone()
+    if existing is None:                       # the other transaction rolled back after all
+        raise ApiError(409, "idempotency_conflict",
+                       "That order could not be claimed. Please try again.")
+    if existing["request_fingerprint"] != fingerprint:
+        raise ApiError(409, "idempotency_conflict",
+                       "That Idempotency-Key was already used for a different request.")
+    return get_order(cur, actor, existing["order_id"]), True
 
 
 def _validate_items(body) -> dict[int, int]:

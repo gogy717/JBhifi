@@ -4,6 +4,43 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-09-26 — Completion audit: the last gaps, closed
+
+The plan's checkboxes were still all unticked and its named tests were not all present under the names it
+gives, so the delivery was audited line by line against the code rather than by reading the status table.
+Six real gaps came out of it; all six are fixed, and the rest of the 178 items was verified as already met.
+
+| Gap | What was wrong | Fix |
+|---|---|---|
+| T01 — cookie hardening | The session cookie was `HttpOnly` + `SameSite=Lax` but had no `Secure` option, and nothing refused a mutation that arrived with a browser `Origin` from another site | `COOKIE_SECURE=1` marks the cookie `Secure` on HTTPS; a middleware refuses a mutating request whose `Origin` is not the API's own host, loopback, or a `TRUSTED_ORIGINS` entry. `SameSite` remains the first line; this is the second, for a client that ignores it |
+| T07 — home page | A failed stock or upcoming-promotions request rendered as *nothing*: no stock line reads like zero stock, and an absent "starting soon" strip reads like no upcoming deals | The home page now says which of its own loads failed, that the gap is not an empty result, and offers the retry |
+| T08 — cart tests | `cart_works_when_storage_is_blocked` had no test | Added, along with one for the "items added while a checkout was in flight survive it" policy, in `cart-context.test.tsx` |
+| T09 — retry fallback | The plan asks for `INSERT … ON CONFLICT DO NOTHING RETURNING …` with a fallback replay; the code relied on the customer lock alone | The claim is now `ON CONFLICT ON CONSTRAINT br10_order_idempotency_unique DO NOTHING`, and a lost claim replays the existing order (or refuses a changed body) instead of aborting the transaction |
+| T12/T15 — component tests | The plan asks for component tests of the two staff action bars; only browser journeys covered them | `order-actions.test.tsx` and `return-actions.test.tsx`: action sets from `allowed_actions`, `expected_status` submitted as displayed, `stale_status` recovery, cancellation/refund confirmations, duplicate-click prevention |
+| T16 — index evidence | "Inspect query plans and add `sql/04_indexes.sql` only for evidenced needs" was answered with an opinion | All three report queries were run under `EXPLAIN (ANALYZE, BUFFERS)` on the seeded demo database; the measured plans are in `doc/reports.md`, and no index was added because every access is a scan of one or two pages |
+
+Two smaller alignments came out of the same pass: actions on the order screen are now named for the move
+("Start picking", "Mark shipped") rather than for the status they land on, and the test database name is
+per-`pytest-xdist`-worker by default, so two workers can no longer drop the database each other is using.
+
+**Test-name alignment.** The plan names 61 backend tests and 9 web tests. All 70 now exist under those
+exact names (`pytest -k test_last_unit_has_one_buyer`, `vitest -t cart_merges_duplicate_products`), by
+renaming the equivalents the earlier work had given prose names to, and adding the three that were genuinely
+missing (`test_guest_cannot_mutate` over six mutating endpoints, `test_request_cannot_supply_time`, and the
+`test_receiving_does_not_restock` split). The audit script itself was mechanical: extract every backticked
+`test_…`/snake-case name from `todo.md`, collect the suites, and diff the two sets — the diff is now empty.
+
+**Verification after the fixes (actually run).** `pytest -q` → **215 passed**; `pytest tests/test_demo_seed.py -q`
+→ 9 passed; `npm run test:unit` → **44 passed**; `typecheck`, `lint` clean; `npm run test:e2e` → **18 passed**
+(the browser suite caught the renamed buttons, which is why the spec now asks for "Start picking"); report
+plans measured on `jbhifi_demo` (12 orders, 16 payments, 6 returns) with 0.07–0.16 ms actual time and 10–57
+shared buffers. `todo.md`'s 178 checkboxes are ticked and none is left blank.
+
+**AI use.** This audit, the six fixes and the renames were done with Codex (GPT-5) on 2026-09-26. Every
+command and count above was run.
+
+---
+
 ## 2026-09-26 — Delivery: the whole scope, checked end to end
 
 T00–T18 are implemented and committed. This entry records the final verification, run on 2026-09-26 on

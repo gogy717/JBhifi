@@ -47,7 +47,7 @@ def test_concurrent_return_requests_cannot_exceed_the_purchase():
         ["remaining_quantity"] == 0
 
 
-def test_the_same_return_key_from_two_threads_has_one_effect():
+def test_concurrent_same_return_key_has_one_effect():
     _, _, _, order = a_completed_order(quantity=2)
     customer_id = order["customer_id"]
     key = uuid.uuid4()
@@ -60,7 +60,7 @@ def test_the_same_return_key_from_two_threads_has_one_effect():
                   WHERE rr.order_id = %s""", (order["order_id"],))["n"] == 1
 
 
-def test_a_later_line_that_breaks_the_rule_rolls_back_the_whole_request():
+def test_invalid_second_line_rolls_back_request():
     customer, _, _, order = a_completed_order(quantity=2, price="50.00")
     # Line 1 is fine (1 of 2); line 2 asks for one unit of a one-line order.
     response = customer.post(

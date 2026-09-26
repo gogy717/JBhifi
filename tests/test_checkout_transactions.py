@@ -36,7 +36,7 @@ def error_message(result) -> str:
     return str(result)
 
 
-def test_the_last_unit_has_exactly_one_buyer():
+def test_last_unit_has_one_buyer():
     product = a_product(price="499.00", stock=1)
     buyers = [a_customer()[0] for _ in range(2)]
     body = order_body([(product, 1)])
@@ -54,7 +54,7 @@ def test_the_last_unit_has_exactly_one_buyer():
                   WHERE l.product_id = %s""", (product["product_id"],))["n"] == 1
 
 
-def test_the_same_key_from_two_threads_creates_one_order():
+def test_concurrent_same_key_creates_one_order():
     product = a_product(price="189.00", stock=5)
     customer_id = a_customer()[0]
     body = order_body([(product, 1)])
@@ -71,7 +71,7 @@ def test_the_same_key_from_two_threads_creates_one_order():
                (SYDNEY_CBD, product["product_id"]))["quantity"] == 4
 
 
-def test_overlapping_baskets_do_not_hang_and_never_oversell():
+def test_concurrent_overlapping_baskets_do_not_hang():
     # 3 units, two customers each wanting 2: at most one can succeed, and the loser is told why.
     product = a_product(price="30.00", stock=3)
     buyers = [a_customer()[0] for _ in range(2)]
@@ -90,7 +90,7 @@ def test_overlapping_baskets_do_not_hang_and_never_oversell():
     assert sold == 2 * len(successes)
 
 
-def test_checkout_races_a_retirement_and_leaves_a_consistent_result():
+def test_checkout_races_with_retirement():
     """Whoever gets the product row lock first wins: the order commits, or the retire does."""
     product = a_product(price="89.00", stock=4)
     customer_id = a_customer()[0]

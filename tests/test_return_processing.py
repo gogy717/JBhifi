@@ -26,7 +26,7 @@ def a_requested_return(*, quantity=1, price="19.95", stock=1, method="click_coll
     return customer, staff, product, order, created
 
 
-def test_receiving_records_the_store_and_the_staff_member():
+def test_receive_records_actor_and_store():
     _, staff, product, _, created = a_requested_return()
     assert stock_at(SYDNEY_CBD, product["product_id"]) == 0            # sold out
 
@@ -38,10 +38,19 @@ def test_receiving_records_the_store_and_the_staff_member():
     assert received["receiving_store"] == {"store_id": SYDNEY_CBD, "name": "Sydney CBD"}
     assert [(change["from_status"], change["to_status"], change["changed_by_staff_id"])
             for change in received["history"]] == [(None, "requested", None), ("requested", "received", AIDEN)]
-    # Receiving takes the item in; it does not put it back on the shelf.
-    assert stock_at(SYDNEY_CBD, product["product_id"]) == 0
     assert received["allowed_actions"] == ["reject", "process"]
     assert received["refund_amount"] is None
+
+
+def test_receiving_does_not_restock():
+    """Taking the item in records where it is; the shelf is only touched when the return is processed."""
+    _, staff, product, _, created = a_requested_return(quantity=1, price="19.95", stock=1)
+    assert stock_at(SYDNEY_CBD, product["product_id"]) == 0            # the one unit was sold
+
+    assert return_action(staff, created["return_id"], "receive", "requested").status_code == 200
+    assert stock_at(SYDNEY_CBD, product["product_id"]) == 0            # still nothing back on the shelf
+    assert one("SELECT count(*) AS n FROM payment WHERE return_id = %s",
+               (created["return_id"],))["n"] == 0
 
 
 def test_processing_restocks_and_refunds_the_sold_price_once():
@@ -73,7 +82,7 @@ def test_processing_restocks_and_refunds_the_sold_price_once():
     assert one("SELECT count(*) AS n FROM payment WHERE return_id = %s", (created["return_id"],))["n"] == 1
 
 
-def test_a_partial_return_refunds_only_what_came_back():
+def test_partial_refund_uses_sold_price():
     customer, staff, product, order = a_completed_order(quantity=3, price="19.95", stock=3)
     # Return two of the three, so the refund is exactly two units at the price paid.
     partial = request_return(customer, order["order_id"], [(1, 2)]).json()
@@ -87,7 +96,7 @@ def test_a_partial_return_refunds_only_what_came_back():
     assert remaining["remaining_quantity"] == 1
 
 
-def test_a_rejected_return_has_no_refund_and_no_restock():
+def test_rejected_return_has_no_refund():
     _, staff, product, _, created = a_requested_return()
     response = return_action(staff, created["return_id"], "reject", "requested")
     assert response.status_code == 200, response.text
@@ -100,7 +109,7 @@ def test_a_rejected_return_has_no_refund_and_no_restock():
     assert one("SELECT count(*) AS n FROM payment WHERE return_id = %s", (created["return_id"],))["n"] == 0
 
 
-def test_only_the_stores_own_staff_may_receive_and_only_the_receiving_store_may_refund():
+def test_wrong_store_cannot_process():
     customer, staff, _, order, created = a_requested_return()
 
     # Support reads returns but never handles one.
@@ -125,7 +134,7 @@ def test_a_store_that_did_not_fulfil_it_cannot_refuse_an_unseen_return():
     assert return_action(staff_client(AIDEN), created["return_id"], "reject", "requested").status_code == 200
 
 
-def test_a_zero_value_return_needs_no_payment_row():
+def test_zero_value_return_has_no_payment_row():
     customer, staff, product, order = a_completed_order(quantity=1, price="0.00", stock=1)
     created = request_return(customer, order["order_id"], [(1, 1)]).json()
     assert created["refund_preview"] == "0.00"

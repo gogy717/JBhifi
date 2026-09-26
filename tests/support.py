@@ -15,7 +15,12 @@ load_dotenv()
 
 # The name of the disposable database the fixtures drop and rebuild. Overridable, but must stay clearly
 # test-shaped so a misconfiguration can't point it at the demo database.
-TEST_DB = os.environ.get("POSTGRES_TEST_DB", "jbhifi_test")
+#
+# `pytest-xdist` runs several workers inside one session, and each one rebuilds the database at the start.
+# Sharing one name means one worker drops the database another is halfway through, which shows up as
+# unrelated failures, so a worker gets its own database unless `POSTGRES_TEST_DB` says otherwise.
+_WORKER = os.environ.get("PYTEST_XDIST_WORKER", "")
+TEST_DB = os.environ.get("POSTGRES_TEST_DB") or (f"jbhifi_{_WORKER}_test" if _WORKER else "jbhifi_test")
 # app/db.py reads POSTGRES_DB on every connect, so the API under test talks to the test database.
 os.environ["POSTGRES_DB"] = TEST_DB
 

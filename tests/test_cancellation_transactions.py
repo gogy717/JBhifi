@@ -33,7 +33,7 @@ def cancel(client, order, reason="Customer changed their mind", expected_status=
     })
 
 
-def test_a_paid_cancellation_restores_the_stock_and_refunds_exactly_once():
+def test_paid_cancellation_restores_and_refunds_once():
     product, order = a_paid_order(quantity=2, price="19.95", stock=5)
     assert one("SELECT quantity FROM inventory WHERE store_id = %s AND product_id = %s",
                (SYDNEY_CBD, product["product_id"]))["quantity"] == 3
@@ -76,7 +76,7 @@ def test_a_repeated_cancellation_repeats_nothing():
                (order["order_id"],))["n"] == 1
 
 
-def test_an_unpaid_order_does_not_invent_stock_when_cancelled():
+def test_unpaid_cancellation_does_not_invent_stock():
     """A `placed` order took no stock (only checkout takes stock, and it commits as `paid`)."""
     customer_id, _ = a_customer()
     product = a_product(price="19.95", stock=4)
@@ -103,7 +103,7 @@ def test_an_unpaid_order_does_not_invent_stock_when_cancelled():
                (SYDNEY_CBD, product["product_id"]))["quantity"] == 4
 
 
-def test_a_ready_collection_can_still_be_cancelled():
+def test_ready_collection_can_cancel():
     product, order = a_paid_order(quantity=1, price="19.95", stock=3)
     staff = staff_client(AIDEN)
     staff.patch(f"/api/v1/orders/{order['order_id']}/status",
@@ -118,7 +118,7 @@ def test_a_ready_collection_can_still_be_cancelled():
                (SYDNEY_CBD, product["product_id"]))["quantity"] == 3
 
 
-def test_an_order_that_is_already_delivered_cannot_be_cancelled():
+def test_invalid_cancel_rolls_back():
     product, order = a_paid_order(method="delivery", store_id=WAREHOUSE, quantity=1, stock=3)
     warehouse_staff = staff_client(38)
     for to_status in ("picking", "shipped", "delivered"):
@@ -136,7 +136,7 @@ def test_an_order_that_is_already_delivered_cannot_be_cancelled():
         == "delivered"
 
 
-def test_a_failure_while_refunding_rolls_the_whole_cancellation_back(monkeypatch):
+def test_refund_failure_rolls_back_cancellation(monkeypatch):
     product, order = a_paid_order(quantity=1, price="19.95", stock=4)
     staff = staff_client(AIDEN)
 
@@ -161,7 +161,7 @@ def test_a_failure_while_refunding_rolls_the_whole_cancellation_back(monkeypatch
                "FROM payment WHERE order_id = %s", (order["order_id"],))["net"] == Decimal("19.95")
 
 
-def test_cancelling_and_fulfilling_the_same_order_have_one_winner():
+def test_concurrent_cancel_and_fulfilment_has_one_winner():
     product, order = a_paid_order(quantity=1, price="19.95", stock=3)
     barrier = threading.Barrier(2, timeout=20)
     outcome = {}

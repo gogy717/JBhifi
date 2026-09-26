@@ -179,7 +179,7 @@ def test_only_that_stores_trade_is_reported():
     assert everything["totals"]["net_receipts"] == "350.00"
 
 
-def test_refunds_use_their_own_event_date_and_net_off():
+def test_refunds_use_event_date():
     """A May charge refunded in June: May shows the charge, June shows the refund."""
     committed(lambda cur: an_order(cur, charge="200.00", at=MAY_15))
     committed(lambda cur: a_return(cur, requested_at=MAY_15, status="refunded",
@@ -214,7 +214,7 @@ def test_an_impossible_period_is_refused():
 
 # ---------------------------------------------------------------- low stock
 
-def test_low_stock_includes_products_with_no_inventory_row():
+def test_low_stock_includes_missing_rows():
     never_stocked = committed(lambda cur: a_product_id(cur, stock=None, name="Never stocked"))
     stocked_low = committed(lambda cur: a_product_id(cur, stock=2, name="Two left"))
     stocked_plenty = committed(lambda cur: a_product_id(cur, stock=40, name="Plenty"))
@@ -243,7 +243,7 @@ def test_low_stock_is_for_one_store_only():
 
 # ---------------------------------------------------------------- returns
 
-def test_return_report_cohort_is_the_request_date_not_the_refund_date():
+def test_return_report_cohort_definition():
     """A March request refunded in April belongs to the March cohort, with its refund attached."""
     inside = committed(lambda cur: a_return(cur, requested_at=AUGUST_8,
                                             status="refunded", received_store_id=BONDI,
@@ -278,7 +278,7 @@ def test_return_report_counts_every_status():
 
 # ---------------------------------------------------------------- boundaries and permissions
 
-def test_the_window_is_sydney_midnight_inclusive_to_exclusive():
+def test_sydney_date_boundary():
     # Sydney is UTC+10 in July, so local midnight is 14:00 UTC the day before. The last second of June and
     # the first second of August are outside the July report; the first and last seconds of July are in it.
     committed(lambda cur: an_order(cur, charge="10.00",
@@ -299,7 +299,7 @@ def test_the_window_is_sydney_midnight_inclusive_to_exclusive():
     assert Decimal(report["totals"]["captured_amount"]) == Decimal("50.00")   # 20 + 30, not 10 or 40
 
 
-def test_reports_are_scoped_to_the_signed_in_store():
+def test_report_store_permissions():
     from fastapi.testclient import TestClient
     from app.main import app
     assert TestClient(app).get(f"{API}/sales").status_code == 401

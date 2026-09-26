@@ -53,7 +53,7 @@ const loading = () => screen.getByTestId("loading").textContent;
 const isCurrent = () => screen.getByTestId("current").textContent;
 
 describe("useLoad", () => {
-  it("ignores an answer that arrives after the screen moved to another store", async () => {
+  it("late_store_a_response_cannot_change_store_b", async () => {
     const storeOne = deferred<string[]>();
     const storeTwo = deferred<string[]>();
     const load = (key: string) => (key === "store:1" ? storeOne.promise : storeTwo.promise);

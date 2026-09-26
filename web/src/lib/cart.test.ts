@@ -4,7 +4,7 @@ import { addItem, fromCents, lineTotalCents, MAX_QUANTITY, readCart, removeItem,
   writeCart } from "./cart";
 
 describe("money in cents", () => {
-  it("multiplies and adds without floating-point drift", () => {
+  it("cart_totals_use_cents", () => {
     expect(toCents("19.95") * 3).toBe(5985);
     expect(toCents("0.10") + toCents("0.20")).toBe(30);
     expect(toCents("189")).toBe(18900);
@@ -16,13 +16,13 @@ describe("money in cents", () => {
 });
 
 describe("the stored cart", () => {
-  it("merges a product that is added twice", () => {
+  it("cart_merges_duplicate_products", () => {
     const once = addItem([], 7, 2);
     const twice = addItem(once, 7, 1);
     expect(twice).toEqual([{ product_id: 7, quantity: 3 }]);
   });
 
-  it("refuses quantities that are not positive whole numbers within range", () => {
+  it("cart_rejects_invalid_quantities", () => {
     expect(addItem([], 1, 0)).toEqual([{ product_id: 1, quantity: 1 }]);       // clamped up to 1
     expect(addItem([], 1, -5)).toEqual([{ product_id: 1, quantity: 1 }]);
     expect(addItem([], 1, 1000)).toEqual([{ product_id: 1, quantity: MAX_QUANTITY }]);
@@ -32,7 +32,7 @@ describe("the stored cart", () => {
     expect(removeItem([{ product_id: 1, quantity: 2 }], 1)).toEqual([]);
   });
 
-  it("recovers from corrupt, foreign or hand-edited storage", () => {
+  it("cart_recovers_from_corrupt_storage", () => {
     expect(readCart(null)).toEqual({ version: 1, items: [] });
     expect(readCart("not json at all")).toEqual({ version: 1, items: [] });
     expect(readCart(JSON.stringify({ version: 99, items: [{ product_id: 1, quantity: 1 }] })))

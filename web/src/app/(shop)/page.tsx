@@ -58,6 +58,11 @@ export default function HomePage() {
   const address = customer?.addresses.find((a) => a.is_active);
   // "Stores near you": the customer's state if it has a retail store, else the state of my store.
   const nearState = homeState && retailStores.some((s) => s.state === homeState) ? homeState : store?.state;
+  // Which of this page's own live loads failed, in the order a viewer would notice them.
+  const failedLoad = deals.error ? { error: deals.error, what: "The current deals" }
+    : stock.error ? { error: stock.error, what: `Stock at ${store?.name ?? "your store"}` }
+      : upcoming.error ? { error: upcoming.error, what: "Upcoming promotions" }
+        : undefined;
   // Counts come from the shared recursive walk, so a grandchild's products count towards its ancestors.
   const counts = productCountsByCategory(categories, (products.data ?? []).map((p) => p.category_id));
   const recentOrders = (myOrders.data ?? []).slice(0, 3);
@@ -108,10 +113,15 @@ export default function HomePage() {
         <SectionHeading title="Current deals" note="Live: promotions running now, with stock at your store"
           action={<Link href={SHOP_PAGES.catalogue.href} className="text-sm font-medium hover:underline">
             Shop all products →</Link>} />
-        {deals.error && (
-          <div className="flex flex-wrap items-center gap-3">
-            <ErrorBox error={deals.error} />
-            {!loadError && <Button onClick={retry}>Try again</Button>  /* else the greeting already offers it */}
+        {/* A failed load must be said out loud: an absent stock figure is not the same as zero, and an
+            absent "starting soon" strip is not the same as there being nothing upcoming. */}
+        {failedLoad && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <ErrorBox error={failedLoad.error} />
+            <span className="text-sm text-neutral-600">
+              {failedLoad.what} could not be loaded, so it is missing below — this is not an empty result.
+            </span>
+            {!loadError && <Button onClick={retry}>Try again</Button>}
           </div>
         )}
         {!deals.error && (

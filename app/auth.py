@@ -32,6 +32,43 @@ def demo_mode_enabled() -> bool:
     return os.environ.get("DEMO_MODE", "1").strip().lower() not in ("0", "false", "no", "off", "")
 
 
+def cookie_is_secure() -> bool:
+    """Whether the session cookie carries `Secure`.
+
+    Off by default because the demo runs over plain HTTP on localhost; a deployment served over HTTPS sets
+    `COOKIE_SECURE=1` (or `SESSION_SECURE=1`) so the browser never sends the session over an insecure
+    connection.
+    """
+    return os.environ.get("COOKIE_SECURE", "").strip().lower() not in ("", "0", "false", "no", "off")
+
+
+# Hosts allowed to send a mutation with the session cookie. `SameSite=Lax` already stops a cross-site POST
+# from carrying the cookie; this is the second line, and it also covers an old browser that ignores
+# SameSite. Loopback is always allowed (the demo's web app runs on localhost, often on another port behind
+# the Next.js proxy); anything else has to be listed in TRUSTED_ORIGINS.
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"}
+
+
+def trusted_origins() -> set[str]:
+    raw = os.environ.get("TRUSTED_ORIGINS", "")
+    return {origin.strip().rstrip("/").lower() for origin in raw.split(",") if origin.strip()}
+
+
+def origin_is_trusted(origin: str, host: str | None) -> bool:
+    """Is this `Origin` allowed to mutate with the cookie? See `LOOPBACK_HOSTS`."""
+    candidate = origin.strip().rstrip("/").lower()
+    if candidate in trusted_origins():
+        return True
+    if host is not None and candidate.removeprefix("http://").removeprefix("https://") == host.lower():
+        return True
+    hostname = candidate.split("://", 1)[-1].split("/", 1)[0]
+    if "@" in hostname:
+        hostname = hostname.rsplit("@", 1)[1]
+    if hostname.startswith("["):                      # an IPv6 literal, e.g. [::1]:3000
+        return hostname.split("]")[0] + "]" in LOOPBACK_HOSTS
+    return hostname.rsplit(":", 1)[0] in LOOPBACK_HOSTS
+
+
 def sign_session(payload: dict) -> str:
     """base64url(JSON) + '.' + HMAC-SHA256, so the browser cannot invent or edit an identity."""
     body = base64.urlsafe_b64encode(

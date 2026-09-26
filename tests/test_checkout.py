@@ -194,7 +194,7 @@ def test_out_of_stock_saves_nothing():
                (SYDNEY_CBD, product["product_id"]))["quantity"] == 1
 
 
-def test_a_later_line_failure_rolls_back_every_earlier_line():
+def test_second_line_failure_rolls_back_everything():
     customer_id, _ = a_customer()
     plenty = a_product(price="10.00", stock=5)
     short = a_product(price="20.00", stock=1)
@@ -231,7 +231,7 @@ def test_repeating_the_same_request_returns_the_same_order_without_a_second_effe
                (SYDNEY_CBD, product["product_id"]))["quantity"] == 4    # taken once, not twice
 
 
-def test_the_same_key_with_a_different_body_is_a_conflict():
+def test_changed_payload_key_conflicts():
     customer_id, _ = a_customer()
     product = a_product(price="189.00", stock=5)
     client = shop_client(customer_id)
@@ -243,7 +243,7 @@ def test_the_same_key_with_a_different_body_is_a_conflict():
                (SYDNEY_CBD, product["product_id"]))["quantity"] == 4
 
 
-def test_a_replay_still_works_after_the_price_changed():
+def test_replay_after_price_change():
     customer_id, _ = a_customer()
     product = a_product(price="189.00", stock=5)
     client = shop_client(customer_id)
@@ -287,3 +287,55 @@ def test_a_guest_cannot_check_out():
     response = place(TestClient(app), order_body([(product, 1)]))
     assert error_of(response) == (401, "not_signed_in")
     assert API is not None
+
+
+def test_a_key_claimed_outside_the_lock_still_replays_instead_of_failing():
+    """The customer lock is what normally decides a double-click, so the `ON CONFLICT DO NOTHING` branch is
+    the belt to that pair of braces: if a key was claimed by a writer that did not take the lock, the
+    request is answered as the replay it is rather than failing the whole transaction."""
+    customer_id, _ = a_customer()
+    product = a_product(price="10.00", stock=5)
+    client = shop_client(customer_id)
+    key = uuid.uuid4()
+    body = order_body([(product, 1)])
+
+    # A writer that skipped the lock claims the key with a different fingerprint: a clear conflict, not a
+    # crash, and nothing written by us.
+    other = connect()
+    with other, other.cursor() as cur:
+        cur.execute(
+            "INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint, "
+            "fulfilment_method, fulfilling_store_id) VALUES (%s, %s, 'someone-elses-fingerprint', "
+            "'click_collect', 1) RETURNING order_id",
+            (customer_id, str(key)),
+        )
+    other.close()
+
+    assert error_of(place(client, body, key)) == (409, "idempotency_conflict")
+    assert one("SELECT count(*) AS n FROM customer_order WHERE customer_id = %s", (customer_id,))["n"] == 1
+    assert one("SELECT count(*) AS n FROM payment p JOIN customer_order o USING (order_id) "
+               "WHERE o.customer_id = %s", (customer_id,))["n"] == 0
+
+    # And the branch itself answers with the existing order when the fingerprint does match.
+    from app.auth import Actor
+    from app.errors import ApiError
+    from app.services import orders as orders_service
+    placed = place(client, order_body([(a_product(price="20.00", stock=5), 1)]), uuid.uuid4()).json()
+    conn = connect()
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute("SELECT idempotency_key, request_fingerprint FROM customer_order WHERE order_id = %s",
+                        (placed["order_id"],))
+            stored = cur.fetchone()
+            actor = Actor("customer", customer_id, "Shop Test")
+            detail, replay = orders_service._replay_without_the_lock(
+                cur, actor, customer_id, stored["idempotency_key"], stored["request_fingerprint"])
+            assert replay is True
+            assert detail["order_id"] == placed["order_id"]
+            with pytest.raises(ApiError) as refused:
+                orders_service._replay_without_the_lock(
+                    cur, actor, customer_id, stored["idempotency_key"], "a different fingerprint")
+            assert refused.value.code == "idempotency_conflict"
+    finally:
+        conn.rollback()
+        conn.close()

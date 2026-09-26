@@ -13,7 +13,7 @@ def addresses(client, customer_id):
     return client.get(f"{API}/customers/{customer_id}").json()["addresses"]
 
 
-def test_a_new_address_gets_the_next_number():
+def test_add_address_allocates_next_number():
     customer_id, numbers = a_customer(addresses=2)
     client = shop_client(customer_id)
     response = client.post(f"{API}/customers/{customer_id}/addresses", json=NEW_ADDRESS)
@@ -23,7 +23,7 @@ def test_a_new_address_gets_the_next_number():
     assert [row["address_no"] for row in addresses(client, customer_id)] == [1, 2, 3]
 
 
-def test_concurrent_adds_get_distinct_numbers():
+def test_concurrent_address_adds_are_distinct():
     customer_id, _ = a_customer(addresses=0)
 
     def add(_):
@@ -38,7 +38,7 @@ def test_concurrent_adds_get_distinct_numbers():
     assert sorted(result["address_no"] for result in results) == [1, 2, 3]
 
 
-def test_retiring_is_idempotent_and_keeps_the_address():
+def test_retire_is_idempotent():
     customer_id, numbers = a_customer()
     client = shop_client(customer_id)
     url = f"{API}/customers/{customer_id}/addresses/{numbers[0]}"
@@ -53,7 +53,7 @@ def test_retiring_is_idempotent_and_keeps_the_address():
         == [(1, False)]
 
 
-def test_address_text_cannot_be_patched_and_the_number_must_exist():
+def test_address_text_cannot_be_patched():
     customer_id, numbers = a_customer()
     client = shop_client(customer_id)
     url = f"{API}/customers/{customer_id}/addresses/{numbers[0]}"
@@ -91,7 +91,7 @@ def test_a_new_address_must_be_well_formed():
     assert error_of(client.post(url, json={**NEW_ADDRESS, "line1": ""})) == (422, "validation_error")
 
 
-def test_only_the_owner_can_change_their_addresses():
+def test_customer_cannot_change_another_address():
     customer_id, numbers = a_customer()
     stranger = shop_client(a_customer()[0])
     url = f"{API}/customers/{customer_id}/addresses"

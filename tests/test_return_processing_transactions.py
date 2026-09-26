@@ -29,7 +29,7 @@ def a_received_return(*, quantity=1, price="19.95", stock=1):
     return customer, product, order, created
 
 
-def test_processing_twice_from_two_threads_refunds_and_restocks_once():
+def test_concurrent_process_refunds_and_restocks_once():
     _, product, _, created = a_received_return()
 
     def process(_):
@@ -52,7 +52,7 @@ def test_processing_twice_from_two_threads_refunds_and_restocks_once():
                (created["return_id"],))["status"] == "refunded"
 
 
-def test_a_failure_while_refunding_leaves_no_restock_and_no_status_change(monkeypatch):
+def test_refund_failure_rolls_back_inventory_and_status(monkeypatch):
     _, product, _, created = a_received_return()
     monkeypatch.setattr("app.services.returns.record_refund",
                        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("simulated")))
@@ -71,7 +71,7 @@ def test_a_failure_while_refunding_leaves_no_restock_and_no_status_change(monkey
     assert one("SELECT count(*) AS n FROM payment WHERE return_id = %s", (created["return_id"],))["n"] == 0
 
 
-def test_rejecting_races_with_processing_and_only_one_wins():
+def test_reject_races_with_process():
     _, product, _, created = a_received_return()
     barrier = threading.Barrier(2, timeout=20)
     outcome = {}
@@ -103,7 +103,7 @@ def test_rejecting_races_with_processing_and_only_one_wins():
         assert (final, refunds, stock) == ("rejected", 0, 0)
 
 
-def test_two_partial_returns_together_refund_no_more_than_was_charged():
+def test_two_returns_cannot_exceed_charge():
     customer, staff, product, order = a_completed_order(quantity=4, price="10.00", stock=4)
     charged = Decimal("40.00")
 

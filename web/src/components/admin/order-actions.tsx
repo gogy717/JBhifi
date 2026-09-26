@@ -7,6 +7,15 @@ import { ORDER_STATUS_TEXT } from "@/components/shop/order-timeline";
 import { ApiError, api, call, type OrderDetail, type OrderStatus } from "@/lib/api/client";
 import { money } from "@/lib/format";
 
+/** What each move is called on a button. The timeline keeps the customer-facing wording. */
+const ACTION_TEXT: Record<string, string> = {
+  picking: "Start picking",
+  shipped: "Mark shipped",
+  delivered: "Mark delivered",
+  ready: "Mark ready to collect",
+  collected: "Mark collected",
+};
+
 /** The buttons come from the server's `allowed_actions`, so the page keeps no transition table of its own. */
 export function OrderActions({ order, onChanged }: {
   order: OrderDetail;
@@ -48,7 +57,7 @@ export function OrderActions({ order, onChanged }: {
         )}
         {moves.map((action) => (
           <Button key={action} tone="primary" disabled={pending !== undefined} onClick={() => move(action)}>
-            {pending === action ? "Saving…" : `Mark ${ORDER_STATUS_TEXT[action] ?? action}`}
+            {pending === action ? "Saving…" : ACTION_TEXT[action] ?? action}
           </Button>
         ))}
         {canCancel && (

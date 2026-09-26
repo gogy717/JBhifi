@@ -89,9 +89,27 @@ order, with the receiving store shown separately, because a customer may hand an
 
 ## Indexes
 
-The reports read `payment`, `customer_order` and `return_request` by store and by time. `sql/04_indexes.sql`
-is added only where a plan inspection shows it pays for itself; with the seeded volume (about 50 products,
-13 stores and a handful of orders) an index does not change the plan, so none was added and none is
-claimed. A real deployment would start with `payment (order_id)`, `customer_order (fulfilling_store_id,
-placed_at)` and `return_request (order_id)` — `EXPLAIN (ANALYZE, BUFFERS)` on production-like data should
-decide it, not this prototype.
+`sql/04_indexes.sql` does not exist, and that is a measurement rather than an omission. With
+representative data — the seeded demo database, 12 orders, 16 payments, 6 returns, 624 inventory rows,
+13 stores — `EXPLAIN (ANALYZE, BUFFERS)` on the three report queries, each filtered to Sydney CBD, gives:
+
+| Report | Plan | Actual | Buffers |
+|---|---|---|---|
+| Sales | `Merge Left Join` over the three CTEs, filtering 13 store rows down to 1 | 0.16 ms | 20 shared hits |
+| Returns | `GroupAggregate` over the cohort CTE (`Seq Scan` on 3 candidate orders) | 0.07 ms | 10 shared hits |
+| Low stock | `Sort` → `Nested Loop` → `Hash Right Join` against the current-price view, 12 rows out | 0.14 ms | 57 shared hits |
+
+Every access is a sequential scan or a hash/merge join of a table small enough to sit in one or two pages,
+and each query reads fewer buffers than an index lookup would add. Adding `sql/04_indexes.sql` now would be
+an unmeasured change in the wrong direction, so none was added — and because none was added, there is no
+honest "after" plan to show.
+
+What a deployment with real volume should do instead, in this order:
+
+1. Re-run the same three queries with `EXPLAIN (ANALYZE, BUFFERS)` on production-like data and read the
+   plans, not the timings.
+2. Expect the first candidates to be `payment (order_id)`, `customer_order (fulfilling_store_id,
+   placed_at)`, `return_request (order_id)` and `return_request (requested_at)` — the columns these queries
+   actually filter and join on.
+3. Capture the plan before and after each index, and keep the index only if the plan improves; a sequential
+   scan of thirteen stores is not a problem to solve.

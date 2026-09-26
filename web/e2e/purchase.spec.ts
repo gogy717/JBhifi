@@ -136,9 +136,10 @@ test("staff move a delivery order through to delivered, and the customer sees th
 
   await signInAsStaff(page, AIDEN_ID);
   await openAdminOrder(page, orderId);
-  await page.getByRole("button", { name: "Mark Being picked" }).click();
-  await page.getByRole("button", { name: "Mark Shipped" }).click();
-  await page.getByRole("button", { name: "Mark Delivered" }).click();
+  // The buttons are named for the move, not for the status they land on (T12).
+  await page.getByRole("button", { name: "Start picking" }).click();
+  await page.getByRole("button", { name: "Mark shipped" }).click();
+  await page.getByRole("button", { name: "Mark delivered" }).click();
   await expect(page.getByText("Delivered", { exact: true }).first()).toBeVisible();
 
   // The customer's own view of the same row: the whole timeline, in order, by the staff member who did it.

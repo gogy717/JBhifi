@@ -6,8 +6,8 @@
 """
 from fastapi import APIRouter, Response
 
-from app.auth import (COOKIE_NAME, CurrentActor, demo_mode_enabled, load_actor, session_payload,
-                      sign_session)
+from app.auth import (COOKIE_NAME, CurrentActor, cookie_is_secure, demo_mode_enabled, load_actor,
+                      session_payload, sign_session)
 from app.db import DbCursor
 from app.errors import ERROR_RESPONSES, ApiError, NotFound
 from app.schemas.auth import SessionIn, SessionOut
@@ -31,7 +31,7 @@ def sign_in(body: SessionIn, response: Response, cur: DbCursor):
     # HTTP-only, so the page's own scripts cannot read or forge it; same-site lax, so it rides along with
     # the same-origin requests the storefront and admin make through the Next.js proxy.
     response.set_cookie(COOKIE_NAME, sign_session({"kind": body.kind, "id": body.id}),
-                        httponly=True, samesite="lax", path="/")
+                        httponly=True, samesite="lax", secure=cookie_is_secure(), path="/")
     return session_payload(actor)
 
 
