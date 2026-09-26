@@ -135,6 +135,14 @@ def require_customer_self(actor: Actor | None, customer_id: int) -> Actor:
     raise ApiError(403, "staff_cannot_read_this", "Store staff may only read their own store's work.")
 
 
+def require_customer(actor: Actor | None) -> Actor:
+    """Shopping is done by the customer whose session this is."""
+    actor = require_actor(actor)
+    if actor.kind != "customer":
+        raise ApiError(403, "customer_only", "Sign in as a customer to shop.")
+    return actor
+
+
 def require_store_staff(actor: Actor | None, store_id: int) -> Actor:
     """The staff member whose store this is. Support staff read across stores but do not handle stock."""
     actor = require_actor(actor)
