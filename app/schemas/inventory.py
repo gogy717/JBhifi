@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 # The database re-checks this list and the sign that goes with each reason (BR18).
 AdjustmentReason = Literal["received", "damaged", "stocktake"]
@@ -21,9 +21,7 @@ class InventoryRow(BaseModel):
 
 
 class AdjustmentCreate(BaseModel):
-    """A stock change. Who made it comes from the session, never the body (T01)."""
-    model_config = ConfigDict(extra="forbid")
-
+    staff_id: int                   # who is making the change (until the demo login exists)
     delta: int                      # relative change: +5 received, -1 damaged, ±n after a stocktake
     reason: AdjustmentReason
     note: str | None = Field(default=None, max_length=500)

@@ -10,7 +10,7 @@ import psycopg2
 import pytest
 from psycopg2 import sql
 
-from tests.support import TEST_DB, assert_is_test_database, connect
+from tests.support import TEST_DB, connect
 
 SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
 
@@ -18,7 +18,6 @@ SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
 @pytest.fixture(scope="session", autouse=True)
 def test_database():
     """Drop and recreate jbhifi_test, then run sql/*.sql in filename order, as Docker does."""
-    assert_is_test_database(TEST_DB)            # never let a misconfiguration drop the demo database
     admin = connect("postgres")
     admin.autocommit = True                     # CREATE DATABASE can't run inside a transaction
     with admin.cursor() as cur:

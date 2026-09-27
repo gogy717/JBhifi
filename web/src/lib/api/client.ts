@@ -20,34 +20,6 @@ export type Promotion = Schemas["PromotionOut"];
 export type PromotionStatus = Promotion["status"];
 export type Customer = Schemas["CustomerSummary"];
 export type CustomerDetail = Schemas["CustomerDetail"];
-export type Address = Schemas["Address"];
-export type OrderSummary = Schemas["OrderSummary"];
-export type OrderDetail = Schemas["OrderDetail"];
-export type OrderLine = Schemas["OrderLine"];
-export type OrderStatus = OrderDetail["status"];
-export type FulfilmentMethod = OrderDetail["fulfilment_method"];
-export type Payment = Schemas["Payment"];
-export type StatusHistoryEntry = Schemas["StatusHistoryEntry"];
-export type ReturnEligibility = Schemas["ReturnEligibility"];
-export type ReturnableLine = Schemas["ReturnableLine"];
-export type ReturnSummary = Schemas["ReturnSummary"];
-export type ReturnDetail = Schemas["ReturnDetail"];
-export type ReturnStatus = ReturnDetail["status"];
-export type ReturnStatusEntry = Schemas["ReturnStatusEntry"];
-
-/**
- * Codes the *application* raises. The database's own refusals are the odd ones out, so `isRule` is
- * "409 and not one of these" — that keeps the rule names (`br07_...`) inspectable while a conflict such
- * as `price_changed` is not mislabelled as a database rule.
- */
-const APPLICATION_CODES = new Set([
-  "validation_error", "invalid_value", "not_found", "not_signed_in", "staff_only", "customer_only",
-  "manager_only", "store_staff_only", "other_store", "not_your_account", "staff_cannot_read_this",
-  "demo_sign_in_disabled", "price_changed", "out_of_stock", "product_unavailable", "address_inactive",
-  "delivery_needs_address", "invalid_price_range", "duplicate_items", "duplicate_lines", "stale_status",
-  "idempotency_conflict", "cancellation_required", "cancellation_conflict", "return_status_transition",
-  "network_error", "api_unavailable", "client_error",
-]);
 
 /** Every API error has this shape; for database rules, `code` is the constraint name (brNN_…). */
 export class ApiError extends Error {
@@ -62,12 +34,7 @@ export class ApiError extends Error {
 
   /** True when the database itself refused the request (a constraint or trigger). */
   get isRule(): boolean {
-    return this.status === 409 && !APPLICATION_CODES.has(this.code) && !this.code.startsWith("http_");
-  }
-
-  /** True when the request was refused for a reason the page can explain and the user can act on. */
-  get isConflict(): boolean {
-    return this.status === 409 && !this.isRule;
+    return this.status === 409;
   }
 }
 

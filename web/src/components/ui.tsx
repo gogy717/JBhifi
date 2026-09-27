@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import type { ApiError } from "@/lib/api/client";
 
@@ -158,11 +158,9 @@ export function NoticeBanner({ notice, onClose }: { notice?: Notice; onClose: ()
 }
 
 /** Shows which database rule refused a request — the code is the constraint's name. */
-export function ErrorBox({ error, onClose, onRetry, className = "" }: {
+export function ErrorBox({ error, onClose, className = "" }: {
   error: ApiError;
   onClose?: () => void;
-  /** Offered when the screen cannot work without the failed data (a store or brand list, say). */
-  onRetry?: () => void;
   className?: string;
 }) {
   return (
@@ -175,10 +173,7 @@ export function ErrorBox({ error, onClose, onRetry, className = "" }: {
           {error.code}
         </code>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {onRetry && <Button size="sm" onClick={onRetry}>Retry</Button>}
-        {onClose && <CloseButton onClick={onClose} />}
-      </div>
+      {onClose && <CloseButton onClick={onClose} />}
     </div>
   );
 }
@@ -200,64 +195,18 @@ export function Modal({ title, onClose, children, footer }: {
   children: ReactNode;
   footer?: ReactNode;
 }) {
-  const titleId = useId();
-  const dialog = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    // A dialog the keyboard can actually use: it has a name (aria-labelledby), focus starts inside it,
-    // Tab cycles within it instead of wandering into the page behind, Escape closes it, and closing
-    // puts focus back on whatever opened it. The page behind cannot be scrolled or clicked meanwhile.
-    const opener = document.activeElement;
-    const focusable = () => Array.from(dialog.current?.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ) ?? []);
-
-    // A control that asked for focus itself (autoFocus) keeps it; otherwise focus the first control.
-    if (!dialog.current?.contains(document.activeElement)) {
-      (focusable()[0] ?? dialog.current)?.focus();
-    }
-
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = focusable();
-      if (items.length === 0) {
-        event.preventDefault();
-        dialog.current?.focus();
-        return;
-      }
-      const first = items[0];
-      const last = items[items.length - 1];
-      const inside = dialog.current?.contains(document.activeElement) ?? false;
-      if (event.shiftKey && (!inside || document.activeElement === first)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (!inside || document.activeElement === last)) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      document.body.style.overflow = previousOverflow;
-      if (opener instanceof HTMLElement && document.contains(opener)) opener.focus();
-    };
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-neutral-900/40 p-4 pt-[10vh]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+      <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-xl bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-neutral-200 px-5 py-4">
-          <h2 id={titleId} className="text-base font-semibold text-neutral-900">{title}</h2>
+          <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
           <CloseButton onClick={onClose} />
         </header>
         <div className="space-y-4 px-5 py-4">{children}</div>

@@ -4,4 +4,4 @@ python-dotenv
 
 # tests
 pytest
-httpx                    # what starlette's TestClient imports (fastapi[standard] brings it in too)
+httpx2
