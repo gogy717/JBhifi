@@ -1,6 +1,7 @@
-// The customer pages of Phase 1 (plan §7). Most are reserved: each one says what it will do, which
-// requirements, rules and transaction it covers, and the API it needs, so whoever builds it knows where to
-// start. R# and BR# refer to .claude/plan.md §3, T# to §5, slices to §10.
+// The customer routes, and what each of them is for. Every route listed here is built; the entries are
+// kept because they are also the catalogue of which requirement (R#), rule (BR#) and transaction (T#)
+// each screen is answerable for — useful when a reviewer asks "where is R3 met?".
+// R# and BR# refer to the recovered requirements in doc/requirements.md, T# to the plan's transactions.
 
 export type Endpoint = { method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string; exists: boolean };
 

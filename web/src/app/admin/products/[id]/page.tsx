@@ -22,9 +22,12 @@ export default function ProductPage() {
   const { notice, showSuccess, clear } = useNotice();
   const brands = useLoad("brands", () => call(api.GET("/api/v1/brands")));
   const categories = useLoad("categories", () => call(api.GET("/api/v1/categories")));
-  const product = useLoad(`product:${productId}`, () =>
+  const productKey = `product:${productId}`;
+  const product = useLoad(productKey, () =>
     call(api.GET("/api/v1/products/{product_id}", { params: { path: { product_id: productId } } })));
   const p = product.data;
+  // Another product's route, or a refresh still on its way: nothing on this screen is ours to save yet.
+  const stale = !product.isCurrent;
 
   if (!p) {
     return (
@@ -36,7 +39,7 @@ export default function ProductPage() {
   }
 
   const saved = (updated: ProductDetail, what: string) => {
-    product.setData(() => updated);
+    product.setData(productKey, () => updated);
     showSuccess(<>{what} saved.</>);
   };
 
@@ -53,13 +56,18 @@ export default function ProductPage() {
       />
       <NoticeBanner notice={notice} onClose={clear} />
 
+      {(brands.error || categories.error) && (
+        <ErrorBox error={(brands.error ?? categories.error)!} className="mb-4"
+          onRetry={() => { brands.reload(); categories.reload(); }} />
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Keyed on the saved values, so the form resets to them after each save. */}
         <DetailsForm key={JSON.stringify([p.name, p.brand_id, p.category_id, p.base_price, p.is_active])}
-          product={p} brands={brands.data ?? []} categories={categories.data ?? []}
+          product={p} brands={brands.data ?? []} categories={categories.data ?? []} stale={stale}
           onSaved={(updated) => saved(updated, "Details")} />
 
-        <SpecsEditor key={JSON.stringify(p.specs)} productId={p.product_id} specs={p.specs}
+        <SpecsEditor key={JSON.stringify(p.specs)} productId={p.product_id} specs={p.specs} stale={stale}
           onSaved={(specs) => saved({ ...p, specs }, "Specifications")} />
 
         <Card title={<>Stock by location <span className="font-normal text-neutral-500">· {p.total_stock} in total</span></>}
@@ -106,10 +114,11 @@ function BackLink() {
   return <Link href="/admin/products" className="mb-3 inline-block text-sm text-neutral-600 hover:underline">← Products</Link>;
 }
 
-function DetailsForm({ product, brands, categories, onSaved }: {
+function DetailsForm({ product, brands, categories, stale, onSaved }: {
   product: ProductDetail;
   brands: Brand[];
   categories: Category[];
+  stale?: boolean;
   onSaved: (product: ProductDetail) => void;
 }) {
   const [name, setName] = useState(product.name);
@@ -145,7 +154,9 @@ function DetailsForm({ product, brands, categories, onSaved }: {
 
   return (
     <Card title="Details" actions={
-      <Button tone="primary" size="sm" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save"}</Button>
+      <Button tone="primary" size="sm" disabled={!dirty || saving || stale} onClick={save}>
+        {saving ? "Saving…" : "Save"}
+      </Button>
     }>
       <div className="space-y-3 p-4">
         <Field label="Name">
@@ -153,7 +164,8 @@ function DetailsForm({ product, brands, categories, onSaved }: {
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Brand">
-            <select className={selectClass} value={brandId} onChange={(e) => setBrandId(Number(e.target.value))}>
+            <select className={selectClass} value={brandId} disabled={stale}
+              onChange={(e) => setBrandId(Number(e.target.value))}>
               {brands.map((b) => <option key={b.brand_id} value={b.brand_id}>{b.name}</option>)}
             </select>
           </Field>
@@ -182,9 +194,10 @@ function DetailsForm({ product, brands, categories, onSaved }: {
   );
 }
 
-function SpecsEditor({ productId, specs, onSaved }: {
+function SpecsEditor({ productId, specs, stale, onSaved }: {
   productId: number;
   specs: Spec[];
+  stale?: boolean;
   onSaved: (specs: Spec[]) => void;
 }) {
   const [rows, setRows] = useState(specs.map((s, i) => ({ ...s, id: i })));
@@ -217,16 +230,20 @@ function SpecsEditor({ productId, specs, onSaved }: {
         <Button size="sm" onClick={() => setRows((list) => [...list, { spec_name: "", spec_value: "", id: Date.now() }])}>
           Add row
         </Button>
-        <Button tone="primary" size="sm" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save"}</Button>
+        <Button tone="primary" size="sm" disabled={!dirty || saving || stale} onClick={save}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
       </div>
     }>
       <div className="space-y-2 p-4">
         {rows.length === 0 && <p className="text-sm text-neutral-500">No specs yet.</p>}
-        {rows.map((r) => (
+        {rows.map((r, index) => (
           <div key={r.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
             <input className={inputClass} placeholder="Name, e.g. Screen size" value={r.spec_name}
+              aria-label={`Spec name ${index + 1}`}
               onChange={(e) => update(r.id, "spec_name", e.target.value)} />
             <input className={inputClass} placeholder="Value" value={r.spec_value}
+              aria-label={`Spec value ${index + 1}`}
               onChange={(e) => update(r.id, "spec_value", e.target.value)} />
             <Button tone="ghost" aria-label="Remove" onClick={() => setRows((list) => list.filter((x) => x.id !== r.id))}>
               ×

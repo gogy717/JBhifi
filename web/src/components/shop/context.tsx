@@ -3,62 +3,25 @@
 import { createContext, type ReactNode, useContext, useSyncExternalStore } from "react";
 
 import { type ApiError, api, call, type Category, type Customer, type CustomerDetail, type Store } from "@/lib/api/client";
+import { useStoredId } from "@/lib/browser-storage";
+import { ensureSession, type Session } from "@/lib/session";
 import { useLoad } from "@/lib/use-load";
-
-// ---------------------------------------------------------------- per-viewer choices
-// Who is "signed in" (demo) and which store is "mine" are conveniences for this browser only, so they live
-// in localStorage. They are read through useSyncExternalStore: the server render and hydration see nothing
-// chosen, then the browser's value — no effect-and-setState dance. If storage is blocked (private window),
-// a choice still works in memory until the page reloads.
-
-const listeners = new Set<() => void>();
-const memory = new Map<string, string | null>();
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", listener);
-  };
-}
-
-function readStored(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return memory.get(key) ?? null;
-  }
-}
-
-function writeStored(key: string, value: string | null) {
-  memory.set(key, value);
-  try {
-    if (value === null) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, value);
-  } catch {
-    // storage blocked: the in-memory value above still applies
-  }
-  listeners.forEach((listener) => listener());
-}
-
-function useStoredId(key: string): [number | undefined, (id: number | undefined) => void] {
-  const raw = useSyncExternalStore(subscribe, () => readStored(key), () => null);
-  const id = raw === null ? NaN : Number(raw);
-  return [Number.isInteger(id) ? id : undefined, (next) => writeStored(key, next === undefined ? null : String(next))];
-}
 
 // ---------------------------------------------------------------- shop context
 
 type Shop = {
   customers: Customer[];
-  /** Who is signed in (demo), as chosen — known at once, before their details load. */
+  /** The picker's choice in this browser, known at once — the session may still be confirming it. */
+  chosenCustomerId?: number;
+  /** Who is signed in (demo): the customer the session cookie says we are, not just the picker's choice. */
   customerId?: number;
   /** The signed-in (demo) customer, with addresses; undefined for a guest or while loading. */
   customer?: CustomerDetail;
   /** A customer is chosen but their details haven't arrived yet. */
   customerLoading: boolean;
   setCustomerId: (id: number | undefined) => void;
+  /** The verified demo session (the storefront is always the chosen customer, or a guest). */
+  session?: Session;
   /** Stores a customer can shop at: retail only — the warehouse doesn't do Click & Collect (BR06). */
   retailStores: Store[];
   /** "My store": the one chosen, else the first in the customer's state, else the first store.
@@ -71,11 +34,28 @@ type Shop = {
   categories: Category[];
   /** Customers, stores or categories failed to load (e.g. the API isn't running). */
   loadError?: ApiError;
-  /** Try those loads again. */
+  /** The signed-in customer's details failed to load. */
+  customerError?: ApiError;
+  /** Try the failed loads again, including the customer's own record. */
   reload: () => void;
 };
 
 const ShopContext = createContext<Shop | null>(null);
+
+/**
+ * False for the server render and the first client render, true afterwards.
+ *
+ * The stored demo choice lives in `localStorage`, so it is not known until the browser has hydrated. That
+ * matters because the storefront *declares* who it acts as: during hydration `chosenCustomerId` is still
+ * undefined, and acting on that ("no customer chosen, so sign out") races the load that is about to read
+ * the choice out of storage — cancelling a session the customer already had, which is what a refresh or a
+ * pasted URL would do. Until hydration says otherwise, ask nobody.
+ */
+const neverChanges = () => () => {};
+
+function useHydrated(): boolean {
+  return useSyncExternalStore(neverChanges, () => true, () => false);
+}
 
 export function useShop(): Shop {
   const shop = useContext(ShopContext);
@@ -84,43 +64,57 @@ export function useShop(): Shop {
 }
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const [customerId, setCustomerId] = useStoredId("jb.shop.customerId");
+  // The picker's choice is a browser convenience; the API trusts only the signed cookie it issues.
+  const [chosenCustomerId, setCustomerId] = useStoredId("jb.shop.customerId");
   const [storeId, setStoreId] = useStoredId("jb.shop.storeId");
+  const hydrated = useHydrated();
 
   const customers = useLoad("customers", () => call(api.GET("/api/v1/customers")));
   const stores = useLoad("stores", () => call(api.GET("/api/v1/stores")));
   const categories = useLoad("categories", () => call(api.GET("/api/v1/categories")));
-  const detail = useLoad(`customer:${customerId}`, () =>
-    customerId === undefined
+  // Declare who this surface acts as (the storefront is always a customer), then read that customer's
+  // own record — which the API only serves to the session that owns it.
+  const session = useLoad(
+    hydrated ? `shop-session:${chosenCustomerId ?? "guest"}` : "shop-session:hydrating",
+    () => (hydrated ? ensureSession("customer", chosenCustomerId) : Promise.resolve(null)));
+  const sessionCustomerId = session.data?.kind === "customer" ? session.data.id : undefined;
+  const detail = useLoad(`customer:${sessionCustomerId ?? "guest"}`, () =>
+    sessionCustomerId === undefined
       ? Promise.resolve(undefined)
-      : call(api.GET("/api/v1/customers/{customer_id}", { params: { path: { customer_id: customerId } } })));
+      : call(api.GET("/api/v1/customers/{customer_id}", { params: { path: { customer_id: sessionCustomerId } } })));
 
   // While another customer loads, don't show the previous one's details under the new name.
-  const customer = detail.data?.customer_id === customerId ? detail.data : undefined;
+  const customer = detail.data?.customer_id === sessionCustomerId ? detail.data : undefined;
   const homeState = customer?.addresses.find((a) => a.is_active)?.state;
   const retailStores = (stores.data ?? []).filter((s) => s.store_type === "retail");
+  const customerError = detail.error ?? session.error;
   // A stale choice (e.g. the database was rebuilt and the customer is gone) ends as a guest, not a spinner.
-  const customerLoading = customerId !== undefined && !customer && !detail.error;
+  const customerLoading = sessionCustomerId !== undefined && !customer && !customerError;
   // Don't guess a store from the first one while the customer's state is still on its way.
   const store = retailStores.find((s) => s.store_id === storeId)
     ?? (customerLoading ? undefined : retailStores.find((s) => s.state === homeState) ?? retailStores[0]);
 
   const shop: Shop = {
     customers: customers.data ?? [],
-    customerId,
+    chosenCustomerId,
+    customerId: sessionCustomerId,
     customer,
     customerLoading,
     setCustomerId,
+    session: session.data ?? undefined,
     retailStores,
     store,
     setStoreId,
     homeState,
     categories: categories.data ?? [],
     loadError: customers.error ?? stores.error ?? categories.error,
+    customerError,
     reload: () => {
       customers.reload();
       stores.reload();
       categories.reload();
+      session.reload();
+      detail.reload();
     },
   };
   return <ShopContext value={shop}>{children}</ShopContext>;

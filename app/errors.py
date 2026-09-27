@@ -4,7 +4,12 @@ When the database rejects a request, the code is the violated constraint's name 
 rules), so the frontend — and in Phase 2 the support agent — knows exactly which rule was broken.
 The API only checks the *shape* of a request (types, lengths); the rules themselves live in the
 database, so each rule is enforced in exactly one place.
+
+What a failure *may* say is as much part of the contract as its shape: a driver message names the host,
+the role and sometimes a password prompt, and a traceback names the schema. Those are logged here and
+replaced with a sentence a person can act on, so the envelope never becomes a way to read the database.
 """
+import logging
 from typing import Any
 
 import psycopg2
@@ -54,8 +59,20 @@ class ErrorResponse(BaseModel):
     error: ErrorInfo
 
 
+# Server-side only: the real driver/runtime message goes here, never into a response.
+logger = logging.getLogger("jbhifi.api")
+
+# What the client is told when the connection itself is the problem. Deliberately free of the host, the
+# port, the role and the driver's own wording.
+DATABASE_UNAVAILABLE = ("The database is not reachable. Start it with `docker compose up -d` (or check "
+                        "POSTGRES_HOST and POSTGRES_PORT) and try again.")
+INTERNAL_ERROR = "Something went wrong on the server. It has been logged; please try again."
+
+
 # Documents the error shape in OpenAPI, so the generated TypeScript client knows it too.
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: {"model": ErrorResponse, "description": "Not signed in (demo session required)"},
+    403: {"model": ErrorResponse, "description": "Signed in, but not allowed to do that"},
     404: {"model": ErrorResponse, "description": "Not found"},
     409: {"model": ErrorResponse, "description": "Rejected by a database rule; code = constraint name"},
     422: {"model": ErrorResponse, "description": "Malformed request"},
@@ -71,6 +88,14 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError):
         return error_response(exc.status, exc.code, exc.message, exc.detail)
+
+    # The database is not reachable at all (it is down, or the credentials are wrong). psycopg2 puts the
+    # connection string, the role and sometimes a password prompt in this message, so it is logged and
+    # replaced: the client is told what to do, not what the driver said.
+    @app.exception_handler(psycopg2.OperationalError)
+    async def database_unavailable(request: Request, exc: psycopg2.OperationalError):
+        logger.error("database unavailable for %s %s: %s", request.method, request.url.path, exc)
+        return error_response(503, "database_unavailable", DATABASE_UNAVAILABLE)
 
     # Class 23 (integrity constraint violation): CHECK, UNIQUE, FK, NOT NULL — and our trigger rules,
     # which raise check_violation with CONSTRAINT = 'brNN_…'.
@@ -92,3 +117,10 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
         return error_response(exc.status_code, f"http_{exc.status_code}", str(exc.detail))
+
+    # Anything unexpected: the traceback goes to the log with the request that caused it, and the client
+    # gets the same envelope as every other failure — with nothing from the stack in it.
+    @app.exception_handler(Exception)
+    async def unexpected_error(request: Request, exc: Exception):
+        logger.exception("unhandled error for %s %s", request.method, request.url.path)
+        return error_response(500, "internal_error", INTERNAL_ERROR)

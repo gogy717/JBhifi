@@ -19,9 +19,19 @@ def product_conditions(q: str | None, category_id: int | None, brand_id: int | N
         conditions.append(sql.SQL("(p.name ILIKE %s OR p.sku ILIKE %s OR b.name ILIKE %s)"))
         params += [contains_pattern(q)] * 3
     if category_id is not None:
-        # A top-level category includes its subcategories (the hierarchy has two levels).
-        conditions.append(sql.SQL("(c.category_id = %s OR c.parent_id = %s)"))
-        params += [category_id, category_id]
+        # A category includes everything under it, at any depth. The recursive walk starts from the
+        # filter value itself and only ever climbs `parent_id`, so it terminates; sql/02_rules.sql's
+        # `category_no_cycle` trigger stops the tree from ever containing a loop.
+        conditions.append(sql.SQL(
+            "(c.category_id IN ("
+            "  WITH RECURSIVE descendants(category_id) AS ("
+            "    SELECT %s::int"
+            "    UNION ALL"
+            "    SELECT child.category_id FROM category child"
+            "    JOIN descendants parent ON child.parent_id = parent.category_id"
+            "  ) SELECT category_id FROM descendants))"
+        ))
+        params.append(category_id)
     if brand_id is not None:
         conditions.append(sql.SQL("b.brand_id = %s"))
         params.append(brand_id)

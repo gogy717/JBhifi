@@ -2,70 +2,13 @@
 stopped it. Those names are the error codes the API returns, so this file doubles as the
 rule → mechanism table for the report appendix.
 """
-import uuid
-
 import pytest
 
 # ---------------------------------------------------------------- helpers
-
-
-def make_customer(cur, email: str, with_address: bool = True) -> int:
-    cur.execute("INSERT INTO customer (email, full_name) VALUES (%s, 'Test Customer') RETURNING customer_id",
-                (email,))
-    customer_id = cur.fetchone()["customer_id"]
-    if with_address:
-        cur.execute(
-            """
-            INSERT INTO customer_address (customer_id, address_no, line1, suburb, state, postcode)
-            VALUES (%s, 1, '1 George St', 'Sydney', 'NSW', '2000')
-            """,
-            (customer_id,),
-        )
-    return customer_id
-
-
-def place_order(cur, customer_id, lines, method="click_collect", store_id=1, address_no=None) -> int:
-    """Insert an order and its lines; lines = [(product_id, quantity, unit_price), ...]."""
-    cur.execute(
-        """
-        INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id,
-                                    delivery_address_no)
-        VALUES (%s, %s, %s, %s, %s)
-        RETURNING order_id
-        """,
-        (customer_id, str(uuid.uuid4()), method, store_id, address_no),
-    )
-    order_id = cur.fetchone()["order_id"]
-    for line_no, (product_id, quantity, unit_price) in enumerate(lines, start=1):
-        cur.execute(
-            "INSERT INTO order_line (order_id, line_no, product_id, quantity, unit_price) VALUES (%s, %s, %s, %s, %s)",
-            (order_id, line_no, product_id, quantity, unit_price),
-        )
-    return order_id
-
-
-def advance(cur, order_id, *statuses, staff_id=None):
-    """Move an order through the statuses in turn, acting as staff_id (None = the customer or system)."""
-    cur.execute("SELECT set_config('app.staff_id', %s, true)", ("" if staff_id is None else str(staff_id),))
-    for status in statuses:
-        cur.execute("UPDATE customer_order SET status = %s WHERE order_id = %s", (status, order_id))
-
-
-RETURN_REQUEST = """
-    INSERT INTO return_request (order_id, reason, requested_at)
-    VALUES (%s, 'Changed my mind', now() + %s * interval '1 day')
-    RETURNING return_id
-"""
-RETURN_LINE = "INSERT INTO return_line (return_id, line_no, order_id, quantity) VALUES (%s, %s, %s, %s)"
-
-
-def request_return(cur, order_id, lines, days_from_now=0) -> int:
-    """A return of lines = [(line_no, quantity), ...]."""
-    cur.execute(RETURN_REQUEST, (order_id, days_from_now))
-    return_id = cur.fetchone()["return_id"]
-    for line_no, quantity in lines:
-        cur.execute(RETURN_LINE, (return_id, line_no, order_id, quantity))
-    return return_id
+# Building a valid history is shared with the lifecycle tests, so there is exactly one way to create an
+# order, advance it and request a return.
+from tests.lifecycle import (RETURN_LINE, RETURN_REQUEST, advance, make_customer, place_order,
+                             request_return, return_request_args)
 
 
 @pytest.fixture
@@ -132,9 +75,9 @@ def test_br05_store_staff_have_a_store_and_support_staff_do_not(violates):
 # ---------------------------------------------------------------- BR06–BR10: orders
 
 ORDER = """
-    INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id,
-                                delivery_address_no)
-    VALUES (%s, gen_random_uuid(), %s, %s, %s)
+    INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint, fulfilment_method,
+                                fulfilling_store_id, delivery_address_no)
+    VALUES (%s, gen_random_uuid(), gen_random_uuid()::text, %s, %s, %s)
 """
 
 
@@ -161,8 +104,10 @@ def test_br08_unit_price_never_changes(collected_order, violates):
 
 def test_br09_new_orders_start_as_placed(customer, violates):
     violates("br09_order_status_transition",
-             """INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id, status)
-                VALUES (%s, gen_random_uuid(), 'click_collect', 1, 'paid')""", (customer,))
+             """INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint,
+                                            fulfilment_method, fulfilling_store_id, status)
+                VALUES (%s, gen_random_uuid(), gen_random_uuid()::text, 'click_collect', 1, 'paid')""",
+             (customer,))
 
 
 def test_br09_status_moves_only_along_allowed_transitions(cur, customer, product_id, violates):
@@ -186,8 +131,9 @@ def test_br09_every_status_change_is_logged_with_who_made_it(cur, collected_orde
 
 
 def test_br10_one_order_per_idempotency_key(cur, customer, violates):
-    insert = """INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id)
-                VALUES (%s, '0b6f1d4e-5c3a-4a8e-9f2b-7d1e3c5a9b0f', 'click_collect', 1)"""
+    insert = """INSERT INTO customer_order (customer_id, idempotency_key, request_fingerprint,
+                                            fulfilment_method, fulfilling_store_id)
+                VALUES (%s, '0b6f1d4e-5c3a-4a8e-9f2b-7d1e3c5a9b0f', 'same-request', 'click_collect', 1)"""
     cur.execute(insert, (customer,))
     violates("br10_order_idempotency_unique", insert, (customer,))
 
@@ -197,12 +143,13 @@ def test_br10_one_order_per_idempotency_key(cur, customer, violates):
 def test_br11_only_completed_orders_can_be_returned(cur, customer, product_id, violates):
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
     advance(cur, order_id, "paid")
-    violates("br11_return_window", RETURN_REQUEST, (order_id, 0))
+    violates("br11_return_window", RETURN_REQUEST, return_request_args(order_id))
 
 
-def test_br11_returns_within_30_days_of_completion(cur, collected_order, violates):
-    cur.execute(RETURN_REQUEST, (collected_order, 30))                # day 30 is still inside the window
-    violates("br11_return_window", RETURN_REQUEST, (collected_order, 31))
+def test_br11_a_just_completed_order_can_be_returned(cur, collected_order):
+    # The exact 30-day boundary is covered by test_lifecycle_rules.py through the SQL predicate.
+    cur.execute(RETURN_REQUEST, return_request_args(collected_order))
+    assert cur.fetchone()["return_id"] is not None
 
 
 def test_br12_cannot_return_more_than_was_bought(cur, collected_order, violates):
@@ -236,8 +183,8 @@ def test_br14_refunds(cur, collected_order, violates):
     cur.execute("""UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14
                    WHERE return_id = %s""", (return_id,))
     payment = "INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, %s, %s, %s)"
-    violates("br14_refund_has_return", payment, (collected_order, "refund", "189.00", None))
-    violates("br14_refund_has_return", payment, (collected_order, "charge", "1.00", return_id))
+    violates("br14_refund_has_source", payment, (collected_order, "refund", "189.00", None))
+    violates("br14_refund_has_source", payment, (collected_order, "charge", "1.00", return_id))
     violates("br14_refunds_within_charged", payment, (collected_order, "refund", "600.00", return_id))
     cur.execute(payment, (collected_order, "refund", "189.00", return_id))
     violates("br14_refund_once_per_return", payment, (collected_order, "refund", "10.00", return_id))

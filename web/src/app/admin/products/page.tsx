@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useDeferredValue, useState } from "react";
 
 import { CategorySelect } from "@/components/category-select";
+import { useAdminSession } from "@/components/admin/session";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, Modal, PageHeader, selectClass,
 } from "@/components/ui";
@@ -19,6 +20,9 @@ export default function ProductsPage() {
   const [brandId, setBrandId] = useState<number>();
   const [includeRetired, setIncludeRetired] = useState(false);
   const [creating, setCreating] = useState(false);
+  const { session, signedIn } = useAdminSession();
+  // Catalogue writes are for a store manager or support staff (the API enforces it as well).
+  const canEdit = signedIn && (session?.staff_type === "support" || session?.runs_store === true);
 
   const brands = useLoad("brands", () => call(api.GET("/api/v1/brands")));
   const categories = useLoad("categories", () => call(api.GET("/api/v1/categories")));
@@ -38,7 +42,7 @@ export default function ProductsPage() {
           <code className="mx-1 rounded bg-neutral-100 px-1 text-xs">v_product_current_price</code>
           (base price, or the sale price while a promotion runs).
         </>}
-        actions={<Button tone="primary" onClick={() => setCreating(true)}>New product</Button>}
+        actions={<Button tone="primary" disabled={!canEdit} onClick={() => setCreating(true)}>New product</Button>}
       />
 
       <Card className="mb-4">
@@ -49,10 +53,10 @@ export default function ProductsPage() {
           </Field>
           <Field label="Category">
             <CategorySelect categories={categories.data ?? []} value={categoryId} onChange={setCategoryId}
-              allLabel="All categories" />
+              allLabel="All categories" disabled={categories.error !== undefined} />
           </Field>
           <Field label="Brand">
-            <select className={selectClass} value={brandId ?? ""}
+            <select className={selectClass} value={brandId ?? ""} disabled={brands.error !== undefined}
               onChange={(e) => setBrandId(e.target.value ? Number(e.target.value) : undefined)}>
               <option value="">All brands</option>
               {(brands.data ?? []).map((b) => <option key={b.brand_id} value={b.brand_id}>{b.name}</option>)}
@@ -64,6 +68,10 @@ export default function ProductsPage() {
             Show retired products
           </label>
         </div>
+        {(brands.error || categories.error) && (
+          <ErrorBox error={(brands.error ?? categories.error)!} className="mx-4 mb-4"
+            onRetry={() => { brands.reload(); categories.reload(); }} />
+        )}
       </Card>
 
       <Card title={<>{rows.length} products</>}>

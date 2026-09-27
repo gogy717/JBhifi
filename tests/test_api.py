@@ -1,5 +1,9 @@
 """API smoke tests: every endpoint answers, and a request that breaks a database rule comes back as
-409 with the rule's constraint name as the error code — rolled back as a whole."""
+409 with the rule's constraint name as the error code - rolled back as a whole.
+
+Writes need a session (T01). Each test gets its own client, so one test's sign-in never leaks into the
+next one.
+"""
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -8,22 +12,41 @@ from fastapi.testclient import TestClient
 from app.main import app
 from tests.support import unique_sku
 
-client = TestClient(app)
 API = "/api/v1"
-AIDEN = 14          # works at Sydney CBD (store 1)
-ISLA = 16           # works at Bondi Junction (store 2)
+AIDEN = 14          # store staff at Sydney CBD (store 1)
+ISLA = 16           # store staff at Bondi Junction (store 2)
+SUPPORT = 40        # support staff, no store
 
 
 def error_of(response):
     return response.status_code, response.json()["error"]["code"]
 
 
+def sign_in(client, kind, identity):
+    response = client.post(f"{API}/session", json={"kind": kind, "id": identity})
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 @pytest.fixture
-def new_product():
+def client():
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def editor(client):
+    """A client signed in as someone who may change the catalogue."""
+    sign_in(client, "staff", SUPPORT)
+    return client
+
+
+@pytest.fixture
+def new_product(editor):
     """A product created through the API (committed): Sony headphones at $199.00, no stock anywhere."""
-    brands = {b["name"]: b["brand_id"] for b in client.get(f"{API}/brands").json()}
-    categories = {c["name"]: c["category_id"] for c in client.get(f"{API}/categories").json()}
-    response = client.post(f"{API}/products", json={
+    brands = {b["name"]: b["brand_id"] for b in editor.get(f"{API}/brands").json()}
+    categories = {c["name"]: c["category_id"] for c in editor.get(f"{API}/categories").json()}
+    response = editor.post(f"{API}/products", json={
         "sku": unique_sku(), "name": "API test headphones", "brand_id": brands["Sony"],
         "category_id": categories["Headphones"], "base_price": "199.00",
     })
@@ -31,7 +54,7 @@ def new_product():
     return response.json()
 
 
-def test_reference_lists():
+def test_reference_lists(client):
     assert len(client.get(f"{API}/stores").json()) == 13
     staff = client.get(f"{API}/staff", params={"store_id": 1}).json()
     assert [s["is_manager"] for s in staff] == [True, False, False]
@@ -40,19 +63,25 @@ def test_reference_lists():
     assert client.get(f"{API}/stores/99/inventory").status_code == 404
 
 
-def test_demo_customers():
+def test_demo_customers(client):
     customers = {c["email"]: c["customer_id"] for c in client.get(f"{API}/customers").json()}
     assert {"alice.morgan@example.com", "ben.okafor@example.com"} <= set(customers)
-    ben = client.get(f"{API}/customers/{customers['ben.okafor@example.com']}").json()
+    ben_id = customers["ben.okafor@example.com"]
+    sign_in(client, "customer", ben_id)                     # a customer reads their own record
+    ben = client.get(f"{API}/customers/{ben_id}").json()
     # The current address comes first; the old one is still there, inactive (BR16: never edited).
     assert [(a["address_no"], a["is_active"]) for a in ben["addresses"]] == [(2, True), (1, False)]
+    # Another customer's id is refused without revealing whether it exists; support sees the real 404.
+    assert error_of(client.get(f"{API}/customers/999999")) == (403, "not_your_account")
+    sign_in(client, "staff", SUPPORT)
     assert client.get(f"{API}/customers/999999").status_code == 404
 
 
-def test_adjust_stock_round_trip(new_product):
+def test_adjust_stock_round_trip(client, new_product):
     pid, sku = new_product["product_id"], new_product["sku"]
+    sign_in(client, "staff", AIDEN)                         # the staff member is the session's
     response = client.post(f"{API}/stores/1/inventory/{pid}/adjustments",
-                           json={"staff_id": AIDEN, "delta": 5, "reason": "received", "note": "Delivery #123"})
+                           json={"delta": 5, "reason": "received", "note": "Delivery #123"})
     assert response.status_code == 201, response.text
     assert (response.json()["quantity_after"], response.json()["staff_name"]) == (5, "Aiden Chen")
 
@@ -63,20 +92,22 @@ def test_adjust_stock_round_trip(new_product):
     assert client.get(f"{API}/products/{pid}").json()["total_stock"] == 5
 
 
-def test_rule_violations_are_409_with_the_rule_name_and_change_nothing(new_product):
+def test_rule_violations_are_409_with_the_rule_name_and_change_nothing(client, new_product):
     pid = new_product["product_id"]
     url = f"{API}/stores/1/inventory/{pid}/adjustments"
-    assert error_of(client.post(url, json={"staff_id": AIDEN, "delta": -1, "reason": "damaged"})) \
+    sign_in(client, "staff", AIDEN)
+    assert error_of(client.post(url, json={"delta": -1, "reason": "damaged"})) \
         == (409, "br03_inventory_qty_nonneg")
-    assert error_of(client.post(url, json={"staff_id": ISLA, "delta": 1, "reason": "received"})) \
-        == (409, "br18_adjustment_staff_at_store")
-    assert error_of(client.post(url, json={"staff_id": AIDEN, "delta": 1, "reason": "damaged"})) \
+    assert error_of(client.post(url, json={"delta": 1, "reason": "damaged"})) \
         == (409, "br18_adjustment_delta_matches_reason")
+    sign_in(client, "staff", ISLA)                          # works at store 2, cannot touch store 1
+    assert error_of(client.post(url, json={"delta": 1, "reason": "received"})) == (403, "other_store")
+    sign_in(client, "staff", AIDEN)
     assert client.get(f"{API}/stores/1/adjustments", params={"product_id": pid}).json() == []
     assert client.get(f"{API}/products/{pid}").json()["total_stock"] == 0
 
 
-def test_product_rules(new_product):
+def test_product_rules(editor, new_product):
     valid = {"sku": unique_sku(), "name": "X", "brand_id": new_product["brand_id"],
              "category_id": new_product["category_id"], "base_price": "10.00"}
     for change, expected in [
@@ -85,27 +116,27 @@ def test_product_rules(new_product):
         ({"base_price": "-1.00"}, "br02_money_nonneg"),
         ({"brand_id": 999999}, "product_brand_fk"),
     ]:
-        response = client.post(f"{API}/products", json={**valid, **change})
+        response = editor.post(f"{API}/products", json={**valid, **change})
         assert error_of(response) == (409, expected), response.text
-    assert error_of(client.post(f"{API}/products", json={"sku": unique_sku()})) == (422, "validation_error")
+    assert error_of(editor.post(f"{API}/products", json={"sku": unique_sku()})) == (422, "validation_error")
 
 
-def test_update_product_and_replace_specs(new_product):
+def test_update_product_and_replace_specs(editor, new_product):
     pid = new_product["product_id"]
-    response = client.patch(f"{API}/products/{pid}", json={"base_price": "179.00", "is_active": False})
+    response = editor.patch(f"{API}/products/{pid}", json={"base_price": "179.00", "is_active": False})
     assert response.status_code == 200, response.text
     assert (response.json()["base_price"], response.json()["is_active"]) == ("179.00", False)
-    assert pid not in {p["product_id"] for p in client.get(f"{API}/products").json()}
-    assert pid in {p["product_id"] for p in client.get(f"{API}/products", params={"include_inactive": True}).json()}
+    assert pid not in {p["product_id"] for p in editor.get(f"{API}/products").json()}
+    assert pid in {p["product_id"] for p in editor.get(f"{API}/products", params={"include_inactive": True}).json()}
 
     specs = [{"spec_name": "Type", "spec_value": "Over-ear"}, {"spec_name": "Battery life", "spec_value": "40 h"}]
-    assert len(client.put(f"{API}/products/{pid}/specs", json=specs).json()) == 2
+    assert len(editor.put(f"{API}/products/{pid}/specs", json=specs).json()) == 2
     duplicate = specs + [{"spec_name": "Type", "spec_value": "In-ear"}]
-    assert error_of(client.put(f"{API}/products/{pid}/specs", json=duplicate)) == (409, "product_spec_pk")
-    assert len(client.get(f"{API}/products/{pid}").json()["specs"]) == 2    # the failed replace changed nothing
+    assert error_of(editor.put(f"{API}/products/{pid}/specs", json=duplicate)) == (409, "product_spec_pk")
+    assert len(editor.get(f"{API}/products/{pid}").json()["specs"]) == 2    # the failed replace changed nothing
 
 
-def test_promotions(new_product):
+def test_promotions(editor, new_product):
     pid = new_product["product_id"]                                         # base price 199.00
     now = datetime.now(timezone.utc)
 
@@ -114,20 +145,21 @@ def test_promotions(new_product):
                 "starts_at": (now + timedelta(days=start_days)).isoformat(),
                 "ends_at": (now + timedelta(days=end_days)).isoformat()}
 
-    assert error_of(client.post(f"{API}/promotions", json=promotion("199.00", 0, 7))) \
+    assert error_of(editor.post(f"{API}/promotions", json=promotion("199.00", 0, 7))) \
         == (409, "br15_promotion_below_base_price")
-    response = client.post(f"{API}/promotions", json=promotion("149.00", -1, 7))
+    response = editor.post(f"{API}/promotions", json=promotion("149.00", -1, 7))
     assert (response.status_code, response.json()["status"]) == (201, "active"), response.text
     assert response.json()["product_active"] is True
     promotion_id = response.json()["promotion_id"]
-    assert client.get(f"{API}/products/{pid}").json()["current_price"] == "149.00"
+    assert editor.get(f"{API}/products/{pid}").json()["current_price"] == "149.00"
 
-    assert error_of(client.post(f"{API}/promotions", json=promotion("139.00", 5, 10))) \
+    assert error_of(editor.post(f"{API}/promotions", json=promotion("139.00", 5, 10))) \
         == (409, "br15_promotion_no_overlap")
-    assert error_of(client.patch(f"{API}/products/{pid}", json={"base_price": "149.00"})) \
+    assert error_of(editor.patch(f"{API}/products/{pid}", json={"base_price": "149.00"})) \
         == (409, "br15_promotion_below_base_price")
     naive = {**promotion("139.00", 20, 30), "starts_at": "2026-12-01T00:00:00"}     # no UTC offset
-    assert error_of(client.post(f"{API}/promotions", json=naive)) == (422, "validation_error")
+    assert error_of(editor.post(f"{API}/promotions", json=naive)) == (422, "validation_error")
 
-    assert client.delete(f"{API}/promotions/{promotion_id}").status_code == 204
-    assert client.delete(f"{API}/promotions/{promotion_id}").status_code == 404
+    assert len(editor.get(f"{API}/promotions", params={"product_id": pid}).json()) == 1
+    assert editor.delete(f"{API}/promotions/{promotion_id}").status_code == 204
+    assert editor.delete(f"{API}/promotions/{promotion_id}").status_code == 404
