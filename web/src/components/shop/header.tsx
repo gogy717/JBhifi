@@ -1,9 +1,11 @@
 "use client";
 
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import Form from "next/form";
 import Link from "next/link";
 
 import { useShop } from "@/components/shop/context";
+import type { MeState } from "@/lib/me";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 
 const pickerClass =
@@ -11,7 +13,7 @@ const pickerClass =
   "focus:outline-none focus:ring-2 focus:ring-neutral-900";
 
 export function ShopHeader() {
-  const { customers, customerId, setCustomerId, retailStores, store, setStoreId, categories } = useShop();
+  const { session, retailStores, store, setStoreId, categories } = useShop();
   const states = [...new Set(retailStores.map((s) => s.state))];
 
   return (
@@ -49,18 +51,7 @@ export function ShopHeader() {
             </select>
           </label>
 
-          <label className="flex items-center gap-2 text-xs font-medium text-neutral-800"
-            title="Demo sign-in: pick a customer. A real login replaces this later.">
-            Signed in as
-            <select className={pickerClass} value={customers.some((c) => c.customer_id === customerId) ? customerId : ""}
-              onChange={(e) => {
-                setCustomerId(e.target.value ? Number(e.target.value) : undefined);
-                setStoreId(undefined);        // back to the new customer's nearest store
-              }}>
-              <option value="">Guest</option>
-              {customers.map((c) => <option key={c.customer_id} value={c.customer_id}>{c.full_name}</option>)}
-            </select>
-          </label>
+          <AccountControls session={session} />
 
           <Link href={SHOP_PAGES.cart.href}
             className="flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-neutral-900 hover:bg-yellow-400">
@@ -98,6 +89,33 @@ export function ShopHeader() {
         </div>
       </nav>
     </header>
+  );
+}
+
+function AccountControls({ session }: { session: MeState }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <Show when="signed-out">
+        <SignInButton mode="modal">
+          <button type="button" className="h-9 rounded-md px-3 font-semibold text-neutral-900 hover:bg-yellow-400">
+            Sign in
+          </button>
+        </SignInButton>
+        <SignUpButton mode="modal">
+          <button type="button" className="h-9 rounded-md bg-neutral-900 px-3 font-semibold text-white hover:bg-neutral-700">
+            Create account
+          </button>
+        </SignUpButton>
+      </Show>
+      <Show when="signed-in">
+        {session.status === "signed-in" && (
+          <span className="text-xs font-medium text-neutral-800">
+            {session.me.display_name}{session.me.kind === "staff" && " · staff"}
+          </span>
+        )}
+        <UserButton />
+      </Show>
+    </div>
   );
 }
 

@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who Am I
+         * @description The signed-in caller as our database knows them: a customer, or staff with their store and role.
+         */
+        get: operations["who_am_i"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stores": {
         parameters: {
             query?: never;
@@ -281,10 +301,11 @@ export interface components {
             /** Is Active */
             is_active: boolean;
         };
-        /** AdjustmentCreate */
+        /**
+         * AdjustmentCreate
+         * @description Who makes the change is the signed-in staff member; a staff_id in the body is refused (extra).
+         */
         AdjustmentCreate: {
-            /** Staff Id */
-            staff_id: number;
             /** Delta */
             delta: number;
             /**
@@ -406,6 +427,32 @@ export interface components {
             is_active: boolean;
             /** Quantity */
             quantity: number;
+        };
+        /**
+         * Me
+         * @description Who the API takes the caller to be — decided by our database (user_account, BR19), not the token.
+         */
+        Me: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "customer" | "staff";
+            /** Id */
+            id: number;
+            /** Display Name */
+            display_name: string;
+            /** Store Id */
+            store_id?: number | null;
+            /** Store Name */
+            store_name?: string | null;
+            /** Staff Type */
+            staff_type?: ("store" | "support") | null;
+            /**
+             * Runs Store
+             * @default false
+             */
+            runs_store: boolean;
         };
         /** ProductCreate */
         ProductCreate: {
@@ -608,7 +655,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    list_stores: {
+    who_am_i: {
         parameters: {
             query?: never;
             header?: never;
@@ -623,7 +670,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StoreOut"][];
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Not found */
@@ -646,6 +711,89 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_stores: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreOut"][];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -675,6 +823,24 @@ export interface operations {
                     "application/json": components["schemas"]["StaffOut"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -695,6 +861,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -722,6 +897,24 @@ export interface operations {
                     "application/json": components["schemas"]["CategoryOut"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -742,6 +935,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -769,6 +971,24 @@ export interface operations {
                     "application/json": components["schemas"]["BrandOut"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -789,6 +1009,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -823,6 +1052,24 @@ export interface operations {
                     "application/json": components["schemas"]["InventoryRow"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -843,6 +1090,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -877,6 +1133,24 @@ export interface operations {
                     "application/json": components["schemas"]["AdjustmentOut"];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -897,6 +1171,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -929,6 +1212,24 @@ export interface operations {
                     "application/json": components["schemas"]["AdjustmentOut"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -949,6 +1250,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -981,6 +1291,24 @@ export interface operations {
                     "application/json": components["schemas"]["ProductSummary"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1001,6 +1329,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1032,6 +1369,24 @@ export interface operations {
                     "application/json": components["schemas"]["ProductDetail"];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1052,6 +1407,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1081,6 +1445,24 @@ export interface operations {
                     "application/json": components["schemas"]["ProductDetail"];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1101,6 +1483,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1134,6 +1525,24 @@ export interface operations {
                     "application/json": components["schemas"]["ProductDetail"];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1154,6 +1563,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1187,6 +1605,24 @@ export interface operations {
                     "application/json": components["schemas"]["Spec"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1207,6 +1643,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1237,6 +1682,24 @@ export interface operations {
                     "application/json": components["schemas"]["PromotionOut"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1257,6 +1720,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1288,6 +1760,24 @@ export interface operations {
                     "application/json": components["schemas"]["PromotionOut"];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1308,6 +1798,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1335,6 +1834,24 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1355,6 +1872,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1382,6 +1908,24 @@ export interface operations {
                     "application/json": components["schemas"]["CustomerSummary"][];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1402,6 +1946,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1431,6 +1984,24 @@ export interface operations {
                     "application/json": components["schemas"]["CustomerDetail"];
                 };
             };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not found */
             404: {
                 headers: {
@@ -1451,6 +2022,15 @@ export interface operations {
             };
             /** @description Malformed request */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

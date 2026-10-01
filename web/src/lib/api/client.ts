@@ -5,6 +5,41 @@ import type { components, paths } from "./schema";
 // Typed from the FastAPI OpenAPI spec (npm run gen:api). Same origin: next.config.ts forwards /api/*.
 export const api = createClient<paths>({ baseUrl: "" });
 
+// Every request carries the signed-in user's Clerk session token. <ApiAuth/> (inside <ClerkProvider>)
+// registers Clerk's getToken here; until then — and for guests — requests go without one.
+type GetToken = (options?: { skipCache?: boolean }) => Promise<string | null>;
+let getToken: GetToken = async () => null;
+
+export function setTokenGetter(next: GetToken) {
+  getToken = next;
+}
+
+const sent = new Map<string, Request>();   // a copy of each request in flight, in case it must be retried
+
+api.use({
+  async onRequest({ request, id }) {
+    const token = await getToken();
+    if (token) request.headers.set("Authorization", `Bearer ${token}`);
+    sent.set(id, request.clone());
+    return request;
+  },
+  async onResponse({ response, id }) {
+    const copy = sent.get(id);
+    sent.delete(id);
+    // A token can expire between Clerk handing it out and the API checking it: retry once with a fresh one.
+    if (response.status !== 401 || !copy) return response;
+    const body = (await response.clone().json().catch(() => null)) as ErrorBody | null;
+    if (body?.error?.code !== "invalid_token") return response;
+    const token = await getToken({ skipCache: true });
+    if (!token) return response;
+    copy.headers.set("Authorization", `Bearer ${token}`);
+    return fetch(copy);
+  },
+  onError({ id }) {
+    sent.delete(id);
+  },
+});
+
 type Schemas = components["schemas"];
 export type Store = Schemas["StoreOut"];
 export type Staff = Schemas["StaffOut"];
@@ -20,6 +55,7 @@ export type Promotion = Schemas["PromotionOut"];
 export type PromotionStatus = Promotion["status"];
 export type Customer = Schemas["CustomerSummary"];
 export type CustomerDetail = Schemas["CustomerDetail"];
+export type Me = Schemas["Me"];
 
 /** Every API error has this shape; for database rules, `code` is the constraint name (brNN_…). */
 export class ApiError extends Error {

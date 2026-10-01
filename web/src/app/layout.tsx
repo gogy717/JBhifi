@@ -1,6 +1,8 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 
+import { ApiAuth } from "@/components/api-auth";
+
 import "./globals.css";
 
 // No `title` here: every page renders its own <title> (React 19), and a metadata title would come first in
@@ -15,7 +17,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full bg-neutral-50 text-neutral-900">
-        <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">{children}</ClerkProvider>
+        <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up"><ApiAuth />{children}</ClerkProvider>
       </body>
     </html>
   );

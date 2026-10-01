@@ -68,7 +68,7 @@ export default function InventoryPage() {
     try {
       const result = await call(api.POST("/api/v1/stores/{store_id}/inventory/{product_id}/adjustments", {
         params: { path: { store_id: storeId, product_id: row.product_id } },
-        body: { staff_id: staffId, delta, reason, note: note || null },
+        body: { delta, reason, note: note || null },
       }));
       inventory.setData((list) =>
         list.map((r) => (r.product_id === row.product_id ? { ...r, quantity: result.quantity_after } : r)));

@@ -13,8 +13,9 @@ import { useLoad } from "@/lib/use-load";
 const discount = (p: Promotion) => 1 - Number(p.sale_price) / Number(p.base_price);
 
 export default function HomePage() {
-  const { customerLoading, customer, store, homeState, retailStores, setStoreId, categories, loadError, reload } =
-    useShop();
+  const {
+    session, customerLoading, customer, store, homeState, retailStores, setStoreId, categories, loadError, reload,
+  } = useShop();
   const storeId = store?.store_id;
 
   const deals = useLoad("deals:active", () =>
@@ -72,7 +73,9 @@ export default function HomePage() {
           )}
           <p className="mt-1 text-sm text-neutral-500">
             {customerLoading ? "\u00a0"
-              : !customer ? "Guest: choose a customer under “Signed in as” to see a personal home page (demo sign-in)."
+              : !customer ? (session.status === "signed-in" && session.me.kind === "staff"
+                ? "You're signed in as staff: the storefront shows you what a guest sees."
+                : "Guest: sign in to see a personal home page.")
               : address ? <>Delivering to {address.line1}, {address.suburb} {address.state} {address.postcode}.</>
               : "No current delivery address — add one in My account."}
           </p>
@@ -155,7 +158,7 @@ export default function HomePage() {
         <ReservedCard title="My orders" href={SHOP_PAGES.orders.href} waitsFor="checkout (T1)"
           body={customer
             ? `${customer.full_name.split(" ")[0]}'s orders will be listed here with their status — Click & Collect orders that are ready first.`
-            : "Sign in (demo) to see your orders here."} />
+            : "Sign in to see your orders here."} />
         <ReservedCard title="Returns" href={SHOP_PAGES.returns.href} waitsFor="returns processing (T2)"
           body="Returns in progress will appear here: requested → received → refunded, within the 30-day window." />
       </section>

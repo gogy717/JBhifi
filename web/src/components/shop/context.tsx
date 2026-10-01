@@ -2,14 +2,15 @@
 
 import { createContext, type ReactNode, useContext, useSyncExternalStore } from "react";
 
-import { type ApiError, api, call, type Category, type Customer, type CustomerDetail, type Store } from "@/lib/api/client";
+import { type ApiError, api, call, type Category, type CustomerDetail, type Store } from "@/lib/api/client";
+import { type MeState, useMe } from "@/lib/me";
 import { useLoad } from "@/lib/use-load";
 
 // ---------------------------------------------------------------- per-viewer choices
-// Who is "signed in" (demo) and which store is "mine" are conveniences for this browser only, so they live
-// in localStorage. They are read through useSyncExternalStore: the server render and hydration see nothing
-// chosen, then the browser's value — no effect-and-setState dance. If storage is blocked (private window),
-// a choice still works in memory until the page reloads.
+// Which store is "mine" is a convenience for this browser only, so it lives in localStorage. It is read
+// through useSyncExternalStore: the server render and hydration see nothing chosen, then the browser's
+// value — no effect-and-setState dance. If storage is blocked (private window), a choice still works in
+// memory until the page reloads. (Who is signed in is Clerk's business: see useMe.)
 
 const listeners = new Set<() => void>();
 const memory = new Map<string, string | null>();
@@ -51,14 +52,12 @@ function useStoredId(key: string): [number | undefined, (id: number | undefined)
 // ---------------------------------------------------------------- shop context
 
 type Shop = {
-  customers: Customer[];
-  /** Who is signed in (demo), as chosen — known at once, before their details load. */
-  customerId?: number;
-  /** The signed-in (demo) customer, with addresses; undefined for a guest or while loading. */
+  /** Who is signed in, as the API sees them (a Clerk sign-in, mapped to our data by GET /me). */
+  session: MeState;
+  /** The signed-in customer, with addresses; undefined for a guest, for staff, or while loading. */
   customer?: CustomerDetail;
-  /** A customer is chosen but their details haven't arrived yet. */
+  /** Still finding out who is signed in, or their details haven't arrived yet. */
   customerLoading: boolean;
-  setCustomerId: (id: number | undefined) => void;
   /** Stores a customer can shop at: retail only — the warehouse doesn't do Click & Collect (BR06). */
   retailStores: Store[];
   /** "My store": the one chosen, else the first in the customer's state, else the first store.
@@ -69,7 +68,7 @@ type Shop = {
   /** State of the customer's current address, used for "stores near you". */
   homeState?: string;
   categories: Category[];
-  /** Customers, stores or categories failed to load (e.g. the API isn't running). */
+  /** Who-am-I, stores or categories failed to load (e.g. the API isn't running). */
   loadError?: ApiError;
   /** Try those loads again. */
   reload: () => void;
@@ -84,10 +83,10 @@ export function useShop(): Shop {
 }
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const [customerId, setCustomerId] = useStoredId("jb.shop.customerId");
+  const session = useMe();
   const [storeId, setStoreId] = useStoredId("jb.shop.storeId");
+  const customerId = session.status === "signed-in" && session.me.kind === "customer" ? session.me.id : undefined;
 
-  const customers = useLoad("customers", () => call(api.GET("/api/v1/customers")));
   const stores = useLoad("stores", () => call(api.GET("/api/v1/stores")));
   const categories = useLoad("categories", () => call(api.GET("/api/v1/categories")));
   const detail = useLoad(`customer:${customerId}`, () =>
@@ -99,26 +98,23 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const customer = detail.data?.customer_id === customerId ? detail.data : undefined;
   const homeState = customer?.addresses.find((a) => a.is_active)?.state;
   const retailStores = (stores.data ?? []).filter((s) => s.store_type === "retail");
-  // A stale choice (e.g. the database was rebuilt and the customer is gone) ends as a guest, not a spinner.
-  const customerLoading = customerId !== undefined && !customer && !detail.error;
+  const customerLoading = session.status === "loading" || (customerId !== undefined && !customer && !detail.error);
   // Don't guess a store from the first one while the customer's state is still on its way.
   const store = retailStores.find((s) => s.store_id === storeId)
     ?? (customerLoading ? undefined : retailStores.find((s) => s.state === homeState) ?? retailStores[0]);
 
   const shop: Shop = {
-    customers: customers.data ?? [],
-    customerId,
+    session,
     customer,
     customerLoading,
-    setCustomerId,
     retailStores,
     store,
     setStoreId,
     homeState,
     categories: categories.data ?? [],
-    loadError: customers.error ?? stores.error ?? categories.error,
+    loadError: (session.status === "error" ? session.error : undefined) ?? stores.error ?? categories.error,
     reload: () => {
-      customers.reload();
+      if (session.status === "error") session.retry();
       stores.reload();
       categories.reload();
     },
