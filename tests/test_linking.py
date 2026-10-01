@@ -108,20 +108,57 @@ def test_the_provider_is_asked_only_the_first_time(monkeypatch):
     assert asked == [subject]
 
 
+def first_request(subject: str):
+    """What one request does to link a subject: its own connection, one transaction."""
+    conn = connect()
+    try:
+        with conn, conn.cursor() as cur:
+            return dict(link_account(cur, subject))
+    finally:
+        conn.close()
+
+
 def test_two_first_requests_at_once_make_one_link():
     subject, email = fresh("racing")
     as_subject(subject, email)
-
-    def first_request():
-        conn = connect()
-        try:
-            with conn, conn.cursor() as cur:
-                return dict(link_account(cur, subject))
-        finally:
-            conn.close()
-
-    results = run_at_once(2, first_request)
+    results = run_at_once(2, lambda: first_request(subject))
     assert all(isinstance(result, dict) for result in results), results
     assert results[0] == results[1]
     assert committed("SELECT count(*) AS n FROM customer WHERE email = %s", (email,))["n"] == 1
     assert accounts_for(subject) == 1
+
+
+# A seeded person signing in for the first time: under `next dev` the page asks GET /me twice at once.
+# Both requests find the existing row, so nothing serialises them before the user_account insert.
+
+def test_two_first_sign_ins_of_an_existing_customer_make_one_link():
+    for _ in range(20):
+        subject, email = fresh("existing_race")
+        committed("INSERT INTO customer (email, full_name) VALUES (%s, 'Existing Racer')", (email,))
+        as_subject(subject, email)
+        results = run_at_once(2, lambda: first_request(subject))
+        assert all(isinstance(result, dict) for result in results), results
+        assert accounts_for(subject) == 1
+
+
+def test_two_first_sign_ins_of_an_existing_staff_member_make_one_link():
+    for _ in range(20):
+        subject, email = fresh("staff_race")
+        committed("INSERT INTO staff (store_id, staff_type, full_name, email) "
+                  "VALUES (3, 'store', 'Racing Staffer', %s)", (email,))
+        as_subject(subject, email)
+        results = run_at_once(2, lambda: first_request(subject))
+        assert all(isinstance(result, dict) for result in results), results
+        assert accounts_for(subject) == 1
+
+
+def test_a_person_already_linked_to_another_sign_in_is_a_readable_409():
+    subject, email = fresh("relinked")
+    old_subject, _ = fresh("old")
+    customer_id = committed("INSERT INTO customer (email, full_name) VALUES (%s, 'Relinked Customer') "
+                            "RETURNING customer_id", (email,))["customer_id"]
+    committed("INSERT INTO user_account (auth_subject, customer_id) VALUES (%s, %s)", (old_subject, customer_id))
+    response = me(as_subject(subject, email))
+    assert error_of(response) == (409, "br19_account_one_customer")
+    assert "already linked" in response.json()["error"]["message"]
+    assert accounts_for(subject) == 0

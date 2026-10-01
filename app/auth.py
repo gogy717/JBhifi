@@ -71,15 +71,21 @@ def link_account(cur, subject: str):
     cur.execute("SELECT staff_id FROM staff WHERE email = %s", (email,))
     staff = cur.fetchone()
     customer_id = None if staff is not None else _customer_for(cur, email, profile.full_name)
-    # Two first requests at once: the second waits for the first's row, then does nothing.
+    # Two first requests at once: the second waits for the first's row, then does nothing. No conflict target,
+    # so this holds whichever unique index the two collide on — this subject (the PK) or this person (BR19's
+    # UNIQUEs): an existing customer or staff member signing in for the first time collides on the latter.
     cur.execute(
         """
         INSERT INTO user_account (auth_subject, customer_id, staff_id) VALUES (%s, %s, %s)
-        ON CONFLICT (auth_subject) DO NOTHING
+        ON CONFLICT DO NOTHING
         """,
         (subject, customer_id, None if staff is None else staff["staff_id"]),
     )
-    return _account(cur, subject)
+    account = _account(cur, subject)
+    if account is None:                 # the person is already linked to a *different* sign-in (BR19)
+        raise ApiError(409, "br19_account_one_customer" if staff is None else "br19_account_one_staff",
+                       "This person is already linked to a different sign-in. Ask support to unlink the old one.")
+    return account
 
 
 def _customer_for(cur, email: str, full_name: str) -> int:
