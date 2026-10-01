@@ -103,7 +103,8 @@ what keeps a provider switch to this one file.
   nothing to forge, so no Origin-check middleware is needed.
 - Permission helpers, each raising `ApiError` (401 `not_signed_in` when `actor is None`):
   - `require_actor(actor)`
-  - `require_customer(actor)` → 403 `customer_only`
+  - `require_customer(actor)` → 403 `customer_only` — added with the order endpoints, its first caller
+    (nothing in this change needs it)
   - `require_customer_self(actor, customer_id)` → that customer, or support; another customer → 403
     `not_your_account`; store staff → 403 `support_only`
   - `require_staff(actor)` → 403 `staff_only`
@@ -191,8 +192,8 @@ Backend (pytest, existing `jbhifi_test` harness). Tests never call Clerk:
 - A session-scoped fixture generates an RSA key pair; tests replace the key lookup in `app/identity.py` with
   its public key and mint their own tokens (`sub`, `iss`, `azp`, `exp`, `nbf` as needed).
 - `fetch_profile` is replaced by a fake that returns a chosen profile or raises 503.
-- Helpers `as_customer(id)` / `as_staff(id)` give a client whose requests carry a token for an already-linked
-  subject.
+- Helpers `as_customer(email)` / `as_staff(staff_id)` return headers carrying a token for a fixed test subject,
+  which links to that seeded row through the normal first-sign-in path.
 
 | File | Covers |
 |---|---|
