@@ -66,6 +66,22 @@ ALTER TABLE store ADD CONSTRAINT br04_store_manager_works_here
     FOREIGN KEY (store_id, manager_id) REFERENCES staff (store_id, staff_id)
     DEFERRABLE INITIALLY DEFERRED;
 
+-- A sign-in identity (the verified token's subject — for Clerk, "user_2ab…") and who it is in our data.
+-- BR19: exactly one customer or one staff member per identity, and at most one identity per person.
+-- Roles are not stored here: they stay where they are (staff.staff_type, staff.store_id, store.manager_id).
+CREATE TABLE user_account (
+    auth_subject TEXT        NOT NULL,
+    customer_id  INT,
+    staff_id     INT,
+    linked_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT user_account_pk PRIMARY KEY (auth_subject),
+    CONSTRAINT br19_account_one_customer UNIQUE (customer_id),
+    CONSTRAINT br19_account_one_staff    UNIQUE (staff_id),
+    CONSTRAINT user_account_customer_fk  FOREIGN KEY (customer_id) REFERENCES customer (customer_id),
+    CONSTRAINT user_account_staff_fk     FOREIGN KEY (staff_id)    REFERENCES staff (staff_id),
+    CONSTRAINT br19_account_customer_xor_staff CHECK ((customer_id IS NULL) <> (staff_id IS NULL))
+);
+
 -- ---------------------------------------------------------------- catalogue
 
 CREATE TABLE category (

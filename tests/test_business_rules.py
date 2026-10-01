@@ -311,6 +311,23 @@ def test_br18_the_log_is_append_only(cur, product_id, violates):
     violates("br18_adjustment_append_only", "DELETE FROM stock_adjustment WHERE adjustment_id = %s", (adjustment_id,))
 
 
+# ---------------------------------------------------------------- BR19: sign-in identities
+
+ACCOUNT = "INSERT INTO user_account (auth_subject, customer_id, staff_id) VALUES (%s, %s, %s)"
+
+
+def test_br19_an_identity_is_a_customer_or_a_staff_member(customer, violates):
+    violates("br19_account_customer_xor_staff", ACCOUNT, ("user_both", customer, 14))
+    violates("br19_account_customer_xor_staff", ACCOUNT, ("user_neither", None, None))
+
+
+def test_br19_one_identity_per_person(cur, customer, violates):
+    cur.execute(ACCOUNT, ("user_first_customer", customer, None))
+    violates("br19_account_one_customer", ACCOUNT, ("user_second_customer", customer, None))
+    cur.execute(ACCOUNT, ("user_first_staff", None, 41))            # Omar Haddad, support
+    violates("br19_account_one_staff", ACCOUNT, ("user_second_staff", None, 41))
+
+
 # ---------------------------------------------------------------- views
 
 def test_current_price_includes_the_running_promotion(cur):
