@@ -1,5 +1,6 @@
 """How tests reach the test database. Imported by conftest.py before the app, so the app uses it too."""
 import os
+import threading
 import uuid
 
 import psycopg2
@@ -25,3 +26,23 @@ def connect(dbname: str = TEST_DB):
 
 def unique_sku() -> str:
     return f"TEST-{uuid.uuid4().hex[:10].upper()}"
+
+
+def run_at_once(n, work):
+    """Run work() in n threads released at the same moment; return each result or raised exception."""
+    start = threading.Barrier(n)
+    results = [None] * n
+
+    def worker(i):
+        start.wait()
+        try:
+            results[i] = work()
+        except Exception as error:
+            results[i] = error
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(n)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    return results

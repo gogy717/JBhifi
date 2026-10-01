@@ -13,7 +13,7 @@ from psycopg2 import sql
 from tests.support import TEST_DB, connect               # first: points the app at the test database
 
 from app import identity                                # noqa: E402
-from tests.auth_support import ISSUER, PARTY, OwnKeys   # noqa: E402
+from tests.auth_support import ISSUER, PARTY, OwnKeys, fake_fetch_profile   # noqa: E402
 
 SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
 
@@ -43,6 +43,7 @@ def fake_clerk():
         patch.setenv("CLERK_ISSUER", ISSUER)
         patch.setenv("AUTH_AUTHORIZED_PARTIES", f"{PARTY},http://127.0.0.1:3000")
         patch.setattr(identity, "_jwks_client", lambda url: OwnKeys())
+        patch.setattr(identity, "fetch_profile", fake_fetch_profile)
         yield
 
 

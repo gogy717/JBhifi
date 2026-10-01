@@ -3,13 +3,11 @@
 Each "request" here is what the API does: its own connection, one transaction, commit or roll back.
 These tests commit, so each one works on a product it creates for itself.
 """
-import threading
-
 import psycopg2
 import pytest
 
 from app.services.inventory import adjust_stock
-from tests.support import connect, unique_sku
+from tests.support import connect, run_at_once, unique_sku
 
 SYDNEY_CBD = 1
 AIDEN = 14          # works at Sydney CBD
@@ -61,26 +59,6 @@ def stock_and_log(product_id):
         logged = cur.fetchone()["n"]
     conn.close()
     return quantity, logged
-
-
-def run_at_once(n, work):
-    """Run work() in n threads released at the same moment; return each result or raised exception."""
-    start = threading.Barrier(n)
-    results = [None] * n
-
-    def worker(i):
-        start.wait()
-        try:
-            results[i] = work()
-        except Exception as error:
-            results[i] = error
-
-    threads = [threading.Thread(target=worker, args=(i,)) for i in range(n)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    return results
 
 
 def test_a_rejected_log_row_rolls_back_the_stock_change(fresh_stock):

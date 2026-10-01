@@ -1,0 +1,136 @@
+"""Who is calling? Provider-neutral: app/identity.py says which subject signed the request; this module
+turns that subject into a customer or a staff member from our own data (user_account, BR19).
+
+The permission checks the services make before acting (plan §7: services authorise explicitly) live here
+too, so any caller — the web app today, a Phase 2 agent later — gets the same rules.
+"""
+from dataclasses import dataclass
+from typing import Annotated, Literal
+
+from fastapi import Depends, Request
+
+from app import identity
+from app.db import DbCursor
+from app.errors import ApiError
+
+
+@dataclass(frozen=True)
+class Actor:
+    kind: Literal["customer", "staff"]
+    id: int
+    display_name: str
+    store_id: int | None = None
+    store_name: str | None = None
+    staff_type: str | None = None
+    runs_store: bool = False            # this staff member manages their store (store.manager_id, BR04)
+
+    @property
+    def is_support(self) -> bool:
+        return self.kind == "staff" and self.staff_type == "support"
+
+    @property
+    def is_manager(self) -> bool:
+        return self.kind == "staff" and self.staff_type == "store" and self.runs_store
+
+
+def _bearer_token(request: Request) -> str | None:
+    """The token from `Authorization: Bearer …`; None when there is no header (a guest).
+
+    Only this header counts, never a cookie: a browser sends cookies by itself, so a cookie would let another
+    site make requests as you (CSRF). A header has to be added on purpose, by our own code.
+    """
+    header = request.headers.get("authorization")
+    if header is None:
+        return None
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise identity.invalid("not a Bearer token")
+    return token.strip()
+
+
+def _account(cur, subject: str):
+    cur.execute("SELECT customer_id, staff_id FROM user_account WHERE auth_subject = %s", (subject,))
+    return cur.fetchone()
+
+
+def link_account(cur, subject: str):
+    """This subject's user_account row, created the first time they sign in (spec §4.3).
+
+    Staff first (by email): staff rows are only ever created by us, so nobody becomes staff by signing up.
+    Then an existing customer (by email). Else a new customer — self-service sign-up. Runs in the request's
+    transaction, so a failure later in the request rolls the link back too.
+    """
+    account = _account(cur, subject)
+    if account is not None:
+        return account
+    profile = identity.fetch_profile(subject)
+    if not profile.verified:
+        raise ApiError(403, "email_not_verified",
+                       "Verify your email address with the sign-in provider, then try again.")
+    email = profile.email.strip().lower()           # BR01 stores emails in lower case
+    cur.execute("SELECT staff_id FROM staff WHERE email = %s", (email,))
+    staff = cur.fetchone()
+    customer_id = None if staff is not None else _customer_for(cur, email, profile.full_name)
+    # Two first requests at once: the second waits for the first's row, then does nothing.
+    cur.execute(
+        """
+        INSERT INTO user_account (auth_subject, customer_id, staff_id) VALUES (%s, %s, %s)
+        ON CONFLICT (auth_subject) DO NOTHING
+        """,
+        (subject, customer_id, None if staff is None else staff["staff_id"]),
+    )
+    return _account(cur, subject)
+
+
+def _customer_for(cur, email: str, full_name: str) -> int:
+    """The customer with this email, created if there is none."""
+    cur.execute(
+        """
+        INSERT INTO customer (email, full_name) VALUES (%s, %s)
+        ON CONFLICT ON CONSTRAINT br01_customer_email_unique DO NOTHING
+        RETURNING customer_id
+        """,
+        (email, full_name),
+    )
+    row = cur.fetchone()
+    if row is None:                     # already a customer (seeded, or created by a request just before)
+        cur.execute("SELECT customer_id FROM customer WHERE email = %s", (email,))
+        row = cur.fetchone()
+    return row["customer_id"]
+
+
+def load_actor(cur, account) -> Actor:
+    if account["customer_id"] is not None:
+        cur.execute("SELECT customer_id, full_name FROM customer WHERE customer_id = %s", (account["customer_id"],))
+        row = cur.fetchone()
+        return Actor("customer", row["customer_id"], row["full_name"])
+    cur.execute(
+        """
+        SELECT st.staff_id, st.full_name, st.staff_type, st.store_id, s.name AS store_name,
+               COALESCE(s.manager_id = st.staff_id, FALSE) AS runs_store
+        FROM staff st
+        LEFT JOIN store s ON s.store_id = st.store_id
+        WHERE st.staff_id = %s
+        """,
+        (account["staff_id"],),
+    )
+    row = cur.fetchone()
+    return Actor("staff", row["staff_id"], row["full_name"], row["store_id"], row["store_name"],
+                 row["staff_type"], row["runs_store"])
+
+
+def current_actor(request: Request, cur: DbCursor) -> Actor | None:
+    """Who this request is: None for a guest (no Authorization header)."""
+    token = _bearer_token(request)
+    if token is None:
+        return None
+    return load_actor(cur, link_account(cur, identity.verify_token(token)))
+
+
+CurrentActor = Annotated[Actor | None, Depends(current_actor)]
+
+
+def require_actor(actor: Actor | None) -> Actor:
+    if actor is None:
+        raise ApiError(401, "not_signed_in", "Sign in to do that.")
+    return actor

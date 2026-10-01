@@ -9,6 +9,9 @@ from types import SimpleNamespace
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from app.errors import ApiError
+from app.identity import Profile
+
 ISSUER = "https://test-clerk.example"
 PARTY = "http://localhost:3000"
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -31,3 +34,36 @@ def token(subject, *, issuer=ISSUER, party=PARTY, expires_in=60, valid_from=0, k
 
 def bearer(subject, **options) -> dict:
     return {"Authorization": f"Bearer {token(subject, **options)}"}
+
+
+PROFILES: dict[str, Profile] = {}
+
+
+def fake_fetch_profile(subject: str) -> Profile:
+    """Stands in for Clerk's Backend API: it knows only the users a test registered."""
+    if subject not in PROFILES:
+        raise ApiError(503, "identity_provider_unavailable", "The fake provider has no such user.")
+    return PROFILES[subject]
+
+
+def as_subject(subject: str, email: str, *, name: str = "Test User", verified: bool = True) -> dict:
+    """Register what the provider knows about this subject, and return headers signed in as them."""
+    PROFILES[subject] = Profile(email=email, verified=verified, full_name=name)
+    return bearer(subject)
+
+
+# Seeded staff the tests sign in as (sql/10_seed_reference.sql).
+STAFF_EMAILS = {
+    1: "olivia.nguyen@jbhifi.example",      # manages Sydney CBD (store 1)
+    14: "aiden.chen@jbhifi.example",        # works at Sydney CBD
+    16: "isla.robinson@jbhifi.example",     # works at Bondi Junction (store 2)
+    40: "nora.fitzgerald@jbhifi.example",   # support
+}
+
+
+def as_staff(staff_id: int) -> dict:
+    return as_subject(f"test_staff_{staff_id}", STAFF_EMAILS[staff_id])
+
+
+def as_customer(email: str) -> dict:
+    return as_subject(f"test_customer_{email}", email)
