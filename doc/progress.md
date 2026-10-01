@@ -4,6 +4,48 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-02 — Branch `ethan/clerk-auth`: real sign-in (Clerk), roles in the database
+
+Design: `docs/superpowers/specs/2026-10-02-clerk-auth-design.md`; plan: `docs/superpowers/plans/2026-10-02-clerk-auth.md`.
+
+**What's on the branch.**
+
+- **Everyone signs in through Clerk**; the API verifies the session token itself (`app/identity.py`, the only
+  Clerk-aware file: PyJWT against the issuer's public keys, RS256, `exp`/`nbf`/`iss`/`azp`). Only an
+  `Authorization: Bearer` header counts — never a cookie, so there is nothing to forge cross-site.
+- **New table `user_account` and rule BR19**: a sign-in identity is exactly one customer or one staff member,
+  and each person has at most one (a `CHECK` and two `UNIQUE`s). On first sign-in `app/auth.py` links the
+  token's subject: staff by verified email first (nobody becomes staff by signing up), then an existing
+  customer, else a new customer. Roles stay where they were (`staff`, `store.manager_id`).
+- **`GET /api/v1/me`**, and **permissions in the services** on every existing endpoint: the customer directory
+  is support-only, a customer reads only their own record, stock is adjusted by that store's staff (the
+  adjuster comes from the sign-in, a `staff_id` in the body is refused), the catalogue and promotions by
+  managers and support. A refused caller gets 403 before any existence check, so ids can't be probed.
+- **Web**: Clerk's sign-in/up pages, `proxy.ts` sends signed-out visitors to `/admin` to sign in, every API call
+  carries the token, the storefront header uses Clerk's controls, and the admin follows the signed-in staff
+  member (fixed to their store; catalogue edits only for managers and support).
+- `scripts/clerk_personas.py` creates the demo personas (see README → Sign-in).
+
+**Decisions.** Supersedes the 2026-09-26 "Signed in as" picker decision below, and plan §2 (real sign-in moves
+into Phase 1) and §7 (Clerk instead of a demo cookie).
+
+1. Clerk (hosted) for Phase 2 readiness; FastAPI verifies tokens itself so any client — web, mobile, the Phase 2
+   agent — is checked the same way.
+2. A separate `user_account` table rather than an `auth_subject` column on both `customer` and `staff`: "one
+   identity is not both a customer and staff" is then a one-row `CHECK`, not a cross-table trigger.
+3. Clerk refuses the staff rows' reserved `.example` addresses, so the staff personas sign in with
+   `…+clerk_test@example.com` addresses and the script links them to their staff rows directly.
+
+**Verification (actually run).** `pytest` → **192 passed** (42 before: BR19, token checks, linking incl. two
+first sign-ins at once, a 7-caller × 17-endpoint permission matrix); web `typecheck` and `lint` clean;
+`clerk doctor` clean; through the Next proxy, `/api/v1/stores` 200 for a guest, `/api/v1/me` and `/staff` 401,
+`/admin` → `/sign-in`. **Not yet run:** the in-browser walk-through of the four personas.
+
+**AI use.** Designed, implemented and reviewed with Claude Code on 2026-10-02 (the plan executed task by task
+test-first, then one whole-branch review whose findings were fixed). Include in the AI-use acknowledgement.
+
+---
+
 ## 2026-09-26 — Branch `storefront`: customer home page, reserved customer pages
 
 **What's on the branch.**

@@ -3,7 +3,8 @@
 Two apps in one Next.js project, on the same FastAPI backend:
 
 - **Storefront** at `/` — what customers see. The home page is live: current deals with stock at your store,
-  shop by category, stores near you. A demo "Signed in as" picker and a "My store" picker stand in for login.
+  shop by category, stores near you. Clerk's sign-in controls sit in the header; a "My store" picker chooses
+  the store whose stock is shown.
   The other customer pages are **reserved**: each shows what it will do, which requirements (R#), rules (BR#)
   and transaction it covers, the API it needs (existing or to build) and the owner slice. Their content comes
   from `src/lib/shop-pages.ts` — build a page by replacing its `<ReservedPage>`.
@@ -38,7 +39,10 @@ every endpoint, read from FastAPI's OpenAPI spec. Commit the regenerated file.
 | `src/app/(shop)/page.tsx` | the home page (live) |
 | `src/app/(shop)/{products,cart,checkout,orders,returns,stores,account}` | reserved customer pages |
 | `src/app/admin/` | store admin: `inventory`, `products`, `promotions` |
-| `src/components/shop/` | storefront header, shop context (demo customer, my store), `ReservedPage` |
+| `src/components/shop/` | storefront header (Clerk sign-in), shop context (signed-in customer, my store), `ReservedPage` |
+| `src/proxy.ts` | Clerk's proxy: signed-out visitors to `/admin` go to sign-in (who may do what is the API's call) |
+| `src/components/api-auth.tsx`, `src/lib/me.ts` | each API request carries the Clerk session token; `useMe()` = who the API says you are |
+| `src/components/admin/staff-gate.tsx` | the admin is for staff: `useStaff()`, `canEditCatalogue()` |
 | `src/lib/shop-pages.ts` | the customer page list: what each does, what it covers, the API it needs |
 | `src/lib/api/client.ts` | typed client (`openapi-fetch`) and `ApiError` (`code` = database constraint name) |
 | `src/lib/use-load.ts` | load data in a client component, keep the old data while reloading |

@@ -46,6 +46,21 @@ npm install
 cd ..
 ```
 
+Sign-in (Clerk). Everyone signs in through Clerk; our database decides who is a customer or staff (BR19).
+Ask the team for access to the Clerk application, or create your own free development application, then:
+
+1. Web keys: `cp web/.env.example web/.env.local` and fill in the publishable and secret keys from the Clerk
+   Dashboard (API keys page). With the [Clerk CLI](https://clerk.com/docs/cli) you can instead run
+   `clerk auth login` and then, in `web/`, `clerk init --app <app id>`, which writes `web/.env.local` for you.
+2. API settings: fill in the `CLERK_ISSUER` (the Frontend API URL on the same page), `CLERK_SECRET_KEY` and
+   `AUTH_AUTHORIZED_PARTIES` lines of `.env`. Without them every sign-in is refused.
+3. Demo personas (once per Clerk application, with the database running): choose a password of at least 15
+   characters that has never been in a breach, then
+   `DEMO_PASSWORD='…' .venv/bin/python scripts/clerk_personas.py`. It creates Alice Morgan (customer, signs in
+   as `alice.morgan@example.com`) and three staff — Aiden Chen (Sydney CBD), Olivia Nguyen (Sydney CBD manager)
+   and Nora Fitzgerald (support) — who sign in as `<first>.<last>+clerk_test@example.com` and are linked to
+   their staff rows by the script.
+
 ## Run it
 
 Three terminals, each starting in the repo root:
@@ -60,12 +75,14 @@ The first `docker compose up` creates the tables and loads the seed data from `s
 Port 5433 is deliberate, so it can't clash with a PostgreSQL you may already run on 5432.
 
 **Storefront** (`/`): the home page is live — current deals with stock at your store, categories, stores near
-you. Pick a demo customer under "Signed in as" and a store under "My store". The other customer pages (catalogue,
+you. Sign in (top right) as a customer — or create an account, which makes you a new customer — and pick a store
+under "My store". The other customer pages (catalogue,
 product, cart, checkout, orders, returns, stores, account) are *reserved*: each says what it will do, which
 requirements and rules it covers, and which API it needs.
 
-**Store admin** (`/admin`): pick a store and use **±1** or **Adjust…** to change stock; edit products, specs and
-prices; create promotions. When the database refuses something (stock below zero, staff from another store,
+**Store admin** (`/admin`, staff only): store staff use **±1** or **Adjust…** on their own store's stock; store
+managers and support staff also edit products, specs and prices and create promotions; support staff can look at
+any store's stock. When the database refuses something (stock below zero, staff from another store,
 a sale price above the base price…) the page shows which rule refused it, e.g. `br03_inventory_qty_nonneg`.
 
 ## Everyday commands
@@ -101,7 +118,9 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 | API errors: `connection refused` / `KeyError: 'POSTGRES_HOST'` | Start the database (terminal 1) / create `.env` from `.env.example`. |
 | `fastapi: command not found` | Activate the virtual environment first. |
 | Changed `sql/` but nothing changed | Reset the database (`docker compose down -v && docker compose up -d`). |
-| "Signed in as" only offers Guest | Your database predates the demo customers: reset it (same command). |
+| Every sign-in says "expired or isn't valid" | `.env` lacks the Clerk lines, or `web/.env.local` holds keys of a different Clerk application than `CLERK_ISSUER`. |
+| "This person is already linked to a different sign-in" | A Clerk account was re-created for the same person: remove the old link with `DELETE FROM user_account WHERE auth_subject = '<old user id>'`. |
+| "Sign-in couldn't load" | No connection to Clerk: guests can still browse; sign-in needs the network. |
 | `port is already allocated` on 5433 | Another container uses it: `docker ps`, stop it. |
 | Windows: `Activate.ps1 cannot be loaded` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or use `.venv\Scripts\activate.bat` in cmd. |
 
