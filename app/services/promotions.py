@@ -2,6 +2,7 @@
 so a rejected promotion arrives here as a CheckViolation and app/errors.py turns it into a 409."""
 from psycopg2 import sql
 
+from app.auth import require_catalogue_writer
 from app.errors import NotFound
 from app.services.filters import where
 
@@ -48,7 +49,8 @@ def get_promotion(cur, promotion_id: int):
     return rows[0]
 
 
-def create_promotion(cur, new):
+def create_promotion(cur, actor, new):
+    require_catalogue_writer(actor)
     cur.execute(
         """
         INSERT INTO promotion (product_id, sale_price, starts_at, ends_at)
@@ -60,7 +62,8 @@ def create_promotion(cur, new):
     return get_promotion(cur, cur.fetchone()["promotion_id"])
 
 
-def delete_promotion(cur, promotion_id: int) -> None:
+def delete_promotion(cur, actor, promotion_id: int) -> None:
+    require_catalogue_writer(actor)
     cur.execute("DELETE FROM promotion WHERE promotion_id = %s", (promotion_id,))
     if cur.rowcount == 0:
         raise NotFound("Promotion", promotion_id)

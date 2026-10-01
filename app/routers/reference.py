@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.auth import CurrentActor
 from app.db import DbCursor
 from app.errors import ERROR_RESPONSES
 from app.schemas.reference import BrandOut, CategoryOut, StaffOut, StoreOut
@@ -14,8 +15,8 @@ def list_stores(cur: DbCursor):
 
 
 @router.get("/staff", response_model=list[StaffOut])
-def list_staff(cur: DbCursor, store_id: int | None = None):
-    return reference.list_staff(cur, store_id)
+def list_staff(cur: DbCursor, actor: CurrentActor, store_id: int | None = None):
+    return reference.list_staff(cur, actor, store_id)
 
 
 @router.get("/categories", response_model=list[CategoryOut])

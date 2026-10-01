@@ -1,6 +1,8 @@
 """Read-only reference data: stores, staff, categories, brands."""
 from psycopg2 import sql
 
+from app.auth import require_staff
+
 
 def list_stores(cur):
     cur.execute(
@@ -19,7 +21,8 @@ def store_exists(cur, store_id: int) -> bool:
     return cur.fetchone() is not None
 
 
-def list_staff(cur, store_id: int | None = None):
+def list_staff(cur, actor, store_id: int | None = None):
+    require_staff(actor)
     where, params = sql.SQL(""), ()
     if store_id is not None:
         where, params = sql.SQL("WHERE st.store_id = %s"), (store_id,)

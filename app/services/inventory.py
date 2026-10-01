@@ -1,6 +1,7 @@
 """Store stock and manual stock adjustments (BR03, BR18)."""
 from psycopg2 import sql
 
+from app.auth import require_store_or_support_reader, require_store_staff
 from app.errors import NotFound
 from app.services.filters import product_conditions, where
 from app.services.reference import store_exists
@@ -46,13 +47,13 @@ def list_store_inventory(cur, store_id: int, q=None, category_id=None, low_stock
     return cur.fetchall()
 
 
-def adjust_stock(cur, store_id: int, product_id: int, staff_id: int, delta: int, reason: str,
-                 note: str | None):
+def adjust_stock(cur, actor, store_id: int, product_id: int, delta: int, reason: str, note: str | None):
     """Change one store's stock of one product, and log who did it and why (BR18).
 
-    Runs in the request's transaction (app/db.py): the stock change and its log row are committed
-    together, or not at all.
+    The adjuster is the signed-in staff member, never a staff id from the request. Runs in the request's
+    transaction (app/db.py): the stock change and its log row are committed together, or not at all.
     """
+    require_store_staff(actor, store_id)
     if not store_exists(cur, store_id):
         raise NotFound("Store", store_id)
     cur.execute("SELECT 1 FROM product WHERE product_id = %s", (product_id,))
@@ -88,14 +89,15 @@ def adjust_stock(cur, store_id: int, product_id: int, staff_id: int, delta: int,
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         RETURNING adjustment_id
         """,
-        (store_id, product_id, staff_id, delta, reason, note, quantity_after),
+        (store_id, product_id, actor.id, delta, reason, note, quantity_after),
     )
     adjustment_id = cur.fetchone()["adjustment_id"]
     cur.execute(ADJUSTMENT_SELECT + sql.SQL("WHERE a.adjustment_id = %s"), (adjustment_id,))
     return cur.fetchone()
 
 
-def list_adjustments(cur, store_id: int, product_id: int | None = None, limit: int = 50):
+def list_adjustments(cur, actor, store_id: int, product_id: int | None = None, limit: int = 50):
+    require_store_or_support_reader(actor, store_id)
     if not store_exists(cur, store_id):
         raise NotFound("Store", store_id)
     conditions, params = [sql.SQL("a.store_id = %s")], [store_id]

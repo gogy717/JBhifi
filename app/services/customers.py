@@ -1,13 +1,16 @@
-"""Customers. Read-only for now: the storefront's demo switcher lists them (plan §7 demo login)."""
+"""Customers: the support team's directory, and each customer's own record."""
+from app.auth import require_customer_self, require_support
 from app.errors import NotFound
 
 
-def list_customers(cur):
+def list_customers(cur, actor):
+    require_support(actor)
     cur.execute("SELECT customer_id, full_name, email FROM customer ORDER BY customer_id")
     return cur.fetchall()
 
 
-def get_customer(cur, customer_id: int):
+def get_customer(cur, actor, customer_id: int):
+    require_customer_self(actor, customer_id)
     cur.execute(
         "SELECT customer_id, full_name, email, phone, created_at FROM customer WHERE customer_id = %s",
         (customer_id,),

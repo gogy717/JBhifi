@@ -1,6 +1,7 @@
 """Catalogue: products and their specs."""
 from psycopg2 import sql
 
+from app.auth import require_catalogue_writer
 from app.errors import NotFound
 from app.services import promotions
 from app.services.filters import product_conditions, where
@@ -51,7 +52,8 @@ def get_product(cur, product_id: int):
     return product
 
 
-def create_product(cur, new):
+def create_product(cur, actor, new):
+    require_catalogue_writer(actor)
     cur.execute(
         """
         INSERT INTO product (sku, name, brand_id, category_id, base_price)
@@ -63,8 +65,9 @@ def create_product(cur, new):
     return get_product(cur, cur.fetchone()["product_id"])
 
 
-def update_product(cur, product_id: int, changes: dict):
-    changes = {column: value for column, value in changes.items() if column in UPDATABLE_COLUMNS}
+def update_product(cur, actor, product_id: int, changes: dict):
+    require_catalogue_writer(actor)
+    changes ={column: value for column, value in changes.items() if column in UPDATABLE_COLUMNS}
     if changes:
         assignments = sql.SQL(", ").join(
             sql.SQL("{} = %s").format(sql.Identifier(column)) for column in changes
@@ -78,8 +81,9 @@ def update_product(cur, product_id: int, changes: dict):
     return get_product(cur, product_id)
 
 
-def replace_specs(cur, product_id: int, specs) -> list:
+def replace_specs(cur, actor, product_id: int, specs) -> list:
     """Replace all of a product's specs at once; other transactions see the old set or the new one."""
+    require_catalogue_writer(actor)
     # Lock the product so two concurrent replacements run one after the other. Without it, the second
     # DELETE wouldn't see the rows the first one inserted, and the two sets would collide.
     cur.execute("SELECT 1 FROM product WHERE product_id = %s FOR UPDATE", (product_id,))

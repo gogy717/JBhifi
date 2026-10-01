@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query
 
+from app.auth import CurrentActor
 from app.db import DbCursor
 from app.errors import ERROR_RESPONSES
 from app.schemas.inventory import AdjustmentCreate, AdjustmentOut, InventoryRow
@@ -21,15 +22,16 @@ def list_store_inventory(
 
 
 @router.post("/inventory/{product_id}/adjustments", response_model=AdjustmentOut, status_code=201)
-def adjust_stock(store_id: int, product_id: int, body: AdjustmentCreate, cur: DbCursor):
-    return inventory.adjust_stock(cur, store_id, product_id, body.staff_id, body.delta, body.reason, body.note)
+def adjust_stock(store_id: int, product_id: int, body: AdjustmentCreate, cur: DbCursor, actor: CurrentActor):
+    return inventory.adjust_stock(cur, actor, store_id, product_id, body.delta, body.reason, body.note)
 
 
 @router.get("/adjustments", response_model=list[AdjustmentOut])
 def list_adjustments(
     store_id: int,
     cur: DbCursor,
+    actor: CurrentActor,
     product_id: int | None = None,
     limit: int = Query(50, ge=1, le=500),
 ):
-    return inventory.list_adjustments(cur, store_id, product_id, limit)
+    return inventory.list_adjustments(cur, actor, store_id, product_id, limit)

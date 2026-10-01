@@ -134,3 +134,55 @@ def require_actor(actor: Actor | None) -> Actor:
     if actor is None:
         raise ApiError(401, "not_signed_in", "Sign in to do that.")
     return actor
+
+
+def require_customer_self(actor: Actor | None, customer_id: int) -> Actor:
+    """A customer's own record — or support staff looking it up."""
+    actor = require_actor(actor)
+    if actor.kind == "customer":
+        if actor.id != customer_id:
+            raise ApiError(403, "not_your_account", "That account belongs to another customer.")
+        return actor
+    if not actor.is_support:
+        raise ApiError(403, "support_only", "Only support staff can look up customers.")
+    return actor
+
+
+def require_staff(actor: Actor | None) -> Actor:
+    actor = require_actor(actor)
+    if actor.kind != "staff":
+        raise ApiError(403, "staff_only", "Only staff can do that.")
+    return actor
+
+
+def require_support(actor: Actor | None) -> Actor:
+    actor = require_staff(actor)
+    if not actor.is_support:
+        raise ApiError(403, "support_only", "Only support staff can do that.")
+    return actor
+
+
+def require_store_staff(actor: Actor | None, store_id: int) -> Actor:
+    """Staff of this store. Support staff read across stores but don't handle a store's stock."""
+    actor = require_staff(actor)
+    if actor.is_support:
+        raise ApiError(403, "store_staff_only", "Stock is adjusted by the store's own staff.")
+    if actor.store_id != store_id:
+        raise ApiError(403, "other_store", "You can only act on your own store.")
+    return actor
+
+
+def require_store_or_support_reader(actor: Actor | None, store_id: int) -> Actor:
+    """Reading a store's records: that store's staff, or support from anywhere."""
+    actor = require_staff(actor)
+    if not actor.is_support and actor.store_id != store_id:
+        raise ApiError(403, "other_store", "You can only read your own store's records.")
+    return actor
+
+
+def require_catalogue_writer(actor: Actor | None) -> Actor:
+    """The catalogue and promotions are maintained by store managers and support staff."""
+    actor = require_staff(actor)
+    if not (actor.is_support or actor.is_manager):
+        raise ApiError(403, "manager_only", "Only a store manager or support staff can change the catalogue.")
+    return actor

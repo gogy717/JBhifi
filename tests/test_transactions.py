@@ -6,6 +6,7 @@ These tests commit, so each one works on a product it creates for itself.
 import psycopg2
 import pytest
 
+from app.auth import Actor
 from app.services.inventory import adjust_stock
 from tests.support import connect, run_at_once, unique_sku
 
@@ -39,11 +40,13 @@ def fresh_stock():
 
 
 def request_adjustment(product_id, staff_id, delta, reason):
-    """One API request: a transaction that commits if adjust_stock succeeds, and rolls back if it raises."""
+    """One API request by staff_id, presented as Sydney CBD staff. The service checks the actor's store; the
+    database checks the staff member's real one (BR18) — so even a forged actor is refused there."""
+    actor = Actor("staff", staff_id, "Test staff", store_id=SYDNEY_CBD, staff_type="store")
     conn = connect()
     try:
         with conn, conn.cursor() as cur:
-            return adjust_stock(cur, SYDNEY_CBD, product_id, staff_id, delta, reason, None)
+            return adjust_stock(cur, actor, SYDNEY_CBD, product_id, delta, reason, None)
     finally:
         conn.close()
 
