@@ -2,14 +2,14 @@
 
 import { useDeferredValue, useState } from "react";
 
+import { useStaff } from "@/components/admin/staff-gate";
 import { CategorySelect } from "@/components/category-select";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, LOW_STOCK, Modal, NoticeBanner, PageHeader,
   selectClass, StockBadge, useNotice,
 } from "@/components/ui";
 import {
-  type Adjustment, type AdjustmentReason, type ApiError, api, call, type InventoryRow, type Staff, type Store,
-  toApiError,
+  type Adjustment, type AdjustmentReason, type ApiError, api, call, type InventoryRow, type Store, toApiError,
 } from "@/lib/api/client";
 import { money, signed, timeAgo } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
@@ -23,8 +23,10 @@ const REASONS: Record<AdjustmentReason, string> = {
 const REASONS_FOR = { add: ["received", "stocktake"], remove: ["damaged", "stocktake"] } as const;
 
 export default function InventoryPage() {
-  const [storeId, setStoreId] = useState(1);
-  const [chosenStaffId, setChosenStaffId] = useState<number>();
+  const me = useStaff();
+  // Store staff adjust their own store's stock; support staff look at any store but don't adjust (spec §4.5).
+  const canAdjust = me.staff_type === "store";
+  const [storeId, setStoreId] = useState(me.store_id ?? 1);
   const [search, setSearch] = useState("");
   const q = useDeferredValue(search.trim());
   const [categoryId, setCategoryId] = useState<number>();
@@ -35,7 +37,6 @@ export default function InventoryPage() {
   const { notice, showError, showSuccess, clear } = useNotice();
 
   const stores = useLoad("stores", () => call(api.GET("/api/v1/stores")));
-  const staff = useLoad("staff", () => call(api.GET("/api/v1/staff")));
   const categories = useLoad("categories", () => call(api.GET("/api/v1/categories")));
   const inventory = useLoad(`inventory:${storeId}:${q}:${categoryId}:${lowOnly}`, () =>
     call(api.GET("/api/v1/stores/{store_id}/inventory", {
@@ -50,20 +51,15 @@ export default function InventoryPage() {
     })));
 
   const store = stores.data?.find((s) => s.store_id === storeId);
-  // Until someone is picked, act as the store's manager.
-  const staffId = chosenStaffId ?? store?.manager_id;
-  const actor = staff.data?.find((s) => s.staff_id === staffId);
   const rows = inventory.data ?? [];
 
   function changeStore(id: number) {
     setStoreId(id);
-    setChosenStaffId(undefined);
     clear();
   }
 
   /** One API call = one transaction: stock change + log row, or nothing (see app/services/inventory.py). */
   async function adjust(row: InventoryRow, delta: number, reason: AdjustmentReason, note?: string) {
-    if (staffId === undefined) return;
     setBusyId(row.product_id);
     try {
       const result = await call(api.POST("/api/v1/stores/{store_id}/inventory/{product_id}/adjustments", {
@@ -107,13 +103,14 @@ export default function InventoryPage() {
       <Card className="mb-4">
         <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[repeat(2,minmax(0,1.25fr))_repeat(3,minmax(0,1fr))]">
           <Field label="Store">
-            <StoreSelect stores={stores.data ?? []} value={storeId} onChange={changeStore} />
+            {canAdjust
+              ? <p className="flex h-9 items-center text-sm font-medium">{store?.name ?? "…"}</p>
+              : <StoreSelect stores={stores.data ?? []} value={storeId} onChange={changeStore} />}
           </Field>
-          <Field label="Acting as"
-            hint={actor && actor.store_id !== storeId
-              ? <span className="text-amber-700">Doesn&apos;t work here: the database will refuse (BR18).</span>
-              : "Who the log records. (Demo only; a login will replace this.)"}>
-            <StaffSelect staff={staff.data ?? []} value={staffId} onChange={setChosenStaffId} />
+          <Field label="Signed in as"
+            hint={canAdjust ? "Every change is logged under your name (BR18)."
+              : "Support staff can look at any store's stock but don't adjust it."}>
+            <p className="flex h-9 items-center text-sm">{me.display_name}</p>
           </Field>
           <Field label="Search">
             <input className={inputClass} placeholder="Name, SKU or brand" value={search}
@@ -186,15 +183,17 @@ export default function InventoryPage() {
                       </td>
                       <td className="px-4 py-2.5 text-center"><StockBadge quantity={row.quantity} /></td>
                       <td className="px-4 py-2.5">
-                        <div className="flex justify-end gap-1">
-                          <Button size="sm" aria-label={`Remove one ${row.name}`}
-                            disabled={busyId === row.product_id} onClick={() => quickAdjust(row, -1)}>−1</Button>
-                          <Button size="sm" aria-label={`Add one ${row.name}`}
-                            disabled={busyId === row.product_id} onClick={() => quickAdjust(row, 1)}>+1</Button>
-                          <Button size="sm" tone="ghost" onClick={() => setDialog({ row, direction: "add" })}>
-                            Adjust…
-                          </Button>
-                        </div>
+                        {canAdjust && (
+                          <div className="flex justify-end gap-1">
+                            <Button size="sm" aria-label={`Remove one ${row.name}`}
+                              disabled={busyId === row.product_id} onClick={() => quickAdjust(row, -1)}>−1</Button>
+                            <Button size="sm" aria-label={`Add one ${row.name}`}
+                              disabled={busyId === row.product_id} onClick={() => quickAdjust(row, 1)}>+1</Button>
+                            <Button size="sm" tone="ghost" onClick={() => setDialog({ row, direction: "add" })}>
+                              Adjust…
+                            </Button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -214,7 +213,7 @@ export default function InventoryPage() {
           row={dialog.row}
           initialDirection={dialog.direction}
           storeName={store?.name ?? ""}
-          actor={actor}
+          actorName={me.display_name}
           onClose={() => setDialog(undefined)}
           onSubmit={async (delta, reason, note) => {
             const error = await adjust(dialog.row, delta, reason, note);
@@ -240,27 +239,6 @@ function StoreSelect({ stores, value, onChange }: {
           {stores.filter((s) => s.state === state).map((s) => (
             <option key={s.store_id} value={s.store_id}>
               {s.name}{s.store_type === "warehouse" ? " (warehouse)" : ""}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
-  );
-}
-
-function StaffSelect({ staff, value, onChange }: {
-  staff: Staff[];
-  value?: number;
-  onChange: (id: number) => void;
-}) {
-  const groups = [...new Set(staff.map((s) => s.store_name ?? "Support (no store)"))];
-  return (
-    <select className={selectClass} value={value ?? ""} onChange={(e) => onChange(Number(e.target.value))}>
-      {groups.map((group) => (
-        <optgroup key={group} label={group}>
-          {staff.filter((s) => (s.store_name ?? "Support (no store)") === group).map((s) => (
-            <option key={s.staff_id} value={s.staff_id}>
-              {s.full_name}{s.is_manager ? " (manager)" : ""}
             </option>
           ))}
         </optgroup>
@@ -299,11 +277,11 @@ function AdjustmentList({ adjustments, loading, error }: {
   );
 }
 
-function AdjustDialog({ row, initialDirection, storeName, actor, onClose, onSubmit }: {
+function AdjustDialog({ row, initialDirection, storeName, actorName, onClose, onSubmit }: {
   row: InventoryRow;
   initialDirection: "add" | "remove";
   storeName: string;
-  actor?: Staff;
+  actorName: string;
   onClose: () => void;
   onSubmit: (delta: number, reason: AdjustmentReason, note: string) => Promise<ApiError | undefined>;
 }) {
@@ -385,7 +363,7 @@ function AdjustDialog({ row, initialDirection, storeName, actor, onClose, onSubm
           Below zero — the database will refuse this (BR03). Save anyway to see it happen.
         </p>
       )}
-      <p className="text-xs text-neutral-500">Logged as {actor?.full_name ?? "…"}.</p>
+      <p className="text-xs text-neutral-500">Logged as {actorName}.</p>
 
       {error && <ErrorBox error={error} />}
     </Modal>

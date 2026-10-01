@@ -1,8 +1,10 @@
 "use client";
 
+import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useStaff } from "@/components/admin/staff-gate";
 import { useLoad } from "@/lib/use-load";
 
 const LINKS = [
@@ -24,6 +26,7 @@ export function Sidebar() {
           <div className="text-xs text-neutral-400">Phase 1 prototype</div>
         </div>
       </div>
+      <SignedInAs />
       <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:pb-0">
         {LINKS.map((link) => {
           const active = pathname.startsWith(link.href);
@@ -43,6 +46,21 @@ export function Sidebar() {
       </Link>
       <ApiStatus />
     </aside>
+  );
+}
+
+function SignedInAs() {
+  const me = useStaff();
+  const role = me.staff_type === "support" ? "Support"
+    : me.runs_store ? `Manager · ${me.store_name}` : `Staff · ${me.store_name}`;
+  return (
+    <div className="mx-3 mb-3 flex items-center gap-3 rounded-md bg-neutral-800/60 px-3 py-2">
+      <UserButton />
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium text-white">{me.display_name}</div>
+        <div className="truncate text-xs text-neutral-400">{role}</div>
+      </div>
+    </div>
   );
 }
 

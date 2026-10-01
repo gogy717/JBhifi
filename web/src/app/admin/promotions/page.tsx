@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { canEditCatalogue, useStaff } from "@/components/admin/staff-gate";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, Modal, NoticeBanner, PageHeader, selectClass, useNotice,
 } from "@/components/ui";
@@ -19,6 +20,7 @@ const TABS: { value?: PromotionStatus; label: string }[] = [
 const STATUS_TONE = { active: "green", upcoming: "blue", ended: "neutral" } as const;
 
 export default function PromotionsPage() {
+  const canEdit = canEditCatalogue(useStaff());
   const [status, setStatus] = useState<PromotionStatus>();
   const [creating, setCreating] = useState(false);
   const { notice, showError, showSuccess, clear } = useNotice();
@@ -49,7 +51,7 @@ export default function PromotionsPage() {
           A sale price for one product over a period. The database refuses a sale price that isn&apos;t below the
           base price, and two promotions for the same product that overlap in time (BR15, a trigger).
         </>}
-        actions={<Button tone="primary" onClick={() => setCreating(true)}>New promotion</Button>}
+        actions={canEdit ? <Button tone="primary" onClick={() => setCreating(true)}>New promotion</Button> : undefined}
       />
       <NoticeBanner notice={notice} onClose={clear} />
 
@@ -101,7 +103,7 @@ export default function PromotionsPage() {
                       {formatDateTime(p.starts_at)}<br />→ {formatDateTime(p.ends_at)}
                     </td>
                     <td className="px-4 py-2.5"><Badge tone={STATUS_TONE[p.status]}>{p.status}</Badge></td>
-                    <td className="px-4 py-2.5 text-right"><DeleteButton onConfirm={() => remove(p)} /></td>
+                    <td className="px-4 py-2.5 text-right">{canEdit && <DeleteButton onConfirm={() => remove(p)} />}</td>
                   </tr>
                 ))}
               </tbody>

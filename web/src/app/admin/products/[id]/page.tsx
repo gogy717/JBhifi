@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { canEditCatalogue, useStaff } from "@/components/admin/staff-gate";
 import { CategorySelect } from "@/components/category-select";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, NoticeBanner, PageHeader, selectClass, StockBadge,
@@ -18,6 +19,7 @@ import { useLoad } from "@/lib/use-load";
 const STATUS_TONE = { active: "green", upcoming: "blue", ended: "neutral" } as const;
 
 export default function ProductPage() {
+  const canEdit = canEditCatalogue(useStaff());
   const productId = Number(useParams<{ id: string }>().id);
   const { notice, showSuccess, clear } = useNotice();
   const brands = useLoad("brands", () => call(api.GET("/api/v1/brands")));
@@ -56,10 +58,10 @@ export default function ProductPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Keyed on the saved values, so the form resets to them after each save. */}
         <DetailsForm key={JSON.stringify([p.name, p.brand_id, p.category_id, p.base_price, p.is_active])}
-          product={p} brands={brands.data ?? []} categories={categories.data ?? []}
+          product={p} brands={brands.data ?? []} categories={categories.data ?? []} readOnly={!canEdit}
           onSaved={(updated) => saved(updated, "Details")} />
 
-        <SpecsEditor key={JSON.stringify(p.specs)} productId={p.product_id} specs={p.specs}
+        <SpecsEditor key={JSON.stringify(p.specs)} productId={p.product_id} specs={p.specs} readOnly={!canEdit}
           onSaved={(specs) => saved({ ...p, specs }, "Specifications")} />
 
         <Card title={<>Stock by location <span className="font-normal text-neutral-500">· {p.total_stock} in total</span></>}
@@ -106,10 +108,11 @@ function BackLink() {
   return <Link href="/admin/products" className="mb-3 inline-block text-sm text-neutral-600 hover:underline">← Products</Link>;
 }
 
-function DetailsForm({ product, brands, categories, onSaved }: {
+function DetailsForm({ product, brands, categories, readOnly, onSaved }: {
   product: ProductDetail;
   brands: Brand[];
   categories: Category[];
+  readOnly: boolean;
   onSaved: (product: ProductDetail) => void;
 }) {
   const [name, setName] = useState(product.name);
@@ -144,10 +147,11 @@ function DetailsForm({ product, brands, categories, onSaved }: {
   }
 
   return (
-    <Card title="Details" actions={
+    <Card title="Details" actions={readOnly ? undefined : (
       <Button tone="primary" size="sm" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save"}</Button>
-    }>
-      <div className="space-y-3 p-4">
+    )}>
+      {/* A disabled fieldset disables every input inside it: read-only for staff who may not edit. */}
+      <fieldset disabled={readOnly} className="space-y-3 p-4">
         <Field label="Name">
           <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
@@ -177,14 +181,15 @@ function DetailsForm({ product, brands, categories, onSaved }: {
           </Field>
         </div>
         {error && <ErrorBox error={error} />}
-      </div>
+      </fieldset>
     </Card>
   );
 }
 
-function SpecsEditor({ productId, specs, onSaved }: {
+function SpecsEditor({ productId, specs, readOnly, onSaved }: {
   productId: number;
   specs: Spec[];
+  readOnly: boolean;
   onSaved: (specs: Spec[]) => void;
 }) {
   const [rows, setRows] = useState(specs.map((s, i) => ({ ...s, id: i })));
@@ -212,15 +217,15 @@ function SpecsEditor({ productId, specs, onSaved }: {
   }
 
   return (
-    <Card title="Specifications" actions={
+    <Card title="Specifications" actions={readOnly ? undefined : (
       <div className="flex gap-2">
         <Button size="sm" onClick={() => setRows((list) => [...list, { spec_name: "", spec_value: "", id: Date.now() }])}>
           Add row
         </Button>
         <Button tone="primary" size="sm" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save"}</Button>
       </div>
-    }>
-      <div className="space-y-2 p-4">
+    )}>
+      <fieldset disabled={readOnly} className="space-y-2 p-4">
         {rows.length === 0 && <p className="text-sm text-neutral-500">No specs yet.</p>}
         {rows.map((r) => (
           <div key={r.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
@@ -237,7 +242,7 @@ function SpecsEditor({ productId, specs, onSaved }: {
           Saved as key–value rows in <code>product_spec</code>, key (product_id, spec_name): one value per name.
         </p>
         {error && <ErrorBox error={error} />}
-      </div>
+      </fieldset>
     </Card>
   );
 }

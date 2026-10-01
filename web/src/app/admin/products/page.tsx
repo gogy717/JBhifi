@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useState } from "react";
 
+import { canEditCatalogue, useStaff } from "@/components/admin/staff-gate";
 import { CategorySelect } from "@/components/category-select";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, Modal, PageHeader, selectClass,
@@ -13,6 +14,7 @@ import { money } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
 
 export default function ProductsPage() {
+  const canEdit = canEditCatalogue(useStaff());
   const [search, setSearch] = useState("");
   const q = useDeferredValue(search.trim());
   const [categoryId, setCategoryId] = useState<number>();
@@ -38,7 +40,7 @@ export default function ProductsPage() {
           <code className="mx-1 rounded bg-neutral-100 px-1 text-xs">v_product_current_price</code>
           (base price, or the sale price while a promotion runs).
         </>}
-        actions={<Button tone="primary" onClick={() => setCreating(true)}>New product</Button>}
+        actions={canEdit ? <Button tone="primary" onClick={() => setCreating(true)}>New product</Button> : undefined}
       />
 
       <Card className="mb-4">
