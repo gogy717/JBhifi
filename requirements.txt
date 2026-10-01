@@ -1,7 +1,8 @@
 fastapi[standard]
 psycopg2-binary
 python-dotenv
+pyjwt[crypto]            # checks the sign-in provider's session tokens (app/identity.py)
+httpx                    # Clerk's Backend API (app/identity.py); also what starlette's TestClient imports
 
 # tests
 pytest
-httpx2
