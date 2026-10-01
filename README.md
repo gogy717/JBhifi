@@ -56,10 +56,12 @@ Ask the team for access to the Clerk application, or create your own free develo
    `AUTH_AUTHORIZED_PARTIES` lines of `.env`. Without them every sign-in is refused.
 3. Demo personas (once per Clerk application, with the database running): choose a password of at least 15
    characters that has never been in a breach, then
-   `DEMO_PASSWORD='…' .venv/bin/python scripts/clerk_personas.py`. It creates Alice Morgan (customer, signs in
-   as `alice.morgan@example.com`) and three staff — Aiden Chen (Sydney CBD), Olivia Nguyen (Sydney CBD manager)
-   and Nora Fitzgerald (support) — who sign in as `<first>.<last>+clerk_test@example.com` and are linked to
-   their staff rows by the script.
+   `DEMO_PASSWORD='…' .venv/bin/python scripts/clerk_personas.py`. It creates Alice Morgan (customer) and three
+   staff — Aiden Chen (Sydney CBD), Olivia Nguyen (Sydney CBD manager), Nora Fitzgerald (support). Each signs
+   in as `<first>.<last>+clerk_test@example.com` and is linked to its seeded row by the script.
+4. The Clerk development instance must be in **test mode** (on by default; Dashboard → Settings, or the
+   Backend API's `PATCH /v1/instance {"test_mode": true}`): when Clerk asks a new browser for an email code
+   (Device Trust), a `+clerk_test` address takes the code **424242** — no real inbox needed.
 
 ## Run it
 

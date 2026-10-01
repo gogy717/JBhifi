@@ -7,11 +7,12 @@ never stored in the repo. Clerk checks it like any password — at least 15 char
 found in a known breach (Clerk refuses those at sign-in) — and re-running the script sets every persona's
 password to the current DEMO_PASSWORD.
 
-Alice signs in with her seeded email, so the API links her to her customer row on first sign-in
-(app/auth.py). Clerk refuses the staff rows' reserved `.example` addresses, so each staff persona gets a
-Clerk test address instead and is linked to its staff row here, in user_account, before it ever signs in
-(spec §8) — otherwise the first sign-in would find no staff email and create a customer.
-A persona that already exists gets the new password (and its staff link, if that is missing).
+Every persona signs in with a Clerk test address (`…+clerk_test@example.com`): this instance runs in test
+mode, so when Clerk asks a new browser for an email code (Device Trust), the code is 424242 — nobody needs a
+real inbox. Those addresses don't match the seeded rows (and Clerk refuses the staff rows' reserved `.example`
+addresses anyway), so each persona is linked to its row here, in user_account, before it ever signs in
+(spec §8) — otherwise the first sign-in would find no matching email and create a new customer.
+A persona that already exists gets the new password (and its link, if that is missing).
 """
 import os
 import sys
@@ -21,12 +22,12 @@ import psycopg2
 from dotenv import load_dotenv
 
 CLERK_API = "https://api.clerk.com/v1"
-# (first name, last name, email to sign in with, staff_id to link directly — None links by email)
+# (first name, last name, email to sign in with, the row to link: ("customer", seeded email) or ("staff", id))
 PERSONAS = [
-    ("Alice", "Morgan", "alice.morgan@example.com", None),                  # customer
-    ("Aiden", "Chen", "aiden.chen+clerk_test@example.com", 14),             # store staff, Sydney CBD
-    ("Olivia", "Nguyen", "olivia.nguyen+clerk_test@example.com", 1),        # manager, Sydney CBD
-    ("Nora", "Fitzgerald", "nora.fitzgerald+clerk_test@example.com", 40),   # support
+    ("Alice", "Morgan", "alice.morgan+clerk_test@example.com", ("customer", "alice.morgan@example.com")),
+    ("Aiden", "Chen", "aiden.chen+clerk_test@example.com", ("staff", 14)),             # store staff, Sydney CBD
+    ("Olivia", "Nguyen", "olivia.nguyen+clerk_test@example.com", ("staff", 1)),        # manager, Sydney CBD
+    ("Nora", "Fitzgerald", "nora.fitzgerald+clerk_test@example.com", ("staff", 40)),   # support
 ]
 
 
@@ -40,13 +41,23 @@ def reasons(response: httpx.Response) -> str:
     return "; ".join(e.get("long_message") or e.get("message", "") for e in errors) or response.text
 
 
-def link_staff(db, subject: str, staff_id: int) -> str:
+def link(db, subject: str, row: tuple) -> str:
+    """Link the Clerk user to its customer (by seeded email) or staff row; report what the link is."""
+    kind, key = row
     with db, db.cursor() as cur:
-        cur.execute("INSERT INTO user_account (auth_subject, staff_id) VALUES (%s, %s) "
-                    "ON CONFLICT (auth_subject) DO NOTHING", (subject, staff_id))
-        cur.execute("SELECT staff_id FROM user_account WHERE auth_subject = %s", (subject,))
-        linked = cur.fetchone()[0]
-    return f"linked to staff {linked}" if linked == staff_id else f"ALREADY LINKED to staff {linked}"
+        if kind == "customer":
+            cur.execute("SELECT customer_id FROM customer WHERE email = %s", (key,))
+            cur.execute("INSERT INTO user_account (auth_subject, customer_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                        (subject, cur.fetchone()[0]))
+        else:
+            cur.execute("INSERT INTO user_account (auth_subject, staff_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                        (subject, key))
+        cur.execute("SELECT customer_id, staff_id FROM user_account WHERE auth_subject = %s", (subject,))
+        linked = cur.fetchone()
+    if linked is None:
+        return f"NOT LINKED: that {kind} row already signs in with another Clerk account"
+    customer_id, staff_id = linked
+    return f"linked to customer {customer_id}" if customer_id is not None else f"linked to staff {staff_id}"
 
 
 def main() -> int:
@@ -60,7 +71,7 @@ def main() -> int:
                           dbname=os.environ["POSTGRES_DB"], user=os.environ["POSTGRES_USER"],
                           password=os.environ["POSTGRES_PASSWORD"])
     failed = False
-    for first, last, email, staff_id in PERSONAS:
+    for first, last, email, row in PERSONAS:
         found = clerk.get("/users", params={"email_address": email})
         found.raise_for_status()
         if found.json():
@@ -76,8 +87,7 @@ def main() -> int:
             print(f"REFUSED  {email}: {reasons(response)}", file=sys.stderr)
             continue
         user = response.json()
-        link = "" if staff_id is None else ", " + link_staff(db, user["id"], staff_id)
-        print(f"{action}  {email}  ({verification(user)}{link})")
+        print(f"{action}  {email}  ({verification(user)}, {link(db, user['id'], row)})")
     db.close()
     return 1 if failed else 0
 

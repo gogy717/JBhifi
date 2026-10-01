@@ -33,8 +33,10 @@ into Phase 1) and §7 (Clerk instead of a demo cookie).
    agent — is checked the same way.
 2. A separate `user_account` table rather than an `auth_subject` column on both `customer` and `staff`: "one
    identity is not both a customer and staff" is then a one-row `CHECK`, not a cross-table trigger.
-3. Clerk refuses the staff rows' reserved `.example` addresses, so the staff personas sign in with
-   `…+clerk_test@example.com` addresses and the script links them to their staff rows directly.
+3. Demo personas sign in with `…+clerk_test@example.com` addresses and the script links them to their seeded
+   rows directly: Clerk refuses the staff rows' reserved `.example` addresses, and Clerk's Device Trust asks a
+   new browser for an email code, which a test address in test mode answers with 424242 (no real inbox). Test
+   mode was turned on for the development instance through the Backend API.
 
 **Verification (actually run).** `pytest` → **192 passed** (42 before: BR19, token checks, linking incl. two
 first sign-ins at once, a 7-caller × 17-endpoint permission matrix); web `typecheck` and `lint` clean;
