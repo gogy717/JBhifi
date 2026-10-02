@@ -292,3 +292,9 @@ CREATE TABLE payment (
     CONSTRAINT payment_return_same_order FOREIGN KEY (return_id, order_id)
         REFERENCES return_request (return_id, order_id)
 );
+
+-- BR20: an order is charged at most once (the rest of BR20 is in 02_rules.sql). A partial unique index is
+-- UNIQUE over only the rows its WHERE matches, so it doesn't limit an order's refunds. Beyond Week 10
+-- (optional, plan T-8): without it BR20's paid-in-full trigger would still refuse to mark an over-charged
+-- order paid; the index refuses the second charge itself.
+CREATE UNIQUE INDEX br20_one_charge_per_order ON payment (order_id) WHERE kind = 'charge';

@@ -3,8 +3,10 @@ stopped it. Those names are the error codes the API returns, so this file double
 rule → mechanism table for the report appendix.
 """
 import uuid
+from datetime import datetime, timezone
 
 import pytest
+from psycopg2 import sql
 
 # ---------------------------------------------------------------- helpers
 
@@ -51,6 +53,18 @@ def advance(cur, order_id, *statuses, staff_id=None):
         cur.execute("UPDATE customer_order SET status = %s WHERE order_id = %s", (status, order_id))
 
 
+def pay(cur, order_id):
+    """Charge the order its total, then move it to paid, as checkout does (BR20). Nothing due: no charge row."""
+    cur.execute(
+        """
+        INSERT INTO payment (order_id, kind, amount)
+        SELECT order_id, 'charge', total FROM v_order_total WHERE order_id = %s AND total > 0
+        """,
+        (order_id,),
+    )
+    advance(cur, order_id, "paid")
+
+
 RETURN_REQUEST = """
     INSERT INTO return_request (order_id, reason, requested_at)
     VALUES (%s, 'Changed my mind', now() + %s * interval '1 day')
@@ -79,8 +93,7 @@ def collected_order(cur, customer, product_id):
     """A paid ($527.95) C&C order at store 1, collected just now: line 1 = 2 × AirPods 4, line 2 = 1 × Flip 7."""
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 2, "189.00"),
                                            (product_id("JBL-FLIP7-B"), 1, "149.95")])
-    advance(cur, order_id, "paid")
-    cur.execute("INSERT INTO payment (order_id, kind, amount) VALUES (%s, 'charge', 527.95)", (order_id,))
+    pay(cur, order_id)
     advance(cur, order_id, "picking", "ready", "collected", staff_id=14)
     return order_id
 
@@ -159,6 +172,27 @@ def test_br08_unit_price_never_changes(collected_order, violates):
              "UPDATE order_line SET unit_price = 1.00 WHERE order_id = %s AND line_no = 1", (collected_order,))
 
 
+def test_br08_lines_are_added_only_while_the_order_is_placed(cur, customer, product_id, violates):
+    airpods, flip, headphones = product_id("APL-AP4"), product_id("JBL-FLIP7-B"), product_id("SONY-WH1000XM5-B")
+    order_id = place_order(cur, customer, [(airpods, 2, "189.00")])
+    line = "INSERT INTO order_line (order_id, line_no, product_id, quantity, unit_price) VALUES (%s, %s, %s, 1, %s)"
+    # A written line is never changed or deleted, not even while its order is still placed...
+    violates("br08_order_line_immutable",
+             "UPDATE order_line SET quantity = 1 WHERE order_id = %s AND line_no = 1", (order_id,))
+    violates("br08_order_line_immutable",
+             "UPDATE order_line SET product_id = %s WHERE order_id = %s AND line_no = 1", (flip, order_id))
+    violates("br08_unit_price_immutable",          # a price change is named as such, whatever else changes
+             "UPDATE order_line SET unit_price = 1.00, quantity = 1 WHERE order_id = %s AND line_no = 1", (order_id,))
+    violates("br08_order_line_immutable", "DELETE FROM order_line WHERE order_id = %s", (order_id,))
+    # Row triggers don't fire on TRUNCATE. (Without CASCADE it is refused anyway: return_line refers to order_line.)
+    violates("br08_order_line_immutable", "TRUNCATE order_line CASCADE")
+    # ...and lines are added while the order is placed, and only then.
+    cur.execute(line, (order_id, 2, flip, "149.95"))
+    pay(cur, order_id)
+    violates("br08_order_line_immutable", line, (order_id, 3, headphones, "399.00"))
+    violates("order_line_order_fk", line, (-1, 1, flip, "149.95"))       # no such order: the foreign key says so
+
+
 def test_br09_new_orders_start_as_placed(customer, violates):
     violates("br09_order_status_transition",
              """INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id, status)
@@ -169,7 +203,8 @@ def test_br09_status_moves_only_along_allowed_transitions(cur, customer, product
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
     update = "UPDATE customer_order SET status = %s WHERE order_id = %s"
     violates("br09_order_status_transition", update, ("collected", order_id))   # skips paid → picking → ready
-    advance(cur, order_id, "paid", "picking")
+    pay(cur, order_id)
+    advance(cur, order_id, "picking")
     violates("br09_order_status_transition", update, ("shipped", order_id))     # delivery-only status
 
 
@@ -185,6 +220,28 @@ def test_br09_every_status_change_is_logged_with_who_made_it(cur, collected_orde
     ]
 
 
+def test_br09_the_order_header_never_changes(cur, customer, product_id, violates):
+    order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])    # Click & Collect at store 1
+    other = make_customer(cur, "other.customer@example.com", with_address=False)
+    for column, value in [("order_id", 999999),
+                          ("customer_id", other),
+                          ("idempotency_key", str(uuid.uuid4())),
+                          ("fulfilment_method", "delivery"),
+                          ("fulfilling_store_id", 2),     # retail, so BR06 (whose trigger fires first) agrees
+                          ("delivery_address_no", 1),
+                          ("placed_at", datetime(2026, 1, 1, tzinfo=timezone.utc))]:
+        update = sql.SQL("UPDATE customer_order SET {} = %s WHERE order_id = %s").format(sql.Identifier(column))
+        violates("br09_order_header_immutable", update, (value, order_id))
+    pay(cur, order_id)                                    # the status is the one thing that moves
+
+
+def test_br09_history_is_append_only(collected_order, violates):
+    violates("br09_history_append_only",
+             "UPDATE order_status_history SET changed_by_staff_id = NULL WHERE order_id = %s", (collected_order,))
+    violates("br09_history_append_only", "DELETE FROM order_status_history WHERE order_id = %s", (collected_order,))
+    violates("br09_history_append_only", "TRUNCATE order_status_history")     # row triggers don't fire on TRUNCATE
+
+
 def test_br10_one_order_per_idempotency_key(cur, customer, violates):
     insert = """INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id)
                 VALUES (%s, '0b6f1d4e-5c3a-4a8e-9f2b-7d1e3c5a9b0f', 'click_collect', 1)"""
@@ -196,7 +253,7 @@ def test_br10_one_order_per_idempotency_key(cur, customer, violates):
 
 def test_br11_only_completed_orders_can_be_returned(cur, customer, product_id, violates):
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
-    advance(cur, order_id, "paid")
+    pay(cur, order_id)
     violates("br11_return_window", RETURN_REQUEST, (order_id, 0))
 
 
@@ -231,16 +288,25 @@ def test_br13_return_lines_come_from_the_returned_order(cur, customer, collected
     violates("br13_return_line_same_order", RETURN_LINE, (return_id, 1, other_order, 1))
 
 
-def test_br14_refunds(cur, collected_order, violates):
+def test_br14_refunds(cur, customer, collected_order, product_id, violates):
     return_id = request_return(cur, collected_order, [(1, 1)])
     cur.execute("""UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14
                    WHERE return_id = %s""", (return_id,))
     payment = "INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, %s, %s, %s)"
     violates("br14_refund_has_return", payment, (collected_order, "refund", "189.00", None))
-    violates("br14_refund_has_return", payment, (collected_order, "charge", "1.00", return_id))
+    # A charge that names a return. BR20 refuses any charge to the collected order first, so this is shown on
+    # an order that is still placed; CHECKs run before foreign keys, so another order's return_id is fine here.
+    placed = place_order(cur, customer, [(product_id("SONY-WH1000XM5-B"), 1, "399.00")])
+    violates("br14_refund_has_return", payment, (placed, "charge", "1.00", return_id))
     violates("br14_refunds_within_charged", payment, (collected_order, "refund", "600.00", return_id))
     cur.execute(payment, (collected_order, "refund", "189.00", return_id))
     violates("br14_refund_once_per_return", payment, (collected_order, "refund", "10.00", return_id))
+
+
+def test_br14_payments_are_append_only(collected_order, violates):
+    violates("br14_payment_append_only", "UPDATE payment SET amount = 1.00 WHERE order_id = %s", (collected_order,))
+    violates("br14_payment_append_only", "DELETE FROM payment WHERE order_id = %s", (collected_order,))
+    violates("br14_payment_append_only", "TRUNCATE payment")                  # row triggers don't fire on TRUNCATE
 
 
 # ---------------------------------------------------------------- BR15–BR17: promotions, addresses
@@ -309,6 +375,7 @@ def test_br18_the_log_is_append_only(cur, product_id, violates):
     violates("br18_adjustment_append_only",
              "UPDATE stock_adjustment SET delta = 2 WHERE adjustment_id = %s", (adjustment_id,))
     violates("br18_adjustment_append_only", "DELETE FROM stock_adjustment WHERE adjustment_id = %s", (adjustment_id,))
+    violates("br18_adjustment_append_only", "TRUNCATE stock_adjustment")     # row triggers don't fire on TRUNCATE
 
 
 # ---------------------------------------------------------------- BR19: sign-in identities
@@ -326,6 +393,57 @@ def test_br19_one_identity_per_person(cur, customer, violates):
     violates("br19_account_one_customer", ACCOUNT, ("user_second_customer", customer, None))
     cur.execute(ACCOUNT, ("user_first_staff", None, 41))            # Omar Haddad, support
     violates("br19_account_one_staff", ACCOUNT, ("user_second_staff", None, 41))
+
+
+# ---------------------------------------------------------------- BR20: paid in full
+
+CHARGE = "INSERT INTO payment (order_id, kind, amount) VALUES (%s, 'charge', %s)"
+PAY = "UPDATE customer_order SET status = 'paid' WHERE order_id = %s"
+
+
+def test_br20_an_order_is_paid_only_when_its_charge_equals_the_total(cur, customer, product_id, violates):
+    order_id = place_order(cur, customer, [(product_id("APL-AP4"), 2, "189.00"),
+                                           (product_id("JBL-FLIP7-B"), 1, "149.95")])     # total 527.95
+    violates("br20_paid_in_full", PAY, (order_id,))                       # nothing charged
+    for wrong in ("378.00", "600.00"):                                    # one line short; too much
+        cur.execute("SAVEPOINT wrong_charge")
+        cur.execute(CHARGE, (order_id, wrong))
+        violates("br20_paid_in_full", PAY, (order_id,))
+        cur.execute("ROLLBACK TO SAVEPOINT wrong_charge")
+    cur.execute(CHARGE, (order_id, "527.95"))
+    cur.execute(PAY, (order_id,))
+    cur.execute("SELECT status FROM customer_order WHERE order_id = %s", (order_id,))
+    assert cur.fetchone()["status"] == "paid"
+
+
+def test_br20_an_order_without_lines_cannot_be_paid(cur, customer, violates):
+    order_id = place_order(cur, customer, [])          # 0.00 due and 0.00 charged, but nothing was bought
+    violates("br20_paid_in_full", PAY, (order_id,))
+
+
+def test_br20_a_zero_total_order_is_paid_without_a_charge(cur, customer, product_id):
+    # A line may cost 0.00 (money_aud allows it) but a charge may not (payment_amount_positive), so when nothing
+    # is due, "charged in full" means no charge at all.
+    order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "0.00")])
+    cur.execute(PAY, (order_id,))
+    cur.execute("SELECT status FROM customer_order WHERE order_id = %s", (order_id,))
+    assert cur.fetchone()["status"] == "paid"
+
+
+def test_br20_a_charge_is_taken_only_while_the_order_is_placed(cur, customer, product_id, violates):
+    paid = place_order(cur, customer, [(product_id("APL-AP4"), 1, "0.00")])
+    cur.execute(PAY, (paid,))                  # paid with no charge row, so a new charge can't be a second one
+    violates("br20_charge_while_placed", CHARGE, (paid, "1.00"))
+    cancelled = place_order(cur, customer, [(product_id("JBL-FLIP7-B"), 1, "149.95")])
+    advance(cur, cancelled, "cancelled")
+    violates("br20_charge_while_placed", CHARGE, (cancelled, "149.95"))
+    violates("payment_order_fk", CHARGE, (-1, "1.00"))                    # no such order: the foreign key says so
+
+
+def test_br20_at_most_one_charge_per_order(cur, customer, product_id, violates):
+    order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
+    cur.execute(CHARGE, (order_id, "189.00"))
+    violates("br20_one_charge_per_order", CHARGE, (order_id, "189.00"))   # still placed: only the index stops it
 
 
 # ---------------------------------------------------------------- views
