@@ -56,6 +56,15 @@ export type PromotionStatus = Promotion["status"];
 export type Customer = Schemas["CustomerSummary"];
 export type CustomerDetail = Schemas["CustomerDetail"];
 export type Me = Schemas["Me"];
+export type Address = Schemas["Address"];
+export type AddressCreate = Schemas["AddressCreate"];
+export type OrderCreate = Schemas["OrderCreate"];
+export type OrderSummary = Schemas["OrderSummary"];
+export type OrderDetail = Schemas["OrderDetail"];
+
+/** The 409s the application itself answers at checkout (T1): the price changed since the review, or the stock
+ *  ran out. Every other 409 is the database refusing the request, with the constraint's name as the code. */
+export const APP_CONFLICTS: ReadonlySet<string> = new Set(["price_changed", "out_of_stock"]);
 
 /** Every API error has this shape; for database rules, `code` is the constraint name (brNN_…). */
 export class ApiError extends Error {
@@ -68,9 +77,10 @@ export class ApiError extends Error {
     super(message);
   }
 
-  /** True when the database itself refused the request (a constraint or trigger). */
+  /** True when the database itself refused the request (a constraint or trigger) — not one of the
+   *  application's own conflicts, so the error box doesn't call a changed price "rejected by the database". */
   get isRule(): boolean {
-    return this.status === 409;
+    return this.status === 409 && !APP_CONFLICTS.has(this.code);
   }
 }
 

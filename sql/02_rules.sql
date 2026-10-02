@@ -1,18 +1,32 @@
 -- Business rules that a column or table constraint can't express, because they read other rows or
 -- other tables. Every trigger raises SQLSTATE 23514 (check_violation) with CONSTRAINT = 'brNN_…',
 -- so to the API a trigger rule looks exactly like a CHECK violation (e.diag.constraint_name).
--- Where two concurrent transactions could both pass a check, the trigger first locks a parent row
--- (SELECT … FOR UPDATE) so the checks run one after the other.
+-- Where two concurrent transactions could both pass a check, the trigger first locks a row they both
+-- need (SELECT … FOR UPDATE, or FOR SHARE when only a change to that row has to wait, as in BR06), so
+-- the checks run one after the other.
 
 -- ---------------------------------------------------------------- BR06
--- Click & Collect orders are collected at a retail store. store_type lives in another table.
+-- Click & Collect orders are collected at a retail store. store_type lives in another table, so the rule
+-- has a guard on each side, as BR15 does: an order checks its store, and a store that has Click & Collect
+-- orders can't stop being retail. Both raise br06_collect_at_retail_store.
 
 CREATE FUNCTION br06_check_collect_store() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    collect_store_type TEXT;
 BEGIN
-    IF NEW.fulfilment_method = 'click_collect'
-       AND (SELECT store_type FROM store WHERE store_id = NEW.fulfilling_store_id) <> 'retail' THEN
-        RAISE EXCEPTION 'Click & Collect orders must be collected from a retail store'
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'br06_collect_at_retail_store';
+    IF NEW.fulfilment_method = 'click_collect' THEN
+        -- FOR SHARE: a shared lock on the store row until this transaction ends. A change to the store
+        -- waits for this order to commit, and an order that arrives while a change is uncommitted waits
+        -- for it, then reads the new type. Orders at the same store don't wait for each other: shared
+        -- locks are compatible.
+        SELECT store_type INTO collect_store_type
+        FROM store
+        WHERE store_id = NEW.fulfilling_store_id
+        FOR SHARE;
+        IF collect_store_type <> 'retail' THEN        -- no such store (NULL): customer_order_store_fk says so
+            RAISE EXCEPTION 'Click & Collect orders must be collected from a retail store'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br06_collect_at_retail_store';
+        END IF;
     END IF;
     RETURN NEW;
 END $$;
@@ -21,21 +35,105 @@ CREATE TRIGGER br06_collect_at_retail_store
     BEFORE INSERT OR UPDATE OF fulfilment_method, fulfilling_store_id ON customer_order
     FOR EACH ROW EXECUTE FUNCTION br06_check_collect_store();
 
--- ---------------------------------------------------------------- BR08
--- An order line keeps the price it was sold at.
-
-CREATE FUNCTION br08_block_unit_price_change() RETURNS trigger LANGUAGE plpgsql AS $$
+-- The store side needs no lock of its own: its UPDATE locks the store row, so it first waits for any order
+-- holding FOR SHARE on it; then this query, which takes a fresh snapshot under READ COMMITTED, sees that
+-- order.
+CREATE FUNCTION br06_check_store_type() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.unit_price IS DISTINCT FROM OLD.unit_price THEN
-        RAISE EXCEPTION 'An order line keeps the price it was sold at'
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'br08_unit_price_immutable';
+    IF NEW.store_type <> 'retail'
+       AND EXISTS (SELECT 1
+                   FROM customer_order
+                   WHERE fulfilling_store_id = NEW.store_id
+                     AND fulfilment_method = 'click_collect') THEN
+        RAISE EXCEPTION 'Store % has Click & Collect orders, so it must stay a retail store', NEW.store_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br06_collect_at_retail_store';
     END IF;
     RETURN NEW;
 END $$;
 
-CREATE TRIGGER br08_unit_price_immutable
-    BEFORE UPDATE OF unit_price ON order_line
-    FOR EACH ROW EXECUTE FUNCTION br08_block_unit_price_change();
+CREATE TRIGGER br06_store_stays_retail
+    BEFORE UPDATE OF store_type ON store
+    FOR EACH ROW EXECUTE FUNCTION br06_check_store_type();
+
+-- ---------------------------------------------------------------- BR07
+-- An order is for products that are still on sale, and has at least one line. (A positive quantity and
+-- each product once per order: CHECK and UNIQUE in 01_tables.sql.)
+
+-- No lock on the product: a product retired while a checkout is running can still be sold by that
+-- checkout, which read it while it was on sale. The rule holds at the moment of sale.
+CREATE FUNCTION br07_check_product_on_sale() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    -- A product that doesn't exist matches nothing here: order_line_product_fk says so.
+    IF EXISTS (SELECT 1 FROM product WHERE product_id = NEW.product_id AND NOT is_active) THEN
+        RAISE EXCEPTION 'Product % is no longer sold', NEW.product_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br07_product_on_sale';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br07_product_on_sale
+    BEFORE INSERT ON order_line
+    FOR EACH ROW EXECUTE FUNCTION br07_check_product_on_sale();
+
+-- An order's lines are inserted after the order (they refer to it), so "has a line" can't be checked when
+-- the order row goes in. A constraint trigger declared DEFERRABLE INITIALLY DEFERRED runs at COMMIT, once
+-- the whole order is in; lines are never deleted (BR08), so it stays true. Beyond Week 10 (optional, plan
+-- T-8): without it, BR20 still refuses to mark an order without lines paid.
+CREATE FUNCTION br07_check_order_has_lines() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM order_line WHERE order_id = NEW.order_id) THEN
+        RAISE EXCEPTION 'Order % has no lines: an order is for at least one product', NEW.order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br07_order_has_lines';
+    END IF;
+    RETURN NULL;                                      -- an AFTER trigger's result is ignored
+END $$;
+
+CREATE CONSTRAINT TRIGGER br07_order_has_lines
+    AFTER INSERT ON customer_order
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION br07_check_order_has_lines();
+
+-- ---------------------------------------------------------------- BR08
+-- An order line is a purchase record. Lines are added only while their order is placed (once it is paid,
+-- BR20 has checked the charge against exactly these lines), and a line is never changed or deleted, not
+-- even while its order is placed. One function raises both BR08 codes, so a unit-price change is always
+-- reported as br08_unit_price_immutable, whatever else the UPDATE does. TRUNCATE skips row triggers: see
+-- the append-only section at the end of this file.
+
+CREATE FUNCTION br08_guard_order_line() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    parent_status order_status;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        -- Locking the order serialises this INSERT with placed → paid, which locks the same row: either
+        -- the move waits and BR20 counts this line, or this INSERT waits and then sees the order paid.
+        SELECT status INTO parent_status FROM customer_order WHERE order_id = NEW.order_id
+        FOR UPDATE;
+        IF parent_status <> 'placed' THEN             -- no such order (NULL): order_line_order_fk says so
+            RAISE EXCEPTION 'Order % is %: lines can only be added while it is placed', NEW.order_id, parent_status
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br08_order_line_immutable';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.unit_price IS DISTINCT FROM OLD.unit_price THEN
+            RAISE EXCEPTION 'An order line keeps the price it was sold at'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br08_unit_price_immutable';
+        END IF;
+        IF (NEW.order_id, NEW.line_no, NEW.product_id, NEW.quantity)
+           IS NOT DISTINCT FROM (OLD.order_id, OLD.line_no, OLD.product_id, OLD.quantity) THEN
+            RETURN NEW;                               -- nothing changes
+        END IF;
+    END IF;
+
+    RAISE EXCEPTION 'An order line is a purchase record: it can''t be changed or deleted'
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'br08_order_line_immutable';
+END $$;
+
+CREATE TRIGGER br08_order_line_immutable
+    BEFORE INSERT OR UPDATE OR DELETE ON order_line
+    FOR EACH ROW EXECUTE FUNCTION br08_guard_order_line();
 
 -- ---------------------------------------------------------------- BR09
 -- Order status follows the transitions allowed for its fulfilment method, and every change is logged.
@@ -103,6 +201,44 @@ END $$;
 CREATE TRIGGER br09_log_status_change
     AFTER INSERT OR UPDATE OF status ON customer_order
     FOR EACH ROW EXECUTE FUNCTION br09_log_status_change();
+
+-- Only an order's status moves. Who ordered, how and where it is fulfilled, the delivery address, the
+-- retry key and when it was placed are fixed, so an UPDATE can't re-point an order at another customer,
+-- store or address. BEFORE UPDATE triggers fire in name order, so this one runs before
+-- br09_order_status_transition and br20_paid_in_full.
+CREATE FUNCTION br09_block_order_header_change() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF (NEW.order_id, NEW.customer_id, NEW.idempotency_key, NEW.fulfilment_method,
+        NEW.fulfilling_store_id, NEW.delivery_address_no, NEW.placed_at)
+       IS DISTINCT FROM
+       (OLD.order_id, OLD.customer_id, OLD.idempotency_key, OLD.fulfilment_method,
+        OLD.fulfilling_store_id, OLD.delivery_address_no, OLD.placed_at) THEN
+        RAISE EXCEPTION 'Only an order''s status can change: who, how, where and when it was placed are fixed'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br09_order_header_immutable';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br09_order_header_immutable
+    BEFORE UPDATE ON customer_order
+    FOR EACH ROW EXECUTE FUNCTION br09_block_order_header_change();
+
+-- Only br09_log_status_change writes the history. Inside this trigger pg_trigger_depth() is 1 when someone
+-- INSERTs directly, and 2 or more when the INSERT comes from the log trigger (a trigger firing a trigger).
+-- Beyond Week 10 (optional, plan T-8): it can tell only that *a* trigger is writing, not which one; the two
+-- CHECKs on order_status_history (01_tables.sql) hold whoever writes.
+CREATE FUNCTION br09_check_history_writer() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF pg_trigger_depth() < 2 THEN
+        RAISE EXCEPTION 'Order status history is written by the status-change trigger, not directly'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br09_history_written_by_trigger';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br09_history_written_by_trigger
+    BEFORE INSERT ON order_status_history
+    FOR EACH ROW EXECUTE FUNCTION br09_check_history_writer();
 
 -- ---------------------------------------------------------------- BR11
 -- Returns only for delivered or collected orders, within 30 days of completion.
@@ -293,6 +429,32 @@ CREATE TRIGGER br16_address_immutable
     BEFORE UPDATE ON customer_address
     FOR EACH ROW EXECUTE FUNCTION br16_block_address_change();
 
+-- ---------------------------------------------------------------- BR17
+-- A delivery goes to one of the customer's current addresses. Whose address it is: the composite FK
+-- br17_order_address_is_customers (01_tables.sql). A retired address stays for the orders that used it
+-- (BR16), but no new order may use it. No lock, as for BR07's products: the rule holds when the order is
+-- placed.
+
+CREATE FUNCTION br17_check_address_active() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    -- A missing address, or another customer's, matches nothing here: the composite FK says so. A Click &
+    -- Collect order with an address is left to the CHECK br06_order_address_matches_method.
+    IF NEW.fulfilment_method = 'delivery'
+       AND EXISTS (SELECT 1
+                   FROM customer_address
+                   WHERE customer_id = NEW.customer_id
+                     AND address_no = NEW.delivery_address_no
+                     AND NOT is_active) THEN
+        RAISE EXCEPTION 'Address % has been retired: choose a current address', NEW.delivery_address_no
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br17_order_address_active';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br17_order_address_active
+    BEFORE INSERT ON customer_order
+    FOR EACH ROW EXECUTE FUNCTION br17_check_address_active();
+
 -- ---------------------------------------------------------------- BR18
 -- The stock adjustment log is append-only: mistakes are fixed by a correcting adjustment.
 
@@ -305,3 +467,105 @@ END $$;
 CREATE TRIGGER br18_adjustment_append_only
     BEFORE UPDATE OR DELETE ON stock_adjustment
     FOR EACH ROW EXECUTE FUNCTION br18_block_adjustment_change();
+
+-- ---------------------------------------------------------------- BR20
+-- An order is paid only when it has lines and its charge is exactly its total. That is an assertion over
+-- three tables (customer_order, order_line, payment), which PostgreSQL doesn't support, so triggers
+-- emulate it (as for BR12). It is checked on the one change where it starts to matter, placed → paid, and
+-- stays true afterwards because nothing it reads can change once the order is paid: lines are added only
+-- while it is placed (BR08), it is charged only while placed and at most once (below, and the partial
+-- unique index br20_one_charge_per_order in 01_tables.sql), and payments are never updated or deleted
+-- (the append-only section at the end of this file).
+-- The order-row locks rely on READ COMMITTED, the project's isolation level: once a statement has waited
+-- for the lock, the trigger's next query takes a fresh snapshot and sees what the other transaction
+-- committed. (At REPEATABLE READ it would read its older snapshot and could miss a new line.)
+
+-- A charge is taken only while the order is placed. Locking the order serialises this INSERT with
+-- placed → paid, which locks the same row, so the two can't both act on a stale status.
+CREATE FUNCTION br20_check_charge() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    parent_status order_status;
+BEGIN
+    IF NEW.kind = 'charge' THEN
+        SELECT status INTO parent_status FROM customer_order WHERE order_id = NEW.order_id
+        FOR UPDATE;
+        IF parent_status <> 'placed' THEN             -- no such order (NULL): payment_order_fk says so
+            RAISE EXCEPTION 'Order % is %: it can only be charged while it is placed', NEW.order_id, parent_status
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br20_charge_while_placed';
+        END IF;
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br20_charge_while_placed
+    BEFORE INSERT ON payment
+    FOR EACH ROW EXECUTE FUNCTION br20_check_charge();
+
+-- v_order_total is created in 03_views.sql. PL/pgSQL looks names up when the function first runs, not
+-- when it is created, so the file order doesn't matter.
+CREATE FUNCTION br20_check_paid_in_full() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    lines   BIGINT;
+    due     NUMERIC(10,2);
+    charged NUMERIC(10,2);
+BEGIN
+    IF OLD.status = 'placed' AND NEW.status = 'paid' THEN
+        SELECT line_count, total INTO lines, due
+        FROM v_order_total
+        WHERE order_id = NEW.order_id;
+
+        SELECT COALESCE(sum(amount), 0) INTO charged
+        FROM payment
+        WHERE order_id = NEW.order_id AND kind = 'charge';
+
+        IF lines = 0 OR charged <> due THEN
+            RAISE EXCEPTION 'Order % can''t be paid: % line(s), % due, % charged', NEW.order_id, lines, due, charged
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br20_paid_in_full';
+        END IF;
+    END IF;
+    RETURN NEW;
+END $$;
+
+-- Named br20_…, so it fires after br09_order_header_immutable and br09_order_status_transition: an
+-- illegal move is reported as BR09 before BR20 looks at the money.
+CREATE TRIGGER br20_paid_in_full
+    BEFORE UPDATE OF status ON customer_order
+    FOR EACH ROW EXECUTE FUNCTION br20_check_paid_in_full();
+
+-- ---------------------------------------------------------------- append-only records
+-- The payment ledger (BR14), the status history (BR09), the stock adjustment log (BR18) and order lines
+-- (BR08) are records: a mistake is corrected by a new row, never by editing or deleting one. One function
+-- serves every trigger below; the rule it reports is the trigger's argument (TG_ARGV[0]).
+-- Row triggers don't fire on TRUNCATE, so each of the four tables also gets a statement-level BEFORE
+-- TRUNCATE trigger; TRUNCATE … CASCADE fires those of every table it reaches, so emptying customer_order
+-- that way is refused too. (BR08's and BR18's row triggers are in their own sections above.)
+
+CREATE FUNCTION block_append_only_change() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION '% rows are a permanent record: % is not allowed', TG_TABLE_NAME, TG_OP
+        USING ERRCODE = 'check_violation', CONSTRAINT = TG_ARGV[0];
+END $$;
+
+CREATE TRIGGER br14_payment_append_only
+    BEFORE UPDATE OR DELETE ON payment
+    FOR EACH ROW EXECUTE FUNCTION block_append_only_change('br14_payment_append_only');
+
+CREATE TRIGGER br09_history_append_only
+    BEFORE UPDATE OR DELETE ON order_status_history
+    FOR EACH ROW EXECUTE FUNCTION block_append_only_change('br09_history_append_only');
+
+CREATE TRIGGER br14_payment_append_only_truncate
+    BEFORE TRUNCATE ON payment
+    FOR EACH STATEMENT EXECUTE FUNCTION block_append_only_change('br14_payment_append_only');
+
+CREATE TRIGGER br09_history_append_only_truncate
+    BEFORE TRUNCATE ON order_status_history
+    FOR EACH STATEMENT EXECUTE FUNCTION block_append_only_change('br09_history_append_only');
+
+CREATE TRIGGER br18_adjustment_append_only_truncate
+    BEFORE TRUNCATE ON stock_adjustment
+    FOR EACH STATEMENT EXECUTE FUNCTION block_append_only_change('br18_adjustment_append_only');
+
+CREATE TRIGGER br08_order_line_immutable_truncate
+    BEFORE TRUNCATE ON order_line
+    FOR EACH STATEMENT EXECUTE FUNCTION block_append_only_change('br08_order_line_immutable');

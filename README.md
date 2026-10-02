@@ -46,6 +46,19 @@ npm install
 cd ..
 ```
 
+Frontend unit tests (Vitest): `npm --prefix web run test:unit`.
+
+**Rebuilding the dev database from a branch.** `sql/*.sql` only run when the Docker volume is empty, and the
+compose file mounts `./sql` from the directory you run it in. To load the SQL of the branch you are on, without
+touching the volume:
+
+```bash
+docker exec jbhifi-db psql -U jbhifi -d postgres -c "DROP DATABASE IF EXISTS jbhifi WITH (FORCE)"
+docker exec jbhifi-db psql -U jbhifi -d postgres -c "CREATE DATABASE jbhifi"
+for f in sql/*.sql; do docker exec -i jbhifi-db psql -U jbhifi -d jbhifi -v ON_ERROR_STOP=1 -q < "$f" || break; done
+.venv/bin/python scripts/clerk_personas.py     # re-link the demo personas
+```
+
 Sign-in (Clerk). Everyone signs in through Clerk; our database decides who is a customer or staff (BR19).
 Ask the team for access to the Clerk application, or create your own free development application, then:
 

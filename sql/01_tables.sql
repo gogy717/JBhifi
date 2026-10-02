@@ -235,7 +235,11 @@ CREATE TABLE order_status_history (
     CONSTRAINT order_status_history_pk PRIMARY KEY (order_id, seq),
     CONSTRAINT order_status_history_order_fk FOREIGN KEY (order_id)
         REFERENCES customer_order (order_id) ON DELETE CASCADE,
-    CONSTRAINT order_status_history_staff_fk FOREIGN KEY (changed_by_staff_id) REFERENCES staff (staff_id)
+    CONSTRAINT order_status_history_staff_fk FOREIGN KEY (changed_by_staff_id) REFERENCES staff (staff_id),
+    -- BR09: row 1 records the order's creation and is the only row without a from_status, and every row
+    -- records a real change.
+    CONSTRAINT br09_history_first_row_is_creation CHECK ((seq = 1) = (from_status IS NULL)),
+    CONSTRAINT br09_history_status_changes CHECK (from_status IS DISTINCT FROM to_status)
 );
 
 -- ---------------------------------------------------------------- returns and payments
@@ -292,3 +296,9 @@ CREATE TABLE payment (
     CONSTRAINT payment_return_same_order FOREIGN KEY (return_id, order_id)
         REFERENCES return_request (return_id, order_id)
 );
+
+-- BR20: an order is charged at most once (the rest of BR20 is in 02_rules.sql). A partial unique index is
+-- UNIQUE over only the rows its WHERE matches, so it doesn't limit an order's refunds. Beyond Week 10
+-- (optional, plan T-8): without it BR20's paid-in-full trigger would still refuse to mark an over-charged
+-- order paid; the index refuses the second charge itself.
+CREATE UNIQUE INDEX br20_one_charge_per_order ON payment (order_id) WHERE kind = 'charge';

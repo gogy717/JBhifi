@@ -1,6 +1,7 @@
-"""Create the four demo personas as Clerk development users (spec §7, step 6) and link the staff ones.
+"""Create the four demo personas as Clerk development users (spec §7, step 6) and link them to their rows.
 
-    DEMO_PASSWORD='…' .venv/bin/python scripts/clerk_personas.py
+    DEMO_PASSWORD='…' .venv/bin/python scripts/clerk_personas.py     # create, or set every persona's password
+    .venv/bin/python scripts/clerk_personas.py                       # only link existing personas (after a rebuild)
 
 Reads CLERK_SECRET_KEY and the POSTGRES_* settings from .env; DEMO_PASSWORD comes from your shell and is
 never stored in the repo. Clerk checks it like any password — at least 15 characters here, and not one
@@ -63,8 +64,8 @@ def link(db, subject: str, row: tuple) -> str:
 def main() -> int:
     load_dotenv()
     secret, password = os.environ.get("CLERK_SECRET_KEY"), os.environ.get("DEMO_PASSWORD")
-    if not secret or not password:
-        print("Set CLERK_SECRET_KEY (in .env) and DEMO_PASSWORD (in your shell) first.", file=sys.stderr)
+    if not secret:
+        print("Set CLERK_SECRET_KEY (in .env) first.", file=sys.stderr)
         return 1
     clerk = httpx.Client(base_url=CLERK_API, headers={"Authorization": f"Bearer {secret}"}, timeout=10)
     db = psycopg2.connect(host=os.environ["POSTGRES_HOST"], port=os.environ["POSTGRES_PORT"],
@@ -74,19 +75,27 @@ def main() -> int:
     for first, last, email, row in PERSONAS:
         found = clerk.get("/users", params={"email_address": email})
         found.raise_for_status()
-        if found.json():
-            # Password checks are not skipped: a breached or short password is refused here, not at sign-in.
-            response, action = clerk.patch(f"/users/{found.json()[0]['id']}", json={"password": password}), "updated"
-        else:
-            # This Clerk application also requires a username: e.g. alice_morgan.
-            response, action = clerk.post("/users", json={"email_address": [email], "password": password,
-                                                           "username": f"{first}_{last}".lower(),
-                                                           "first_name": first, "last_name": last}), "created"
-        if not response.is_success:
+        existing = found.json()
+        if existing and not password:                 # link only: leave the password alone
+            user, action = existing[0], "exists "
+        elif not password:
             failed = True
-            print(f"REFUSED  {email}: {reasons(response)}", file=sys.stderr)
+            print(f"MISSING  {email}: set DEMO_PASSWORD to create it", file=sys.stderr)
             continue
-        user = response.json()
+        else:
+            if existing:
+                # Password checks are not skipped: a breached or short password is refused here, not at sign-in.
+                response, action = clerk.patch(f"/users/{existing[0]['id']}", json={"password": password}), "updated"
+            else:
+                # This Clerk application also requires a username: e.g. alice_morgan.
+                response, action = clerk.post("/users", json={"email_address": [email], "password": password,
+                                                               "username": f"{first}_{last}".lower(),
+                                                               "first_name": first, "last_name": last}), "created"
+            if not response.is_success:
+                failed = True
+                print(f"REFUSED  {email}: {reasons(response)}", file=sys.stderr)
+                continue
+            user = response.json()
         print(f"{action}  {email}  ({verification(user)}, {link(db, user['id'], row)})")
     db.close()
     return 1 if failed else 0

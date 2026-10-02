@@ -2,38 +2,70 @@
 from psycopg2 import sql
 
 from app.auth import require_catalogue_writer
-from app.errors import NotFound
+from app.errors import ApiError, NotFound
 from app.services import promotions
 from app.services.filters import product_conditions, where
+from app.services.reference import store_exists
 
 # The columns of ProductSummary. The price comes from the view, so it includes any running promotion.
+# {store_quantity} is one of the two fragments below: null when no store was asked about, otherwise that
+# store's quantity (0 when the product has no inventory row there).
 SUMMARY_SELECT = sql.SQL(
     """
     SELECT p.product_id, p.sku, p.name, p.brand_id, b.name AS brand, p.category_id, c.name AS category,
            p.base_price, cp.current_price, cp.promotion_id IS NOT NULL AS on_sale, p.is_active,
            COALESCE((SELECT sum(i.quantity) FROM inventory i WHERE i.product_id = p.product_id), 0)
-               AS total_stock
+               AS total_stock,
+           {store_quantity} AS store_quantity
     FROM product p
     JOIN brand b                    ON b.brand_id = p.brand_id
     JOIN category c                 ON c.category_id = p.category_id
     JOIN v_product_current_price cp ON cp.product_id = p.product_id
     """
 )
+NO_STORE_QUANTITY = sql.SQL("NULL::int")
+ONE_STORE_QUANTITY = sql.SQL(
+    "COALESCE((SELECT i.quantity FROM inventory i WHERE i.product_id = p.product_id AND i.store_id = %s), 0)"
+)
 
 # The columns a PATCH may change. Only these names can reach the dynamic SET clause below.
 UPDATABLE_COLUMNS = ("name", "brand_id", "category_id", "base_price", "is_active")
 
 
-def list_products(cur, q=None, category_id=None, brand_id=None, include_inactive=False):
+def list_products(cur, q=None, category_id=None, brand_id=None, include_inactive=False,
+                  min_price=None, max_price=None, store_id=None):
+    """The catalogue, filtered (R1). Prices are compared with the price a product sells for now, promotion
+    included (R2), and both bounds count. A store_id adds that store's quantity to each product (R3); it
+    doesn't filter the list."""
+    if min_price is not None and max_price is not None and min_price > max_price:
+        raise ApiError(422, "invalid_price_range", "The lowest price is above the highest price.",
+                       {"min_price": str(min_price), "max_price": str(max_price)})
+    if store_id is not None and not store_exists(cur, store_id):
+        raise NotFound("Store", store_id)
+
     conditions, params = product_conditions(q, category_id, brand_id)
     if not include_inactive:
         conditions.append(sql.SQL("p.is_active"))
-    cur.execute(SUMMARY_SELECT + where(conditions) + sql.SQL(" ORDER BY c.name, b.name, p.name"), params)
+    if min_price is not None:
+        conditions.append(sql.SQL("cp.current_price >= %s"))
+        params.append(min_price)
+    if max_price is not None:
+        conditions.append(sql.SQL("cp.current_price <= %s"))
+        params.append(max_price)
+
+    if store_id is None:
+        select = SUMMARY_SELECT.format(store_quantity=NO_STORE_QUANTITY)
+    else:
+        # The store's %s is in the SELECT list, ahead of every condition's, so its value goes first.
+        select = SUMMARY_SELECT.format(store_quantity=ONE_STORE_QUANTITY)
+        params = [store_id, *params]
+    cur.execute(select + where(conditions) + sql.SQL(" ORDER BY c.name, b.name, p.name"), params)
     return cur.fetchall()
 
 
 def get_product(cur, product_id: int):
-    cur.execute(SUMMARY_SELECT + sql.SQL("WHERE p.product_id = %s"), (product_id,))
+    cur.execute(SUMMARY_SELECT.format(store_quantity=NO_STORE_QUANTITY) + sql.SQL("WHERE p.product_id = %s"),
+                (product_id,))
     product = cur.fetchone()
     if product is None:
         raise NotFound("Product", product_id)

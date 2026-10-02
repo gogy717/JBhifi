@@ -154,6 +154,23 @@ def require_customer_self(actor: Actor | None, customer_id: int) -> Actor:
     return actor
 
 
+def require_customer(actor: Actor | None) -> Actor:
+    """Shopping, and a customer's own account, are for signed-in customers: staff sign-ins can't do them."""
+    actor = require_actor(actor)
+    if actor.kind != "customer":
+        raise ApiError(403, "customer_only", "Sign in as a customer to shop.")
+    return actor
+
+
+def require_own_account(actor: Actor | None, customer_id: int) -> Actor:
+    """Changing a customer's own account (their addresses): that customer only. Support staff can look an
+    account up (require_customer_self) but never change it for the customer."""
+    actor = require_customer(actor)
+    if actor.id != customer_id:
+        raise ApiError(403, "not_your_account", "That account belongs to another customer.")
+    return actor
+
+
 def require_staff(actor: Actor | None) -> Actor:
     actor = require_actor(actor)
     if actor.kind != "staff":
@@ -191,4 +208,23 @@ def require_catalogue_writer(actor: Actor | None) -> Actor:
     actor = require_staff(actor)
     if not (actor.is_support or actor.is_manager):
         raise ApiError(403, "manager_only", "Only a store manager or support staff can change the catalogue.")
+    return actor
+
+
+def require_order_reader(actor: Actor | None, order: dict | None) -> Actor:
+    """Reading one order: its customer, staff of the store fulfilling it, or support staff (any order).
+
+    `order` is the order's row, or None when there is no such order. Customers and store staff get the same
+    403 for a missing order as for someone else's, so they can't probe which order ids exist; only support,
+    who may read every order, is then told 404 (by the service).
+    """
+    actor = require_actor(actor)
+    if actor.is_support:
+        return actor
+    if actor.kind == "customer":
+        if order is None or order["customer_id"] != actor.id:
+            raise ApiError(403, "not_your_order", "That order isn't one of yours.")
+        return actor
+    if order is None or order["fulfilling_store_id"] != actor.store_id:
+        raise ApiError(403, "other_store", "You can only read your own store's orders.")
     return actor

@@ -1,5 +1,5 @@
-"""Customers: the support team's directory, and each customer's own record."""
-from app.auth import require_customer_self, require_support
+"""Customers: the support team's directory, each customer's own record, and their delivery addresses."""
+from app.auth import require_customer_self, require_own_account, require_support
 from app.errors import NotFound
 
 
@@ -30,3 +30,55 @@ def get_customer(cur, actor, customer_id: int):
     )
     customer["addresses"] = cur.fetchall()
     return customer
+
+
+def add_address(cur, actor, customer_id: int, body):
+    """Add a delivery address under the customer's next address number (a weak entity: 1, 2, 3, … per customer).
+
+    Two adds at once would both read the same max(address_no), so the customer row is locked first: the second
+    add waits for the first to commit, and its INSERT — a new statement, so a new snapshot under READ
+    COMMITTED — then sees the first one's address and takes the next number.
+    """
+    require_own_account(actor, customer_id)
+    cur.execute("SELECT 1 FROM customer WHERE customer_id = %s FOR UPDATE", (customer_id,))
+    cur.execute(
+        """
+        INSERT INTO customer_address (customer_id, address_no, line1, suburb, state, postcode)
+        SELECT %s, COALESCE(max(address_no), 0) + 1, %s, %s, %s, %s
+        FROM customer_address
+        WHERE customer_id = %s
+        RETURNING address_no, line1, suburb, state, postcode, is_active
+        """,
+        (customer_id, body.line1, body.suburb, body.state, body.postcode, customer_id),
+    )
+    return cur.fetchone()
+
+
+def retire_address(cur, actor, customer_id: int, address_no: int):
+    """Retire an address: it stays, because orders placed with it point at it (BR16), but no new order may use
+    it (BR17). Retiring it again changes nothing and answers with the same row."""
+    require_own_account(actor, customer_id)
+    # `AND is_active`: an address already retired is left alone, not rewritten.
+    cur.execute(
+        """
+        UPDATE customer_address SET is_active = FALSE
+        WHERE customer_id = %s AND address_no = %s AND is_active
+        RETURNING address_no, line1, suburb, state, postcode, is_active
+        """,
+        (customer_id, address_no),
+    )
+    retired = cur.fetchone()
+    if retired is not None:
+        return retired
+    cur.execute(
+        """
+        SELECT address_no, line1, suburb, state, postcode, is_active
+        FROM customer_address
+        WHERE customer_id = %s AND address_no = %s
+        """,
+        (customer_id, address_no),
+    )
+    address = cur.fetchone()
+    if address is None:
+        raise NotFound("Address", address_no)
+    return address                                  # already retired: the same answer, nothing changed

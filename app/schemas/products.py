@@ -19,6 +19,7 @@ class ProductSummary(BaseModel):
     on_sale: bool
     is_active: bool
     total_stock: int                # across all stores and the warehouse
+    store_quantity: int | None = None   # at the store in ?store_id= (0 if it has none); null without one
 
 
 class Spec(BaseModel):

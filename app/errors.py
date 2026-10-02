@@ -30,6 +30,15 @@ CONSTRAINT_MESSAGES = {
     "product_spec_pk": "Each spec name can only appear once per product.",
     "promotion_period_valid": "A promotion must end after it starts.",
     "promotion_product_fk": "That product doesn't exist.",
+    "au_state_valid": "That isn't an Australian state or territory: use NSW, VIC, QLD, WA, SA, TAS, ACT or NT.",
+    "au_postcode_format": "A postcode is four digits, e.g. 2000.",
+    # Checkout (T1): the order header and its lines.
+    "customer_order_store_fk": "That store doesn't exist.",
+    "br06_order_address_matches_method":
+        "A delivery order needs one of your addresses, and a Click & Collect order has none.",
+    "br17_order_address_is_customers": "That address isn't one of yours.",
+    "br07_order_line_qty_positive": "Each quantity must be at least 1.",
+    "br07_order_line_product_once": "Each product can appear only once in an order: change its quantity instead.",
 }
 
 

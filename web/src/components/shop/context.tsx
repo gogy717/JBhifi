@@ -1,53 +1,14 @@
 "use client";
 
-import { createContext, type ReactNode, useContext, useSyncExternalStore } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 import { type ApiError, api, call, type Category, type CustomerDetail, type Store } from "@/lib/api/client";
+import { useStoredId } from "@/lib/browser-storage";
 import { type MeState, useMe } from "@/lib/me";
 import { useLoad } from "@/lib/use-load";
 
-// ---------------------------------------------------------------- per-viewer choices
-// Which store is "mine" is a convenience for this browser only, so it lives in localStorage. It is read
-// through useSyncExternalStore: the server render and hydration see nothing chosen, then the browser's
-// value — no effect-and-setState dance. If storage is blocked (private window), a choice still works in
-// memory until the page reloads. (Who is signed in is Clerk's business: see useMe.)
-
-const listeners = new Set<() => void>();
-const memory = new Map<string, string | null>();
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", listener);
-  };
-}
-
-function readStored(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return memory.get(key) ?? null;
-  }
-}
-
-function writeStored(key: string, value: string | null) {
-  memory.set(key, value);
-  try {
-    if (value === null) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, value);
-  } catch {
-    // storage blocked: the in-memory value above still applies
-  }
-  listeners.forEach((listener) => listener());
-}
-
-function useStoredId(key: string): [number | undefined, (id: number | undefined) => void] {
-  const raw = useSyncExternalStore(subscribe, () => readStored(key), () => null);
-  const id = raw === null ? NaN : Number(raw);
-  return [Number.isInteger(id) ? id : undefined, (next) => writeStored(key, next === undefined ? null : String(next))];
-}
+// Which store is "mine" is a convenience for this browser only, so it lives in localStorage
+// (lib/browser-storage.ts). Who is signed in is Clerk's business: see useMe.
 
 // ---------------------------------------------------------------- shop context
 
@@ -58,6 +19,12 @@ type Shop = {
   customer?: CustomerDetail;
   /** Still finding out who is signed in, or their details haven't arrived yet. */
   customerLoading: boolean;
+  /** The signed-in customer's own record failed to load: pages show the error instead of "sign in". */
+  customerError?: ApiError;
+  /** Read the signed-in customer's record again, e.g. after adding or retiring an address. */
+  reloadCustomer: () => void;
+  /** Every store, the warehouse included: a delivery can ship from any store with stock. */
+  stores: Store[];
   /** Stores a customer can shop at: retail only — the warehouse doesn't do Click & Collect (BR06). */
   retailStores: Store[];
   /** "My store": the one chosen, else the first in the customer's state, else the first store.
@@ -70,7 +37,7 @@ type Shop = {
   categories: Category[];
   /** Who-am-I, stores or categories failed to load (e.g. the API isn't running). */
   loadError?: ApiError;
-  /** Try those loads again. */
+  /** Try those loads again, and the customer's record. */
   reload: () => void;
 };
 
@@ -97,7 +64,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   // While another customer loads, don't show the previous one's details under the new name.
   const customer = detail.data?.customer_id === customerId ? detail.data : undefined;
   const homeState = customer?.addresses.find((a) => a.is_active)?.state;
-  const retailStores = (stores.data ?? []).filter((s) => s.store_type === "retail");
+  const allStores = stores.data ?? [];
+  const retailStores = allStores.filter((s) => s.store_type === "retail");
   const customerLoading = session.status === "loading" || (customerId !== undefined && !customer && !detail.error);
   // Don't guess a store from the first one while the customer's state is still on its way.
   const store = retailStores.find((s) => s.store_id === storeId)
@@ -107,6 +75,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     session,
     customer,
     customerLoading,
+    customerError: detail.error,
+    reloadCustomer: detail.reload,
+    stores: allStores,
     retailStores,
     store,
     setStoreId,
@@ -117,6 +88,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       if (session.status === "error") session.retry();
       stores.reload();
       categories.reload();
+      detail.reload();
     },
   };
   return <ShopContext value={shop}>{children}</ShopContext>;

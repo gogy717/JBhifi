@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.auth import CurrentActor
 from app.db import DbCursor
 from app.errors import ERROR_RESPONSES
+from app.schemas import Money
 from app.schemas.products import ProductCreate, ProductDetail, ProductSummary, ProductUpdate, Spec
 from app.services import products
 
@@ -16,8 +17,11 @@ def list_products(
     category_id: int | None = None,
     brand_id: int | None = None,
     include_inactive: bool = False,
+    min_price: Money | None = Query(None, ge=0),
+    max_price: Money | None = Query(None, ge=0),
+    store_id: int | None = None,
 ):
-    return products.list_products(cur, q, category_id, brand_id, include_inactive)
+    return products.list_products(cur, q, category_id, brand_id, include_inactive, min_price, max_price, store_id)
 
 
 @router.post("", response_model=ProductDetail, status_code=201)
