@@ -265,6 +265,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/{customer_id}/addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Address
+         * @description Add a delivery address; the server gives it the next number. Only the customer themselves.
+         */
+        post: operations["add_address"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customer_id}/addresses/{address_no}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Retire Address
+         * @description Retire an address — `{"is_active": false}` is the only change accepted (BR16). Doing it twice is harmless.
+         */
+        patch: operations["retire_address"];
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Order
+         * @description One order: lines, delivery address, payments, status timeline and the statuses it can move to next.
+         */
+        get: operations["read_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customer_id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Customer Orders
+         * @description A customer's orders, newest first: the customer themselves, or support staff.
+         */
+        get: operations["list_customer_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Order
+         * @description Check out (T1): place and pay for the reviewed basket in one transaction. 201 for a new order; 200
+         *     with the same order when this Idempotency-Key was already used by this customer.
+         */
+        post: operations["create_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -300,6 +401,34 @@ export interface components {
             postcode: string;
             /** Is Active */
             is_active: boolean;
+        };
+        /**
+         * AddressCreate
+         * @description A new delivery address. It is never edited afterwards (BR16): add a new one, retire the old one.
+         *
+         *     Shape only: each field is trimmed, then its length checked. Which states and postcodes exist is the
+         *     database's call — the au_state and au_postcode domains answer 409 au_state_valid / au_postcode_format.
+         */
+        AddressCreate: {
+            /** Line1 */
+            line1: string;
+            /** Suburb */
+            suburb: string;
+            /** State */
+            state: string;
+            /** Postcode */
+            postcode: string;
+        };
+        /**
+         * AddressRetire
+         * @description Retiring is the only change an address accepts, and it only goes one way.
+         */
+        AddressRetire: {
+            /**
+             * Is Active
+             * @constant
+             */
+            is_active: false;
         };
         /**
          * AdjustmentCreate
@@ -394,6 +523,22 @@ export interface components {
             /** Email */
             email: string;
         };
+        /**
+         * DeliveryAddress
+         * @description The address the order was placed with — still shown after the customer retires it (BR16).
+         */
+        DeliveryAddress: {
+            /** Address No */
+            address_no: number;
+            /** Line1 */
+            line1: string;
+            /** Suburb */
+            suburb: string;
+            /** State */
+            state: string;
+            /** Postcode */
+            postcode: string;
+        };
         /** ErrorInfo */
         ErrorInfo: {
             /** Code */
@@ -406,6 +551,27 @@ export interface components {
         /** ErrorResponse */
         ErrorResponse: {
             error: components["schemas"]["ErrorInfo"];
+        };
+        /**
+         * HistoryEntry
+         * @description One row of v_order_timeline (R11).
+         */
+        HistoryEntry: {
+            /** Seq */
+            seq: number;
+            /** From Status */
+            from_status: string | null;
+            /** To Status */
+            to_status: string;
+            /**
+             * Changed At
+             * Format: date-time
+             */
+            changed_at: string;
+            /** Changed By Staff Id */
+            changed_by_staff_id: number | null;
+            /** Changed By Name */
+            changed_by_name: string | null;
         };
         /** InventoryRow */
         InventoryRow: {
@@ -454,6 +620,134 @@ export interface components {
              */
             runs_store: boolean;
         };
+        /**
+         * OrderCreate
+         * @description The basket the customer reviewed. The customer is whoever is signed in, never a field here.
+         */
+        OrderCreate: {
+            /**
+             * Fulfilment Method
+             * @enum {string}
+             */
+            fulfilment_method: "delivery" | "click_collect";
+            /** Fulfilling Store Id */
+            fulfilling_store_id: number;
+            /** Delivery Address No */
+            delivery_address_no?: number | null;
+            /** Items */
+            items: components["schemas"]["OrderLineIn"][];
+            /** Expected Total */
+            expected_total: number | string;
+        };
+        /** OrderDetail */
+        OrderDetail: {
+            /** Order Id */
+            order_id: number;
+            /** Customer Id */
+            customer_id: number;
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            /** Status */
+            status: string;
+            /** Fulfilment Method */
+            fulfilment_method: string;
+            /** Fulfilling Store Id */
+            fulfilling_store_id: number;
+            /** Fulfilling Store Name */
+            fulfilling_store_name: string;
+            /** Total */
+            total: string;
+            /** Line Count */
+            line_count: number;
+            /**
+             * Last Updated At
+             * Format: date-time
+             */
+            last_updated_at: string;
+            /** Lines */
+            lines: components["schemas"]["OrderLine"][];
+            delivery_address: components["schemas"]["DeliveryAddress"] | null;
+            payment: components["schemas"]["PaymentSummary"];
+            /** History */
+            history: components["schemas"]["HistoryEntry"][];
+            /** Allowed Next Statuses */
+            allowed_next_statuses: string[];
+        };
+        /** OrderLine */
+        OrderLine: {
+            /** Line No */
+            line_no: number;
+            /** Product Id */
+            product_id: number;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: string;
+            /** Line Total */
+            line_total: string;
+        };
+        /**
+         * OrderLineIn
+         * @description One line of the basket. There is no price: the server takes it from v_product_current_price (BR08).
+         *     Quantity is only typed here; quantity > 0 is BR07's CHECK, answered as 409 br07_order_line_qty_positive.
+         */
+        OrderLineIn: {
+            /** Product Id */
+            product_id: number;
+            /** Quantity */
+            quantity: number;
+        };
+        /**
+         * OrderSummary
+         * @description One row of v_order_summary.
+         */
+        OrderSummary: {
+            /** Order Id */
+            order_id: number;
+            /** Customer Id */
+            customer_id: number;
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            /** Status */
+            status: string;
+            /** Fulfilment Method */
+            fulfilment_method: string;
+            /** Fulfilling Store Id */
+            fulfilling_store_id: number;
+            /** Fulfilling Store Name */
+            fulfilling_store_name: string;
+            /** Total */
+            total: string;
+            /** Line Count */
+            line_count: number;
+            /**
+             * Last Updated At
+             * Format: date-time
+             */
+            last_updated_at: string;
+        };
+        /**
+         * PaymentSummary
+         * @description From v_order_payment: charged, refunded, and the balance the shop holds (charged − refunded).
+         */
+        PaymentSummary: {
+            /** Charged */
+            charged: string;
+            /** Refunded */
+            refunded: string;
+            /** Balance */
+            balance: string;
+        };
         /** ProductCreate */
         ProductCreate: {
             /** Sku */
@@ -493,6 +787,8 @@ export interface components {
             is_active: boolean;
             /** Total Stock */
             total_stock: number;
+            /** Store Quantity */
+            store_quantity?: number | null;
             /** Specs */
             specs: components["schemas"]["Spec"][];
             /** Stock */
@@ -526,6 +822,8 @@ export interface components {
             is_active: boolean;
             /** Total Stock */
             total_stock: number;
+            /** Store Quantity */
+            store_quantity?: number | null;
         };
         /**
          * ProductUpdate
@@ -1275,6 +1573,9 @@ export interface operations {
                 category_id?: number | null;
                 brand_id?: number | null;
                 include_inactive?: boolean;
+                min_price?: number | string | null;
+                max_price?: number | string | null;
+                store_id?: number | null;
             };
             header?: never;
             path?: never;
@@ -1982,6 +2283,408 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerDetail"];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    add_address: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Address"];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retire_address: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+                address_no: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressRetire"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Address"];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_customer_orders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSummary"][];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_order: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCreate"];
+            };
+        };
+        responses: {
+            /** @description A retry: the order already placed with this key */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
                 };
             };
             /** @description Not signed in, or the sign-in token is not valid */

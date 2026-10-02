@@ -1,53 +1,14 @@
 "use client";
 
-import { createContext, type ReactNode, useContext, useSyncExternalStore } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 import { type ApiError, api, call, type Category, type CustomerDetail, type Store } from "@/lib/api/client";
+import { useStoredId } from "@/lib/browser-storage";
 import { type MeState, useMe } from "@/lib/me";
 import { useLoad } from "@/lib/use-load";
 
-// ---------------------------------------------------------------- per-viewer choices
-// Which store is "mine" is a convenience for this browser only, so it lives in localStorage. It is read
-// through useSyncExternalStore: the server render and hydration see nothing chosen, then the browser's
-// value — no effect-and-setState dance. If storage is blocked (private window), a choice still works in
-// memory until the page reloads. (Who is signed in is Clerk's business: see useMe.)
-
-const listeners = new Set<() => void>();
-const memory = new Map<string, string | null>();
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", listener);
-  };
-}
-
-function readStored(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return memory.get(key) ?? null;
-  }
-}
-
-function writeStored(key: string, value: string | null) {
-  memory.set(key, value);
-  try {
-    if (value === null) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, value);
-  } catch {
-    // storage blocked: the in-memory value above still applies
-  }
-  listeners.forEach((listener) => listener());
-}
-
-function useStoredId(key: string): [number | undefined, (id: number | undefined) => void] {
-  const raw = useSyncExternalStore(subscribe, () => readStored(key), () => null);
-  const id = raw === null ? NaN : Number(raw);
-  return [Number.isInteger(id) ? id : undefined, (next) => writeStored(key, next === undefined ? null : String(next))];
-}
+// Which store is "mine" is a convenience for this browser only, so it lives in localStorage
+// (lib/browser-storage.ts). Who is signed in is Clerk's business: see useMe.
 
 // ---------------------------------------------------------------- shop context
 

@@ -5,6 +5,7 @@ import Form from "next/form";
 import Link from "next/link";
 
 import { useShop } from "@/components/shop/context";
+import { useCart } from "@/lib/cart-context";
 import type { MeState } from "@/lib/me";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 
@@ -14,6 +15,7 @@ const pickerClass =
 
 export function ShopHeader() {
   const { session, retailStores, store, setStoreId, categories } = useShop();
+  const { count } = useCart();
   const states = [...new Set(retailStores.map((s) => s.state))];
 
   return (
@@ -54,8 +56,12 @@ export function ShopHeader() {
           <AccountControls session={session} />
 
           <Link href={SHOP_PAGES.cart.href}
+            aria-label={count > 0 ? `Cart, ${count} ${count === 1 ? "item" : "items"}` : "Cart"}
             className="flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-neutral-900 hover:bg-yellow-400">
             <CartIcon /> Cart
+            {count > 0 && (
+              <span className="rounded-full bg-neutral-900 px-1.5 text-xs font-bold text-yellow-300">{count}</span>
+            )}
           </Link>
         </div>
       </div>
