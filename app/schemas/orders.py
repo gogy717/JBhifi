@@ -2,8 +2,11 @@
 database's order_status and fulfilment domains decide which values exist."""
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas import Money
 
 
 class OrderLine(BaseModel):
@@ -64,3 +67,25 @@ class OrderDetail(OrderSummary):
     # Where the transition table (BR09) lets the order go from its current status — the same for every
     # reader, and shown as text: the staff screens that move orders come with sub-project 2.
     allowed_next_statuses: list[str]
+
+
+# ---------------------------------------------------------------- checkout (T1) requests
+
+class OrderLineIn(BaseModel):
+    """One line of the basket. There is no price: the server takes it from v_product_current_price (BR08).
+    Quantity is only typed here; quantity > 0 is BR07's CHECK, answered as 409 br07_order_line_qty_positive."""
+    model_config = ConfigDict(extra="forbid")       # a unit_price sent by the client is refused, not ignored
+
+    product_id: int
+    quantity: int
+
+
+class OrderCreate(BaseModel):
+    """The basket the customer reviewed. The customer is whoever is signed in, never a field here."""
+    model_config = ConfigDict(extra="forbid")
+
+    fulfilment_method: Literal["delivery", "click_collect"]
+    fulfilling_store_id: int                        # ships from (delivery) or is collected at (Click & Collect)
+    delivery_address_no: int | None = None          # delivery only: BR06's CHECK says so, not this model
+    items: list[OrderLineIn] = Field(min_length=1)  # an empty basket is malformed (422), not a rule
+    expected_total: Money                           # the total the customer saw: compared, never charged

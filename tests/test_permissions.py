@@ -34,6 +34,11 @@ PROMOTION = {"product_id": 999999, "sale_price": "1.00",
 PRODUCT = {"sku": "APL-AP4", "name": "Duplicate SKU", "brand_id": 1, "category_id": 1, "base_price": "1.00"}
 ADDRESS = {"line1": "1 Test St", "suburb": "Sydney", "state": "XX", "postcode": "2000"}   # au_state_valid
 RETIRE = {"is_active": False}
+CHECKOUT = {"fulfilment_method": "click_collect", "fulfilling_store_id": 1, "expected_total": "1.00",
+            "items": [{"product_id": 999999, "quantity": 1}]}
+# POST /orders needs an Idempotency-Key: without one it is a 422 for everyone, before anyone is asked who they
+# are. Every request carries this one; the other endpoints ignore it.
+RETRY_KEY = "5d6c3b9e-8f1a-4e2b-9c7d-0a1b2c3d4e5f"
 
 ENDPOINTS = [
     ("GET", "/me", None, SIGNED_IN),
@@ -60,6 +65,7 @@ ENDPOINTS = [
     ("GET", "/orders/999999", None, {"nora"}),                              # others learn nothing: 403
     ("GET", "/customers/{alice}/orders", None, {"alice", "nora"}),
     ("GET", "/customers/999999/orders", None, {"nora"}),
+    ("POST", "/orders", CHECKOUT, {"alice", "ben"}),                       # 404: no such product, nothing kept
 ]
 
 
@@ -78,7 +84,7 @@ def alice_order() -> int:
 @pytest.mark.parametrize("caller", sorted(CALLERS))
 def test_who_may_call_what(caller, method, path, body, allowed):
     url = API + path.format(alice=alice_id(), alice_order=alice_order())
-    response = client.request(method, url, json=body, headers=CALLERS[caller]())
+    response = client.request(method, url, json=body, headers={**CALLERS[caller](), "Idempotency-Key": RETRY_KEY})
     if caller in allowed:
         assert response.status_code not in (401, 403), response.text
     elif caller == "guest":
