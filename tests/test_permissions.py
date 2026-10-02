@@ -1,6 +1,7 @@
 """Who may call what (spec §4.5). Each row lists the callers allowed past the permission check; everyone
 else is refused — a guest with 401 not_signed_in, anyone signed in with 403. "Allowed" may still end in a
-404 or 409 from the data: the ids don't exist and the bodies break rules, so nothing here changes anything.
+404 or 409 from the data: the ids don't exist and the bodies break rules, so the requests change nothing.
+The one row about a real order reads a paid order of Alice's, made once in SQL (alice_order below).
 """
 from functools import cache
 
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from tests.auth_support import as_customer, as_staff
+from tests.orders_support import paid_order
 
 client = TestClient(app)
 API = "/api/v1"
@@ -54,6 +56,10 @@ ENDPOINTS = [
     ("POST", "/customers/{alice}/addresses", ADDRESS, {"alice"}),           # 409: XX is no state, nothing added
     ("POST", "/customers/999999/addresses", ADDRESS, set()),
     ("PATCH", "/customers/{alice}/addresses/999999", RETIRE, {"alice"}),    # 404: no such address
+    ("GET", "/orders/{alice_order}", None, {"alice", "aiden", "olivia", "nora"}),   # collect at Sydney CBD
+    ("GET", "/orders/999999", None, {"nora"}),                              # others learn nothing: 403
+    ("GET", "/customers/{alice}/orders", None, {"alice", "nora"}),
+    ("GET", "/customers/999999/orders", None, {"nora"}),
 ]
 
 
@@ -62,10 +68,16 @@ def alice_id() -> int:
     return client.get(f"{API}/me", headers=as_customer(ALICE)).json()["id"]
 
 
+@cache
+def alice_order() -> int:
+    """A paid Click & Collect order of Alice's at Sydney CBD (store 1)."""
+    return paid_order(ALICE, [("APL-AP4", 1)])
+
+
 @pytest.mark.parametrize("method, path, body, allowed", ENDPOINTS, ids=[f"{m} {p}" for m, p, _, _ in ENDPOINTS])
 @pytest.mark.parametrize("caller", sorted(CALLERS))
 def test_who_may_call_what(caller, method, path, body, allowed):
-    url = API + path.format(alice=alice_id())
+    url = API + path.format(alice=alice_id(), alice_order=alice_order())
     response = client.request(method, url, json=body, headers=CALLERS[caller]())
     if caller in allowed:
         assert response.status_code not in (401, 403), response.text

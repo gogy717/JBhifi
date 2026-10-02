@@ -209,3 +209,22 @@ def require_catalogue_writer(actor: Actor | None) -> Actor:
     if not (actor.is_support or actor.is_manager):
         raise ApiError(403, "manager_only", "Only a store manager or support staff can change the catalogue.")
     return actor
+
+
+def require_order_reader(actor: Actor | None, order: dict | None) -> Actor:
+    """Reading one order: its customer, staff of the store fulfilling it, or support staff (any order).
+
+    `order` is the order's row, or None when there is no such order. Customers and store staff get the same
+    403 for a missing order as for someone else's, so they can't probe which order ids exist; only support,
+    who may read every order, is then told 404 (by the service).
+    """
+    actor = require_actor(actor)
+    if actor.is_support:
+        return actor
+    if actor.kind == "customer":
+        if order is None or order["customer_id"] != actor.id:
+            raise ApiError(403, "not_your_order", "That order isn't one of yours.")
+        return actor
+    if order is None or order["fulfilling_store_id"] != actor.store_id:
+        raise ApiError(403, "other_store", "You can only read your own store's orders.")
+    return actor
