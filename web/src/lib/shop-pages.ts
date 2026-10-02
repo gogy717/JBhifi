@@ -1,6 +1,7 @@
 // The customer pages of Phase 1 (plan §7): what each one does, which requirements, rules and transaction it
-// covers, and the API it calls. A page that isn't built yet shows its entry as a ReservedPage, so whoever builds
-// it knows where to start. R# and BR# refer to .claude/plan.md §3, T# to §5, slices to §10.
+// covers, and the API it calls. Only /returns is still reserved (it comes with T2): it shows its entry as a
+// ReservedPage, so whoever builds it knows where to start. R# and BR# refer to .claude/plan.md §3, T# to §5,
+// slices to §10.
 
 export type Endpoint = { method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string; exists: boolean };
 
@@ -30,7 +31,7 @@ export const RULES: Record<string, string> = {
   BR01: "Customer email is unique and well-formed",
   BR03: "Stock never goes negative",
   BR06: "Delivery has an address; Click & Collect is at a retail store",
-  BR07: "Line quantity > 0; a product appears once per order",
+  BR07: "Line quantity > 0; a product once per order, and only while on sale; every order has a line",
   BR08: "A line keeps the price it was sold at",
   BR09: "Status follows the allowed transitions, and is logged",
   BR10: "A retried checkout creates at most one order",
@@ -40,7 +41,8 @@ export const RULES: Record<string, string> = {
   BR14: "Refunds never exceed what was charged",
   BR15: "Promotions: below base price, never overlapping",
   BR16: "Addresses are never edited, only replaced",
-  BR17: "A delivery address belongs to the customer",
+  BR17: "A delivery address belongs to the customer and is current",
+  BR20: "An order is paid only when charged its full total, once",
 };
 
 export const TRANSACTIONS: Record<string, string> = {
@@ -101,15 +103,19 @@ export const SHOP_PAGES = {
     title: "Checkout",
     summary: "Pay (simulated) for delivery to one of your addresses, or Click & Collect at a retail store.",
     features: [
-      "Choose delivery (one of your current addresses) or Click & Collect (a retail store, never the warehouse)",
+      "Delivery to a current address, from the warehouse or a store with everything; or Click & Collect at a retail store",
       "One POST = one transaction: order, lines at today's prices, stock taken, charge recorded, status → paid",
+      "The total you reviewed goes with it: if a price changed meanwhile, nothing is saved and you see the new one",
       "Retrying with the same Idempotency-Key returns the same order instead of a second one",
       "Out of stock at the last moment: nothing is saved, and the page says which item and store",
     ],
     requirements: ["R4", "R11"],
-    rules: ["BR03", "BR06", "BR07", "BR08", "BR09", "BR10", "BR17"],
+    rules: ["BR03", "BR06", "BR07", "BR08", "BR09", "BR10", "BR17", "BR20"],
     transaction: "T1",
-    api: [{ method: "POST", path: "/api/v1/orders  (header: Idempotency-Key)", exists: false }],
+    api: [
+      get("/api/v1/products/{product_id}", true),
+      { method: "POST", path: "/api/v1/orders  (header: Idempotency-Key)", exists: true },
+    ],
     slice: "B — Orders & checkout",
   },
   orders: {
@@ -117,26 +123,27 @@ export const SHOP_PAGES = {
     title: "My orders",
     summary: "Your orders, newest first, with their totals and where each one is up to.",
     features: [
-      "Order total from the v_order_total view; latest status",
-      "Click & Collect orders that are ready are highlighted",
+      "Total, latest status and last update from the v_order_summary view",
+      "Click & Collect orders that are ready are listed first; the home page shows the 3 newest",
     ],
     requirements: ["R5"],
     rules: ["BR09"],
-    api: [get("/api/v1/customers/{customer_id}/orders", false)],
+    api: [get("/api/v1/customers/{customer_id}/orders", true)],
     slice: "B — Orders & checkout",
   },
   order: {
     href: "/orders/[id]",
     title: "Order",
-    summary: "One order: its lines, its status timeline, and returning items from it.",
+    summary: "One order: its lines at the prices paid, the payment, and its status timeline.",
     features: [
-      "Timeline from order_status_history: every status change, when, and by whom",
-      "Request a return for delivered or collected orders, within 30 days",
+      "Lines keep the price they were sold at; the payment shows charged, refunded and the balance",
+      "Timeline from order_status_history: every status change, when, and by whom; then what can happen next",
+      "Requesting a return for delivered or collected orders comes with T2",
     ],
-    requirements: ["R5", "R6", "R11"],
-    rules: ["BR09", "BR11", "BR12", "BR13"],
+    requirements: ["R5", "R11"],
+    rules: ["BR08", "BR09", "BR16", "BR20"],
     api: [
-      get("/api/v1/orders/{order_id}", false),
+      get("/api/v1/orders/{order_id}", true),
       { method: "POST", path: "/api/v1/orders/{order_id}/returns  (header: Idempotency-Key)", exists: false },
     ],
     slice: "B — Orders & checkout",
@@ -180,8 +187,8 @@ export const SHOP_PAGES = {
     rules: ["BR01", "BR16", "BR17"],
     api: [
       get("/api/v1/customers/{customer_id}", true),
-      { method: "POST", path: "/api/v1/customers/{customer_id}/addresses", exists: false },
-      { method: "PATCH", path: "/api/v1/customers/{customer_id}/addresses/{address_no}  (is_active: false only)", exists: false },
+      { method: "POST", path: "/api/v1/customers/{customer_id}/addresses", exists: true },
+      { method: "PATCH", path: "/api/v1/customers/{customer_id}/addresses/{address_no}  (is_active: false only)", exists: true },
     ],
     slice: "B — Orders & checkout",
   },

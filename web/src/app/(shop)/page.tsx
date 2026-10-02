@@ -4,9 +4,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { useShop } from "@/components/shop/context";
+import { StatusBadge } from "@/components/shop/order-timeline";
 import { Badge, Button, ErrorBox, LOW_STOCK } from "@/components/ui";
-import { api, call, type Promotion, type Store } from "@/lib/api/client";
-import { formatDate, formatLastDay, money, percentOff } from "@/lib/format";
+import { type ApiError, api, call, type OrderSummary, type Promotion, type Store } from "@/lib/api/client";
+import { formatDate, formatDateTime, formatLastDay, money, percentOff } from "@/lib/format";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 import { useLoad } from "@/lib/use-load";
 
@@ -27,6 +28,16 @@ export default function HomePage() {
     storeId === undefined
       ? Promise.resolve([])
       : call(api.GET("/api/v1/stores/{store_id}/inventory", { params: { path: { store_id: storeId } } })));
+  const customerId = customer?.customer_id;
+  const orders = useLoad(`home-orders:${customerId}`, () =>
+    customerId === undefined
+      ? Promise.resolve([])
+      : call(api.GET("/api/v1/customers/{customer_id}/orders", { params: { path: { customer_id: customerId } } })));
+  // The 3 newest (the API lists them newest first). useLoad keeps the last result while the next one loads,
+  // so wait for it, and keep to this customer's orders.
+  const recentOrders = orders.loading
+    ? undefined
+    : orders.data?.filter((order) => order.customer_id === customerId).slice(0, 3);
 
   // Stock of each product at "my store" (R3), for the deal cards.
   const stockAt = stock.loading ? undefined : new Map((stock.data ?? []).map((row) => [row.product_id, row.quantity]));
@@ -37,6 +48,7 @@ export default function HomePage() {
     upcoming.reload();
     products.reload();
     stock.reload();
+    orders.reload();
   };
   // A retired product's promotion isn't advertised: it can't be bought.
   const liveDeals = (deals.data ?? []).filter((d) => d.product_active).sort((a, b) => discount(b) - discount(a));
@@ -153,12 +165,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ---------------------------------------------------------------- orders and returns (reserved) */}
+      {/* ---------------------------------------------------------------- my orders, and returns (reserved) */}
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <ReservedCard title="My orders" href={SHOP_PAGES.orders.href} waitsFor="checkout (T1)"
-          body={customer
-            ? `${customer.full_name.split(" ")[0]}'s orders will be listed here with their status — Click & Collect orders that are ready first.`
-            : "Sign in to see your orders here."} />
+        <RecentOrders checking={customerLoading} signedIn={customer !== undefined}
+          staff={session.status === "signed-in" && session.me.kind === "staff"} orders={recentOrders}
+          error={orders.error} />
         <ReservedCard title="Returns" href={SHOP_PAGES.returns.href} waitsFor="returns processing (T2)"
           body="Returns in progress will appear here: requested → received → refunded, within the 30-day window." />
       </section>
@@ -230,6 +241,50 @@ function StockLine({ quantity, store }: { quantity?: number; store?: Store }) {
   return (
     <div className="mt-2 flex items-center gap-2 text-xs text-neutral-600">
       <span className={`h-2 w-2 rounded-full ${dot}`} /> {text}
+    </div>
+  );
+}
+
+/** The signed-in customer's newest orders (R5), each linking to its page. */
+function RecentOrders({ checking, signedIn, staff, orders, error }: {
+  checking: boolean;
+  signedIn: boolean;
+  staff: boolean;
+  orders?: OrderSummary[];
+  error?: ApiError;
+}) {
+  const placeholder = <div aria-hidden="true" className="mt-3 h-24 animate-pulse rounded bg-neutral-100" />;
+  return (
+    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-neutral-200">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-bold">My orders</h2>
+        <Link href={SHOP_PAGES.orders.href} className="text-sm font-medium hover:underline">All orders →</Link>
+      </div>
+      {checking ? placeholder
+        : staff ? <p className="mt-2 text-sm text-neutral-600">Staff accounts have no orders here.</p>
+        : !signedIn ? <p className="mt-2 text-sm text-neutral-600">Sign in to see your orders here.</p>
+        : error ? <ErrorBox error={error} className="mt-2" />
+        : !orders ? placeholder
+        : orders.length === 0 ? <p className="mt-2 text-sm text-neutral-600">No orders yet.</p>
+        : (
+          <ul className="mt-2 divide-y divide-neutral-100">
+            {orders.map((order) => (
+              <li key={order.order_id}>
+                <Link href={`${SHOP_PAGES.orders.href}/${order.order_id}`}
+                  className="flex items-center justify-between gap-3 py-2.5 hover:bg-neutral-50">
+                  <span>
+                    <span className="font-medium">Order #{order.order_id}</span>
+                    <span className="block text-xs text-neutral-500">{formatDateTime(order.placed_at)}</span>
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="text-sm tabular-nums">{money(order.total)}</span>
+                    <StatusBadge status={order.status} />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
     </div>
   );
 }

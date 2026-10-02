@@ -19,6 +19,12 @@ type Shop = {
   customer?: CustomerDetail;
   /** Still finding out who is signed in, or their details haven't arrived yet. */
   customerLoading: boolean;
+  /** The signed-in customer's own record failed to load: pages show the error instead of "sign in". */
+  customerError?: ApiError;
+  /** Read the signed-in customer's record again, e.g. after adding or retiring an address. */
+  reloadCustomer: () => void;
+  /** Every store, the warehouse included: a delivery can ship from any store with stock. */
+  stores: Store[];
   /** Stores a customer can shop at: retail only — the warehouse doesn't do Click & Collect (BR06). */
   retailStores: Store[];
   /** "My store": the one chosen, else the first in the customer's state, else the first store.
@@ -31,7 +37,7 @@ type Shop = {
   categories: Category[];
   /** Who-am-I, stores or categories failed to load (e.g. the API isn't running). */
   loadError?: ApiError;
-  /** Try those loads again. */
+  /** Try those loads again, and the customer's record. */
   reload: () => void;
 };
 
@@ -58,7 +64,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   // While another customer loads, don't show the previous one's details under the new name.
   const customer = detail.data?.customer_id === customerId ? detail.data : undefined;
   const homeState = customer?.addresses.find((a) => a.is_active)?.state;
-  const retailStores = (stores.data ?? []).filter((s) => s.store_type === "retail");
+  const allStores = stores.data ?? [];
+  const retailStores = allStores.filter((s) => s.store_type === "retail");
   const customerLoading = session.status === "loading" || (customerId !== undefined && !customer && !detail.error);
   // Don't guess a store from the first one while the customer's state is still on its way.
   const store = retailStores.find((s) => s.store_id === storeId)
@@ -68,6 +75,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     session,
     customer,
     customerLoading,
+    customerError: detail.error,
+    reloadCustomer: detail.reload,
+    stores: allStores,
     retailStores,
     store,
     setStoreId,
@@ -78,6 +88,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       if (session.status === "error") session.retry();
       stores.reload();
       categories.reload();
+      detail.reload();
     },
   };
   return <ShopContext value={shop}>{children}</ShopContext>;
