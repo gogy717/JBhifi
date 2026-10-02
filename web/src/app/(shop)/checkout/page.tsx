@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { useShop } from "@/components/shop/context";
 import { CustomerGate } from "@/components/shop/customer-gate";
@@ -13,8 +13,8 @@ import {
 import { fromCents, lineTotalCents } from "@/lib/cart";
 import { useCart } from "@/lib/cart-context";
 import {
-  attemptFingerprint, type CheckoutAttempt, type CheckoutAttemptBody, clearAttempt, getOrCreateAttempt, keepsAttempt,
-  pendingAttempt,
+  attemptFingerprint, type CheckoutAttempt, type CheckoutAttemptBody, clearAttempt, getOrCreateAttempt, inFlightSend,
+  keepsAttempt, pendingAttempt, sendAttempt,
 } from "@/lib/checkout-attempt";
 import { money } from "@/lib/format";
 import { SHOP_PAGES } from "@/lib/shop-pages";
@@ -63,8 +63,8 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
   const router = useRouter();
   const { stores, retailStores, store: myStore, loadError, reload, reloadCustomer } = useShop();
   const { items, ready, removeSubmitted } = useCart();
-  // The earlier try in this tab that got no answer, if any (kept across a reload by lib/checkout-attempt.ts). The
-  // page starts from its choices, so placing the same order again reuses its key.
+  // The earlier try in this browser that got no answer, if any (kept across tabs and reloads by
+  // lib/checkout-attempt.ts). The page starts from its choices, so placing the same order again reuses its key.
   const [unanswered, setUnanswered] = useState<CheckoutAttempt | undefined>(() => {
     const attempt = pendingAttempt();
     return attempt?.customer_id === customer.customer_id ? attempt : undefined;
@@ -77,8 +77,28 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
     unanswered?.body.fulfilment_method === "click_collect" ? unanswered.body.fulfilling_store_id : undefined);
   const [addressNo, setAddressNo] = useState(unanswered?.body.delivery_address_no ?? undefined);
   const [failure, setFailure] = useState<Failure>();
-  const [sending, setSending] = useState(false);
+  // A send this page started may still be running after the customer left and came back (client-side navigation
+  // unmounts the page, not the request): then the try isn't unanswered yet, it is still being placed.
+  const [sending, setSending] = useState(() => unanswered !== undefined && inFlightSend(unanswered.key) !== undefined);
   const [placedId, setPlacedId] = useState<number>();
+
+  // Wait for that earlier send, then read the stored try again: still there means it got no answer (keep it);
+  // gone means it was answered, and that send has already opened its order or cleared a refused try.
+  const earlierKey = unanswered?.key;
+  useEffect(() => {
+    const running = earlierKey === undefined ? undefined : inFlightSend(earlierKey);
+    if (!running) return;
+    let active = true;
+    void running.then(() => {
+      if (!active) return;
+      const attempt = pendingAttempt();
+      setUnanswered(attempt?.customer_id === customer.customer_id ? attempt : undefined);
+      setSending(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [earlierKey, customer.customer_id]);
 
   const ids = [...new Set(items.map((item) => item.product_id))].sort((a, b) => a - b);
   const products = useLoad(`checkout-products:${ids.join(",")}`, () => loadProducts(ids));
@@ -153,7 +173,7 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
 
   /** The customer checked My orders and wants a new order instead: forget the unanswered try and its key. */
   function startOver() {
-    clearAttempt();
+    if (unanswered) clearAttempt(unanswered.key);
     setUnanswered(undefined);
     setFailure(undefined);
   }
@@ -162,12 +182,14 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
     setSending(true);
     setFailure(undefined);
     try {
-      const order = await call(api.POST("/api/v1/orders", {
+      // sendAttempt marks the key in flight until the answer comes, for a checkout page the customer comes back to.
+      const order = await sendAttempt(attempt, () => call(api.POST("/api/v1/orders", {
         params: { header: { "Idempotency-Key": attempt.key } },
         body: attempt.body,
-      }));
-      // 201 is a new order, 200 the one this key placed earlier: either way it exists now.
-      clearAttempt();
+      })));
+      // 201 is a new order, 200 the one this key placed earlier: either way it exists now. Only this try is
+      // cleared: a newer one may have replaced it meanwhile.
+      clearAttempt(attempt.key);
       setUnanswered(undefined);
       setPlacedId(order.order_id);
       removeSubmitted(attempt.body.items);
@@ -180,7 +202,7 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
         setUnanswered(attempt);                   // it may have placed the order: keep its key and body
         return;
       }
-      clearAttempt();                             // refused: this key placed nothing, the next review gets a new one
+      clearAttempt(attempt.key);                  // refused: this key placed nothing, the next review gets a new one
       setUnanswered(undefined);
       if (["price_changed", "out_of_stock", "not_found"].includes(error.code) || error.code.startsWith("br07_")) {
         products.reload();                        // today's prices, stock and retired flags
@@ -371,13 +393,13 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
               </Conflict>
             )}
             {failure && !changed && !shortage && <ErrorBox error={failure.error} />}
-            {retrying && (
+            {retrying && !sending && (
               <p className="text-xs text-neutral-600">
                 An earlier try of this order got no answer, so it may have been placed. Trying again is safe: it uses
                 that try&apos;s key, so you get the order if it went through, or it is placed now — never twice.
               </p>
             )}
-            {drifted && (
+            {drifted && !sending && (
               <Conflict title="An earlier try got no answer">
                 It may have been placed, and your review has changed since, so a new order could buy twice. Check{" "}
                 <Link href={SHOP_PAGES.orders.href} className="font-medium underline">My orders</Link>, then{" "}

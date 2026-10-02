@@ -7,8 +7,10 @@
  * fresh key. The API replays whatever order a customer placed with a key, without comparing bodies, so it is
  * this fingerprint — kept only in the browser — that gives a changed review its own key.
  *
- * The attempt is kept per customer in sessionStorage (this tab only, so it survives a reload) and holds nothing
- * secret. When storage is blocked it is kept in memory, which lasts until the page reloads.
+ * The attempt is kept per customer in localStorage, like the cart: every tab of this browser sees it, and it
+ * survives a reload. It holds nothing secret. When storage is blocked it is kept in memory, which lasts until the
+ * page reloads. A send still waiting for its answer is also remembered in memory (sendAttempt), so a checkout page
+ * the customer leaves and comes back to knows the try is still running rather than unanswered.
  */
 
 export type CheckoutAttemptBody = {
@@ -57,13 +59,17 @@ export function newAttemptKey(): string {
     (Number(digit) ^ (Math.random() * 16 >> Number(digit) / 4)).toString(16));
 }
 
-/** The attempt held in memory: the only copy when sessionStorage is blocked. */
+/** The attempt held in memory: the only copy when localStorage is blocked. */
 let remembered: CheckoutAttempt | undefined;
+
+/** The send still waiting for its answer in this page, if any. Module memory: it outlives the checkout page when the
+ *  customer navigates away and back (a client-side navigation keeps this module loaded), but not a reload. */
+let inFlight: { key: string; settled: Promise<void> } | undefined;
 
 export function pendingAttempt(): CheckoutAttempt | undefined {
   let raw: string | null;
   try {
-    raw = window.sessionStorage.getItem(ATTEMPT_STORAGE_KEY);
+    raw = window.localStorage.getItem(ATTEMPT_STORAGE_KEY);
   } catch {
     return remembered;                      // storage blocked: this page's memory
   }
@@ -71,17 +77,18 @@ export function pendingAttempt(): CheckoutAttempt | undefined {
   try {
     const parsed = JSON.parse(raw) as CheckoutAttempt | null;
     return parsed && typeof parsed.key === "string" && typeof parsed.customer_id === "number"
-      && typeof parsed.fingerprint === "string" && typeof parsed.body === "object" ? parsed : undefined;
+      && typeof parsed.fingerprint === "string" && typeof parsed.body === "object" && parsed.body !== null
+      ? parsed : undefined;
   } catch {
     return undefined;                       // something else wrote this key
   }
 }
 
-/** Keep the attempt for a retry: in memory, and in sessionStorage so it survives a reload of this tab. */
+/** Keep the attempt for a retry: in memory, and in localStorage so every tab sees it and it survives a reload. */
 function remember(attempt: CheckoutAttempt): void {
   remembered = attempt;
   try {
-    window.sessionStorage.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify(attempt));
+    window.localStorage.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify(attempt));
   } catch {
     // Storage blocked: the memory copy lasts until the page reloads. After a reload the same review gets a new
     // key, so a response lost just before it could then end in a second order.
@@ -103,14 +110,34 @@ export function getOrCreateAttempt(customerId: number, body: CheckoutAttemptBody
   return attempt;
 }
 
-/** The attempt got its answer (its order, or a refusal), or the customer started a new order instead. */
-export function clearAttempt(): void {
+/**
+ * The attempt got its answer (its order, or a refusal), or the customer started a new order instead. Given a key,
+ * only that attempt is cleared: an answer that arrives late must not erase a newer try that replaced it meanwhile.
+ */
+export function clearAttempt(key?: string): void {
+  if (key !== undefined && pendingAttempt()?.key !== key) return;
   remembered = undefined;
   try {
-    window.sessionStorage.removeItem(ATTEMPT_STORAGE_KEY);
+    window.localStorage.removeItem(ATTEMPT_STORAGE_KEY);
   } catch {
     // storage blocked: nothing stored there
   }
+}
+
+/** Send an attempt through `post`, marking its key in flight until the request settles (an answer or a failure). */
+export function sendAttempt<T>(attempt: CheckoutAttempt, post: () => Promise<T>): Promise<T> {
+  const request = post();
+  const settled = request.then(() => undefined, () => undefined);
+  inFlight = { key: attempt.key, settled };
+  void settled.then(() => {
+    if (inFlight?.key === attempt.key) inFlight = undefined;
+  });
+  return request;
+}
+
+/** While this attempt's send is still running in this page: a promise that settles, never rejects, when it does. */
+export function inFlightSend(key: string): Promise<void> | undefined {
+  return inFlight?.key === key ? inFlight.settled : undefined;
 }
 
 /**

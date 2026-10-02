@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ATTEMPT_STORAGE_KEY, attemptFingerprint, clearAttempt, getOrCreateAttempt, keepsAttempt,
-  pendingAttempt, twoDecimals } from "./checkout-attempt";
+import { ATTEMPT_STORAGE_KEY, attemptFingerprint, clearAttempt, getOrCreateAttempt, inFlightSend, keepsAttempt,
+  pendingAttempt, sendAttempt, twoDecimals } from "./checkout-attempt";
 
 const body = {
   fulfilment_method: "click_collect" as const,
@@ -13,7 +13,7 @@ const body = {
 
 describe("the reviewed checkout attempt", () => {
   beforeEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
     clearAttempt();                         // and the memory copy
   });
 
@@ -55,10 +55,52 @@ describe("the reviewed checkout attempt", () => {
   });
 
   it("ignores whatever else may be in that storage slot", () => {
-    window.sessionStorage.setItem(ATTEMPT_STORAGE_KEY, "{not json}");
+    window.localStorage.setItem(ATTEMPT_STORAGE_KEY, "{not json}");
     expect(pendingAttempt()).toBeUndefined();
-    window.sessionStorage.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify({ hello: "world" }));
+    window.localStorage.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify({ hello: "world" }));
     expect(pendingAttempt()).toBeUndefined();
+    // typeof null is "object": a record without a body must not reach the checkout page.
+    window.localStorage.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify({ customer_id: 1, key: "k", fingerprint: "f",
+      body: null }));
+    expect(pendingAttempt()).toBeUndefined();
+  });
+
+  it("an attempt stored by another tab is pending here", () => {
+    // Another tab of this browser kept a try that got no answer: this tab sees it, and the same review reuses its key.
+    const elsewhere = { customer_id: 1, key: "11111111-1111-4111-8111-111111111111", fingerprint: attemptFingerprint(body),
+      body };
+    window.localStorage.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify(elsewhere));
+    expect(pendingAttempt()).toEqual(elsewhere);
+    expect(getOrCreateAttempt(1, body).key).toBe(elsewhere.key);
+  });
+
+  it("a late answer clears only its own attempt", () => {
+    const first = getOrCreateAttempt(1, body);
+    const newer = getOrCreateAttempt(1, { ...body, expected_total: "40.00" });   // a newer review replaced it
+    clearAttempt(first.key);                                                    // the first try's answer comes late
+    expect(pendingAttempt()?.key).toBe(newer.key);
+    clearAttempt(newer.key);
+    expect(pendingAttempt()).toBeUndefined();
+  });
+
+  it("marks a send in flight until it settles, answer or failure", async () => {
+    const attempt = getOrCreateAttempt(1, body);
+    let answer!: (value: string) => void;
+    const request = sendAttempt(attempt, () => new Promise<string>((resolve) => { answer = resolve; }));
+    const running = inFlightSend(attempt.key);
+    expect(running).toBeDefined();
+    expect(inFlightSend("another key")).toBeUndefined();
+    answer("placed");
+    await expect(request).resolves.toBe("placed");
+    await running;
+    expect(inFlightSend(attempt.key)).toBeUndefined();
+
+    // A failed send settles too, and the promise the page waits on never rejects.
+    const failing = sendAttempt(attempt, () => Promise.reject(new Error("offline")));
+    const settled = inFlightSend(attempt.key);
+    await expect(failing).rejects.toThrow("offline");
+    await expect(settled).resolves.toBeUndefined();
+    expect(inFlightSend(attempt.key)).toBeUndefined();
   });
 
   it("fingerprints the reviewed body, not the object identity", () => {
