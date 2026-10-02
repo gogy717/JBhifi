@@ -30,6 +30,8 @@ NEW_STOCK = {"delta": 1, "reason": "received"}
 PROMOTION = {"product_id": 999999, "sale_price": "1.00",
              "starts_at": "2030-01-01T00:00:00+00:00", "ends_at": "2030-01-02T00:00:00+00:00"}
 PRODUCT = {"sku": "APL-AP4", "name": "Duplicate SKU", "brand_id": 1, "category_id": 1, "base_price": "1.00"}
+ADDRESS = {"line1": "1 Test St", "suburb": "Sydney", "state": "XX", "postcode": "2000"}   # au_state_valid
+RETIRE = {"is_active": False}
 
 ENDPOINTS = [
     ("GET", "/me", None, SIGNED_IN),
@@ -49,6 +51,9 @@ ENDPOINTS = [
     ("PUT", "/products/999999/specs", [], CATALOGUE),
     ("POST", "/promotions", PROMOTION, CATALOGUE),
     ("DELETE", "/promotions/999999", None, CATALOGUE),
+    ("POST", "/customers/{alice}/addresses", ADDRESS, {"alice"}),           # 409: XX is no state, nothing added
+    ("POST", "/customers/999999/addresses", ADDRESS, set()),
+    ("PATCH", "/customers/{alice}/addresses/999999", RETIRE, {"alice"}),    # 404: no such address
 ]
 
 

@@ -154,6 +154,23 @@ def require_customer_self(actor: Actor | None, customer_id: int) -> Actor:
     return actor
 
 
+def require_customer(actor: Actor | None) -> Actor:
+    """Shopping, and a customer's own account, are for signed-in customers: staff sign-ins can't do them."""
+    actor = require_actor(actor)
+    if actor.kind != "customer":
+        raise ApiError(403, "customer_only", "Sign in as a customer to shop.")
+    return actor
+
+
+def require_own_account(actor: Actor | None, customer_id: int) -> Actor:
+    """Changing a customer's own account (their addresses): that customer only. Support staff can look an
+    account up (require_customer_self) but never change it for the customer."""
+    actor = require_customer(actor)
+    if actor.id != customer_id:
+        raise ApiError(403, "not_your_account", "That account belongs to another customer.")
+    return actor
+
+
 def require_staff(actor: Actor | None) -> Actor:
     actor = require_actor(actor)
     if actor.kind != "staff":
