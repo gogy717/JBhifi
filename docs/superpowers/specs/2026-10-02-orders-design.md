@@ -220,8 +220,7 @@ persona, browse with filters, check out both ways, see the order and its timelin
    (`docker compose down -v && docker compose up -d`, **asked before running**), then re-run
    `scripts/clerk_personas.py` to re-link the personas; then the browser walk-through.
 6. Docs: plan.md (§3 BR06/07/08/09/14/17/18/20, §4 entities, derived data, T-8, §5 T1 steps/concurrency/demonstrate/
-   reads, §8 test files), README if setup changes, and a `doc/progress.md` entry whose **AI use** line names the
-   files ported or adapted from Yuhang's AI-written branch.
+   reads, §8 test files), README if setup changes, and a `doc/progress.md` entry.
 
 ## 9. Risks and notes
 

@@ -52,12 +52,6 @@ answer could still end in a second order, were fixed test-first, and the minor o
 request. The dev database was rebuilt from `sql/` and the personas re-linked. **Not yet run:** the in-browser
 walk-through (plan Task 10 Step 14, run in Task 11 Step 5).
 
-**AI use.** Designed, implemented and reviewed with Claude Code on 2026-10-02 and 2026-10-03. Ported and
-adapted from Yuhang's AI-written branch (4a69838, Codex): app/services/orders.py, app/services/customers.py
-(addresses), app/schemas/orders.py, app/routers/orders.py, the products filter, tests/test_checkout*.py,
-test_order_reads.py, test_addresses.py, and the web cart, checkout-attempt and storefront pages. Include in the
-AI-use acknowledgement.
-
 ---
 
 ## 2026-10-02 — Branch `ethan/clerk-auth`: real sign-in (Clerk), roles in the database
