@@ -1,6 +1,6 @@
-// The customer pages of Phase 1 (plan §7). Most are reserved: each one says what it will do, which
-// requirements, rules and transaction it covers, and the API it needs, so whoever builds it knows where to
-// start. R# and BR# refer to .claude/plan.md §3, T# to §5, slices to §10.
+// The customer pages of Phase 1 (plan §7): what each one does, which requirements, rules and transaction it
+// covers, and the API it calls. A page that isn't built yet shows its entry as a ReservedPage, so whoever builds
+// it knows where to start. R# and BR# refer to .claude/plan.md §3, T# to §5, slices to §10.
 
 export type Endpoint = { method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string; exists: boolean };
 
@@ -56,16 +56,15 @@ export const SHOP_PAGES = {
     title: "Shop all products",
     summary: "Browse the catalogue by category and brand, search it, and filter by price.",
     features: [
-      "Search box and category links already arrive here as ?q= and ?category=",
-      "Filters: category (with its subcategories), brand, price range",
+      "Filters kept in the URL: search, category (with its subcategories), brand, price range",
+      "The price range is on the current price, so a product on sale is found at its sale price",
       "Each result shows the current price (sale price while a promotion runs) and stock at your store",
     ],
     requirements: ["R1", "R2", "R3"],
     rules: ["BR15"],
     api: [
-      get("/api/v1/products?q=&category_id=&brand_id=", true),
-      get("/api/v1/products?min_price=&max_price=", false),
-      get("/api/v1/stores/{store_id}/inventory", true),
+      get("/api/v1/products?q=&category_id=&brand_id=&min_price=&max_price=&store_id=", true),
+      get("/api/v1/brands", true),
     ],
     slice: "A — Catalogue & stock",
   },
@@ -76,7 +75,7 @@ export const SHOP_PAGES = {
     features: [
       "Current price, with the base price struck through during a promotion",
       "Specifications (key–value rows from product_spec)",
-      "Stock at every store, your store first; add to cart",
+      "Stock at every store, your store first; add to cart (stock is only taken when checkout commits)",
     ],
     requirements: ["R2", "R3"],
     rules: ["BR03", "BR15"],
@@ -86,14 +85,15 @@ export const SHOP_PAGES = {
   cart: {
     href: "/cart",
     title: "Cart",
-    summary: "The products you're about to buy, kept in the browser until checkout.",
+    summary: "The products you're about to buy, kept in this browser until checkout — signed in or not.",
     features: [
-      "Change quantities, remove items; prices refreshed from the current-price view",
+      "Change quantities, remove items; prices refreshed from the current-price view, totals in whole cents",
+      "Retired products are flagged and must be removed before checkout",
       "Warns when your store has less stock than you want (checkout re-checks in the database)",
     ],
     requirements: ["R2", "R4"],
     rules: ["BR07"],
-    api: [get("/api/v1/stores/{store_id}/inventory", true)],
+    api: [get("/api/v1/products?include_inactive=true&store_id=", true)],
     slice: "A — Catalogue & stock",
   },
   checkout: {
@@ -160,12 +160,12 @@ export const SHOP_PAGES = {
     title: "Stores",
     summary: "Every store, by state, and which of them has a product in stock.",
     features: [
-      "Stores by state; pick your store for Click & Collect and stock checks",
-      "“Who has it?”: a product's stock at every store (the home page already shows stores near you)",
+      "Stores by state, the warehouse included; pick your store for Click & Collect and stock checks",
+      "“Who has it?”: search for a product and see its stock at every store",
     ],
     requirements: ["R3"],
     rules: ["BR06"],
-    api: [get("/api/v1/stores", true), get("/api/v1/products/{product_id}", true)],
+    api: [get("/api/v1/stores", true), get("/api/v1/products?q=", true), get("/api/v1/products/{product_id}", true)],
     slice: "A — Catalogue & stock",
   },
   account: {
