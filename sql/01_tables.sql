@@ -235,7 +235,11 @@ CREATE TABLE order_status_history (
     CONSTRAINT order_status_history_pk PRIMARY KEY (order_id, seq),
     CONSTRAINT order_status_history_order_fk FOREIGN KEY (order_id)
         REFERENCES customer_order (order_id) ON DELETE CASCADE,
-    CONSTRAINT order_status_history_staff_fk FOREIGN KEY (changed_by_staff_id) REFERENCES staff (staff_id)
+    CONSTRAINT order_status_history_staff_fk FOREIGN KEY (changed_by_staff_id) REFERENCES staff (staff_id),
+    -- BR09: row 1 records the order's creation and is the only row without a from_status, and every row
+    -- records a real change.
+    CONSTRAINT br09_history_first_row_is_creation CHECK ((seq = 1) = (from_status IS NULL)),
+    CONSTRAINT br09_history_status_changes CHECK (from_status IS DISTINCT FROM to_status)
 );
 
 -- ---------------------------------------------------------------- returns and payments

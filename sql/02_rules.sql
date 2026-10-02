@@ -1,18 +1,32 @@
 -- Business rules that a column or table constraint can't express, because they read other rows or
 -- other tables. Every trigger raises SQLSTATE 23514 (check_violation) with CONSTRAINT = 'brNN_…',
 -- so to the API a trigger rule looks exactly like a CHECK violation (e.diag.constraint_name).
--- Where two concurrent transactions could both pass a check, the trigger first locks a parent row
--- (SELECT … FOR UPDATE) so the checks run one after the other.
+-- Where two concurrent transactions could both pass a check, the trigger first locks a row they both
+-- need (SELECT … FOR UPDATE, or FOR SHARE when only a change to that row has to wait, as in BR06), so
+-- the checks run one after the other.
 
 -- ---------------------------------------------------------------- BR06
--- Click & Collect orders are collected at a retail store. store_type lives in another table.
+-- Click & Collect orders are collected at a retail store. store_type lives in another table, so the rule
+-- has a guard on each side, as BR15 does: an order checks its store, and a store that has Click & Collect
+-- orders can't stop being retail. Both raise br06_collect_at_retail_store.
 
 CREATE FUNCTION br06_check_collect_store() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    collect_store_type TEXT;
 BEGIN
-    IF NEW.fulfilment_method = 'click_collect'
-       AND (SELECT store_type FROM store WHERE store_id = NEW.fulfilling_store_id) <> 'retail' THEN
-        RAISE EXCEPTION 'Click & Collect orders must be collected from a retail store'
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'br06_collect_at_retail_store';
+    IF NEW.fulfilment_method = 'click_collect' THEN
+        -- FOR SHARE: a shared lock on the store row until this transaction ends. A change to the store
+        -- waits for this order to commit, and an order that arrives while a change is uncommitted waits
+        -- for it, then reads the new type. Orders at the same store don't wait for each other: shared
+        -- locks are compatible.
+        SELECT store_type INTO collect_store_type
+        FROM store
+        WHERE store_id = NEW.fulfilling_store_id
+        FOR SHARE;
+        IF collect_store_type <> 'retail' THEN        -- no such store (NULL): customer_order_store_fk says so
+            RAISE EXCEPTION 'Click & Collect orders must be collected from a retail store'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br06_collect_at_retail_store';
+        END IF;
     END IF;
     RETURN NEW;
 END $$;
@@ -20,6 +34,64 @@ END $$;
 CREATE TRIGGER br06_collect_at_retail_store
     BEFORE INSERT OR UPDATE OF fulfilment_method, fulfilling_store_id ON customer_order
     FOR EACH ROW EXECUTE FUNCTION br06_check_collect_store();
+
+-- The store side needs no lock of its own: its UPDATE locks the store row, so it first waits for any order
+-- holding FOR SHARE on it; then this query, which takes a fresh snapshot under READ COMMITTED, sees that
+-- order.
+CREATE FUNCTION br06_check_store_type() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.store_type <> 'retail'
+       AND EXISTS (SELECT 1
+                   FROM customer_order
+                   WHERE fulfilling_store_id = NEW.store_id
+                     AND fulfilment_method = 'click_collect') THEN
+        RAISE EXCEPTION 'Store % has Click & Collect orders, so it must stay a retail store', NEW.store_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br06_collect_at_retail_store';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br06_store_stays_retail
+    BEFORE UPDATE OF store_type ON store
+    FOR EACH ROW EXECUTE FUNCTION br06_check_store_type();
+
+-- ---------------------------------------------------------------- BR07
+-- An order is for products that are still on sale, and has at least one line. (A positive quantity and
+-- each product once per order: CHECK and UNIQUE in 01_tables.sql.)
+
+-- No lock on the product: a product retired while a checkout is running can still be sold by that
+-- checkout, which read it while it was on sale. The rule holds at the moment of sale.
+CREATE FUNCTION br07_check_product_on_sale() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    -- A product that doesn't exist matches nothing here: order_line_product_fk says so.
+    IF EXISTS (SELECT 1 FROM product WHERE product_id = NEW.product_id AND NOT is_active) THEN
+        RAISE EXCEPTION 'Product % is no longer sold', NEW.product_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br07_product_on_sale';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br07_product_on_sale
+    BEFORE INSERT ON order_line
+    FOR EACH ROW EXECUTE FUNCTION br07_check_product_on_sale();
+
+-- An order's lines are inserted after the order (they refer to it), so "has a line" can't be checked when
+-- the order row goes in. A constraint trigger declared DEFERRABLE INITIALLY DEFERRED runs at COMMIT, once
+-- the whole order is in; lines are never deleted (BR08), so it stays true. Beyond Week 10 (optional, plan
+-- T-8): without it, BR20 still refuses to mark an order without lines paid.
+CREATE FUNCTION br07_check_order_has_lines() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM order_line WHERE order_id = NEW.order_id) THEN
+        RAISE EXCEPTION 'Order % has no lines: an order is for at least one product', NEW.order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br07_order_has_lines';
+    END IF;
+    RETURN NULL;                                      -- an AFTER trigger's result is ignored
+END $$;
+
+CREATE CONSTRAINT TRIGGER br07_order_has_lines
+    AFTER INSERT ON customer_order
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION br07_check_order_has_lines();
 
 -- ---------------------------------------------------------------- BR08
 -- An order line is a purchase record. Lines are added only while their order is placed (once it is paid,
@@ -150,6 +222,23 @@ END $$;
 CREATE TRIGGER br09_order_header_immutable
     BEFORE UPDATE ON customer_order
     FOR EACH ROW EXECUTE FUNCTION br09_block_order_header_change();
+
+-- Only br09_log_status_change writes the history. Inside this trigger pg_trigger_depth() is 1 when someone
+-- INSERTs directly, and 2 or more when the INSERT comes from the log trigger (a trigger firing a trigger).
+-- Beyond Week 10 (optional, plan T-8): it can tell only that *a* trigger is writing, not which one; the two
+-- CHECKs on order_status_history (01_tables.sql) hold whoever writes.
+CREATE FUNCTION br09_check_history_writer() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF pg_trigger_depth() < 2 THEN
+        RAISE EXCEPTION 'Order status history is written by the status-change trigger, not directly'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br09_history_written_by_trigger';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br09_history_written_by_trigger
+    BEFORE INSERT ON order_status_history
+    FOR EACH ROW EXECUTE FUNCTION br09_check_history_writer();
 
 -- ---------------------------------------------------------------- BR11
 -- Returns only for delivered or collected orders, within 30 days of completion.
@@ -339,6 +428,32 @@ END $$;
 CREATE TRIGGER br16_address_immutable
     BEFORE UPDATE ON customer_address
     FOR EACH ROW EXECUTE FUNCTION br16_block_address_change();
+
+-- ---------------------------------------------------------------- BR17
+-- A delivery goes to one of the customer's current addresses. Whose address it is: the composite FK
+-- br17_order_address_is_customers (01_tables.sql). A retired address stays for the orders that used it
+-- (BR16), but no new order may use it. No lock, as for BR07's products: the rule holds when the order is
+-- placed.
+
+CREATE FUNCTION br17_check_address_active() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    -- A missing address, or another customer's, matches nothing here: the composite FK says so. A Click &
+    -- Collect order with an address is left to the CHECK br06_order_address_matches_method.
+    IF NEW.fulfilment_method = 'delivery'
+       AND EXISTS (SELECT 1
+                   FROM customer_address
+                   WHERE customer_id = NEW.customer_id
+                     AND address_no = NEW.delivery_address_no
+                     AND NOT is_active) THEN
+        RAISE EXCEPTION 'Address % has been retired: choose a current address', NEW.delivery_address_no
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'br17_order_address_active';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br17_order_address_active
+    BEFORE INSERT ON customer_order
+    FOR EACH ROW EXECUTE FUNCTION br17_check_address_active();
 
 -- ---------------------------------------------------------------- BR18
 -- The stock adjustment log is append-only: mistakes are fixed by a correcting adjustment.
