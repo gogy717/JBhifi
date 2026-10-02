@@ -4,6 +4,62 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-03 — Branch `ethan/orders`: checkout (T1), order reads, addresses, price filter
+
+Design: `docs/superpowers/specs/2026-10-02-orders-design.md`; plan: `docs/superpowers/plans/2026-10-02-orders.md`.
+Sub-project 1 of 4 that finish the Phase 1 business logic (then fulfilment & cancellation, returns, reports).
+
+**What's on the branch.**
+
+- **Order rules in the database** (spec §2.1). BR20 is new: an order moves placed → paid only when it has lines
+  and has been charged exactly its total (a three-table assertion emulated by triggers), a charge is taken only
+  while the order is placed, and at most once (a partial unique index). BR08 widens: lines are added only while
+  the order is placed and are never changed or deleted. BR09: the order header is fixed, and the status history
+  is written only by the status-log trigger and has two `CHECK`s. BR07: only products on sale, and every order
+  has a line (a deferred constraint trigger, checked at `COMMIT`). BR17: deliveries go to a current address.
+  BR06 is guarded from both sides: an order reads its store `FOR SHARE`, and a store with Click & Collect orders
+  can't stop being retail. Payments, history, stock adjustments and order lines are append-only, including
+  statement-level `BEFORE TRUNCATE` triggers.
+- **Views** (spec §2.2): `v_order_summary`, `v_order_payment` (payments summed before the join, so no fan-out;
+  money keeps two decimals) and `v_order_timeline` (`LEFT JOIN` staff, so the customer's own moves stay listed).
+- **T1 checkout**, `POST /api/v1/orders` with an `Idempotency-Key` (BR10): one `READ COMMITTED` transaction —
+  look the key up → claim it (`INSERT … ON CONFLICT DO NOTHING`) → lines at `v_product_current_price` → price
+  check against the reviewed `expected_total` → stock (a conditional `UPDATE`, in `product_id` order, so two
+  baskets can't deadlock) → one charge → paid. 201 for a new order, 200 for a replay of the same key.
+- **Reads**: `GET /orders/{id}` (locks the order `FOR SHARE`, so a status change waits for the read; 403 before
+  404) and `GET /customers/{id}/orders` (newest first). **Addresses**: add (numbered under a customer row lock)
+  and retire (idempotent). **Products**: `min_price` / `max_price` on the current price, and `store_id` adds that
+  store's quantity.
+- **Web**: catalogue with price and store filters, product, stores, cart (integer cents), checkout (Click &
+  Collect, or delivery from the warehouse or a store with stock), My orders, the order page with its timeline and
+  payment, account addresses, and the home page's "My orders" card. A reviewed basket keeps its retry key in the
+  browser, so a lost answer can't turn into a second order. Vitest unit tests for the cart and the checkout
+  attempt.
+
+**Decisions.** The decision table in spec §1: this scope (staff moves, cancellation, returns and reports come
+later); selective reuse of Yuhang's schema; the beyond-Week-10 integrity extras (deferred constraint trigger,
+partial unique index, `pg_trigger_depth` guard); BR06 guarded on both sides and its order side reading the store
+`FOR SHARE`; the key looked up before it is claimed; delivery from the warehouse by default. Plan §5's T1 order
+is now lookup → claim → lines → price check → stock → charge → paid. Deviations from the spec are listed in the
+plan (three commits for the SQL rather than one; the dev database rebuilt in place rather than with
+`docker compose down -v`; 404 when support asks for a customer that doesn't exist). After the final review a
+pending checkout try is kept in `localStorage` (every tab, like the cart) instead of `sessionStorage`.
+
+**Verification (actually run).** `pytest` → **323 passed** (131 new); the concurrency tests five times in a row;
+web `typecheck`, `lint` and `build` clean; `test:unit` → **16 passed**. A final whole-branch review (five areas,
+with a refuter for anything above minor) found nothing critical; its two important findings, both ways a lost
+answer could still end in a second order, were fixed test-first, and the minor ones are listed in the pull
+request. The dev database was rebuilt from `sql/` and the personas re-linked. **Not yet run:** the in-browser
+walk-through (plan Task 10 Step 14, run in Task 11 Step 5).
+
+**AI use.** Designed, implemented and reviewed with Claude Code on 2026-10-02 and 2026-10-03. Ported and
+adapted from Yuhang's AI-written branch (4a69838, Codex): app/services/orders.py, app/services/customers.py
+(addresses), app/schemas/orders.py, app/routers/orders.py, the products filter, tests/test_checkout*.py,
+test_order_reads.py, test_addresses.py, and the web cart, checkout-attempt and storefront pages. Include in the
+AI-use acknowledgement.
+
+---
+
 ## 2026-10-02 — Branch `ethan/clerk-auth`: real sign-in (Clerk), roles in the database
 
 Design: `docs/superpowers/specs/2026-10-02-clerk-auth-design.md`; plan: `docs/superpowers/plans/2026-10-02-clerk-auth.md`.
