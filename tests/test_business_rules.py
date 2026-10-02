@@ -524,3 +524,133 @@ def test_current_price_includes_the_running_promotion(cur):
         ("SONY-PS5-SLIM-DISC", "799.95"),    # promotion not started yet
         ("SONY-WH1000XM5-B", "399.00"),      # running promotion (an older, ended one is ignored)
     ]
+
+
+def test_order_summary_has_the_total_store_and_last_update(cur, customer, product_id):
+    # now() is fixed for a whole transaction, so every history row here would get the same changed_at and
+    # the newest change couldn't be told from the first. For this test, history rows record the real time
+    # (clock_timestamp()); the ALTER is rolled back with everything else.
+    cur.execute("ALTER TABLE order_status_history ALTER COLUMN changed_at SET DEFAULT clock_timestamp()")
+    order_id = place_order(cur, customer, [(product_id("APL-AP4"), 2, "189.00"),
+                                           (product_id("JBL-FLIP7-B"), 1, "149.95")])
+    pay(cur, order_id)
+    advance(cur, order_id, "picking", "ready", "collected", staff_id=14)
+
+    cur.execute("SELECT * FROM v_order_summary WHERE order_id = %s", (order_id,))
+    rows = cur.fetchall()
+    assert len(rows) == 1                      # its 2 lines and 5 history rows don't multiply the order
+    summary = rows[0]
+    assert list(summary) == ["order_id", "customer_id", "placed_at", "status", "fulfilment_method",
+                             "fulfilling_store_id", "fulfilling_store_name", "total", "line_count",
+                             "last_updated_at"]
+    assert (summary["customer_id"], summary["status"], summary["fulfilment_method"], summary["fulfilling_store_id"],
+            summary["fulfilling_store_name"], str(summary["total"]), summary["line_count"]) \
+        == (customer, "collected", "click_collect", 1, "Sydney CBD", "527.95", 2)
+    cur.execute("SELECT changed_at FROM order_status_history WHERE order_id = %s ORDER BY seq", (order_id,))
+    first, *_, newest = [row["changed_at"] for row in cur.fetchall()]
+    assert summary["last_updated_at"] == newest > first
+
+
+def test_order_payment_balances_charges_and_refunds_without_fan_out(cur, customer, collected_order, product_id):
+    def payment_of(order_id):
+        cur.execute("SELECT charged, refunded, balance FROM v_order_payment WHERE order_id = %s", (order_id,))
+        return [tuple(str(value) for value in row.values()) for row in cur.fetchall()]
+
+    # collected_order: two lines, one charge of 527.95. Nothing refunded yet reads 0.00, not 0.
+    assert payment_of(collected_order) == [("527.95", "0.00", "527.95")]
+    # Refund one AirPods (line 1) and the Flip 7 (line 2), each on its own received return.
+    for line_no, amount in [(1, "189.00"), (2, "149.95")]:
+        return_id = request_return(cur, collected_order, [(line_no, 1)])
+        cur.execute("""UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14
+                       WHERE return_id = %s""", (return_id,))
+        cur.execute("INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, 'refund', %s, %s)",
+                    (collected_order, amount, return_id))
+    # Summed per order before any join, so the two lines don't double the three payments (joining the lines
+    # first would report 1055.90 charged and 677.90 refunded).
+    assert payment_of(collected_order) == [("527.95", "338.95", "189.00")]
+    # An order with no payments yet still has its one row.
+    unpaid = place_order(cur, customer, [(product_id("SONY-WH1000XM5-B"), 1, "399.00")])
+    assert payment_of(unpaid) == [("0.00", "0.00", "0.00")]
+    cur.execute("SELECT (SELECT count(*) FROM v_order_payment) = (SELECT count(*) FROM customer_order) AS one_each")
+    assert cur.fetchone()["one_each"]
+
+
+def test_order_timeline_names_the_staff_in_seq_order(cur, collected_order):
+    cur.execute("SELECT * FROM v_order_timeline WHERE order_id = %s ORDER BY seq", (collected_order,))
+    rows = cur.fetchall()
+    assert list(rows[0]) == ["order_id", "seq", "from_status", "to_status", "changed_at",
+                             "changed_by_staff_id", "changed_by_name"]
+    # The customer's own moves have no staff member and are still listed (LEFT JOIN): all five rows.
+    assert [(r["seq"], r["from_status"], r["to_status"], r["changed_by_staff_id"], r["changed_by_name"])
+            for r in rows] == [
+        (1, None, "placed", None, None),
+        (2, "placed", "paid", None, None),
+        (3, "paid", "picking", 14, "Aiden Chen"),
+        (4, "picking", "ready", 14, "Aiden Chen"),
+        (5, "ready", "collected", 14, "Aiden Chen"),
+    ]
+
+
+# Status and history must agree (BR09, R11). Each query lists the orders that break one condition, over
+# every order in the database, including those other test files committed. NOT EXISTS and max(seq) only:
+# no window functions.
+HISTORY_CHECKS = {
+    "status is the newest row's to_status": """
+        SELECT o.order_id
+        FROM customer_order o
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM order_status_history h
+            WHERE h.order_id = o.order_id
+              AND h.to_status = o.status
+              AND h.seq = (SELECT max(h2.seq) FROM order_status_history h2 WHERE h2.order_id = o.order_id))
+    """,
+    "each row starts where the one before ended": """
+        SELECT h.order_id
+        FROM order_status_history h
+        WHERE h.seq > 1
+          AND NOT EXISTS (
+              SELECT 1
+              FROM order_status_history prev
+              WHERE prev.order_id = h.order_id
+                AND prev.to_status = h.from_status
+                AND prev.seq = (SELECT max(p2.seq) FROM order_status_history p2
+                                WHERE p2.order_id = h.order_id AND p2.seq < h.seq))
+    """,
+    "row 1 is NULL -> placed": """
+        SELECT o.order_id
+        FROM customer_order o
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM order_status_history h
+            WHERE h.order_id = o.order_id AND h.seq = 1 AND h.from_status IS NULL AND h.to_status = 'placed')
+    """,
+}
+
+
+def history_breaks(cur) -> dict:
+    """{condition: ids of the orders that break it}."""
+    found = {}
+    for condition, query in HISTORY_CHECKS.items():
+        cur.execute(query)
+        found[condition] = sorted(row["order_id"] for row in cur.fetchall())
+    return found
+
+
+def test_every_orders_status_is_its_latest_history_entry(cur, customer, collected_order, product_id):
+    place_order(cur, customer, [(product_id("SONY-WH1000XM5-B"), 1, "399.00")])           # stays placed
+    paid = place_order(cur, customer, [(product_id("JBL-T770NC-B"), 1, "179.95")])
+    pay(cur, paid)
+    cancelled = place_order(cur, customer, [(product_id("LEN-TABM11-128"), 1, "349.00")])
+    advance(cur, cancelled, "cancelled")
+    assert history_breaks(cur) == {condition: [] for condition in HISTORY_CHECKS}
+
+    # The checks can fail: forge a sixth row for collected_order that neither matches its status nor starts
+    # where row 5 ended. Only BR09's log trigger may write history, so that guard is switched off first
+    # (ALTER TABLE is transactional: it is undone with the rest of the test).
+    cur.execute("ALTER TABLE order_status_history DISABLE TRIGGER br09_history_written_by_trigger")
+    cur.execute("""INSERT INTO order_status_history (order_id, seq, from_status, to_status)
+                   VALUES (%s, 6, 'ready', 'cancelled')""", (collected_order,))
+    assert history_breaks(cur) == {"status is the newest row's to_status": [collected_order],
+                                   "each row starts where the one before ended": [collected_order],
+                                   "row 1 is NULL -> placed": []}
