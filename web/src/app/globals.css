@@ -10,6 +10,23 @@
   --color-brand-strong: #C8381A;
   --color-ink: #1A1A1A;
   --color-cream: #F5F2EE;
+  /* The homepage redesign's palette (2026-10-16), shared by the storefront and the admin. */
+  --color-canvas: #FAF7F4;       /* page background */
+  --color-sand: #F4F0EC;         /* search field, image tiles, quiet pills */
+  --color-line: #ECE6E0;         /* borders and dividers */
+  --color-muted: #5C5650;        /* secondary text */
+  --color-faint: #8A827A;        /* placeholder text */
+  --color-brand-soft: #FDECE6;   /* icon tiles, soft callouts */
+  --color-ember: #F07F3C;        /* eyebrows and icons on ink */
+  --color-on-ink: #E8E2DC;       /* body text on ink */
+  --color-on-ink-muted: #BDB6AE; /* secondary text on ink */
+  --color-ok: #1E8E3E;           /* in stock, live */
+  --color-warn: #E08A00;         /* low stock dot */
+  --color-warn-ink: #A04C00;     /* low stock text */
+  --radius-tile: 12px;           /* image tiles inside cards */
+  --radius-card: 20px;           /* cards */
+  --radius-panel: 24px;          /* large panels */
+  --radius-hero: 28px;           /* the hero */
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
