@@ -6,6 +6,19 @@ It takes no explicit lock and doesn't change the order: its foreign-key checks h
 and BR12's trigger locks each order line FOR UPDATE, in line_no order, so two requests lock the same lines in
 the same order.
 
+Staff actions (receive, refund, reject) lock, in this order: the order FOR UPDATE, then the return FOR UPDATE,
+then (refund) inventory rows in ascending product_id, then the refund insert, whose BR14 triggers lock the order
+again (already held). Orders first, as every service that writes for an order does (plan §5). It can't
+deadlock with cancelling (SP2: the order, then inventory in ascending product_id): an order that can still be
+cancelled is never a completed one, so the two never wait for the same order, and both take inventory rows in
+the same order. Checkout (T1) takes inventory, then its own new order. A return request holds FOR KEY SHARE
+on the order: an action waits for it, or it waits for the action, but neither then waits for the other.
+
+Each action needs exactly one status (receive: requested; refund and reject: received), and each status has
+at most one way in, so the action itself is the stale-page check: whoever comes second gets 409
+return_status_transition with the status it found. The database's transition trigger of the same name is the
+backstop, and UNIQUE (return_id) on payment (BR14) the backstop for the refund.
+
 Reading (get_return) takes no row locks: one statement reads the return, its value and its refund (one
 snapshot), and a return's lines don't change after the request.
 """
@@ -13,9 +26,10 @@ from uuid import UUID
 
 from psycopg2 import sql
 
-from app.auth import require_actor, require_customer, require_customer_self
+from app.auth import (require_actor, require_customer, require_customer_self, require_staff,
+                      require_store_or_support_reader)
 from app.errors import ApiError, NotFound
-from app.schemas.returns import ReturnCreate
+from app.schemas.returns import ReturnCreate, ReturnReject
 
 # The columns of ReturnSummary. quantity and value come from v_return_value, so every list, detail and
 # refund agrees on what a return is worth.
@@ -108,6 +122,23 @@ def list_customer_returns(cur, actor, customer_id: int) -> list[dict]:
     return cur.fetchall()
 
 
+def list_store_returns(cur, actor, store_id: int) -> list[dict]:
+    """A store's returns desk, newest first (ReturnSummary): the requested returns of orders this store
+    fulfilled (where their customers are most likely to bring them), and every return received here. For that
+    store's staff, or support."""
+    require_store_or_support_reader(actor, store_id)
+    cur.execute("SELECT 1 FROM store WHERE store_id = %s", (store_id,))
+    if cur.fetchone() is None:
+        raise NotFound("Store", store_id)           # only support can ask about another store
+    cur.execute(
+        SUMMARY_COLUMNS + SUMMARY_FROM
+        + sql.SQL("WHERE (r.status = 'requested' AND o.fulfilling_store_id = %s) OR r.received_store_id = %s")
+        + NEWEST_FIRST,
+        (store_id, store_id),
+    )
+    return cur.fetchall()
+
+
 # ---------------------------------------------------------------- asking for a return (R6)
 
 def request_return(cur, actor, order_id: int, key: UUID, body: ReturnCreate) -> tuple[dict, bool]:
@@ -160,3 +191,128 @@ def _return_with_key(cur, order_id: int, key: UUID) -> int | None:
                 (order_id, str(key)))
     row = cur.fetchone()
     return None if row is None else row["return_id"]
+
+
+# ---------------------------------------------------------------- staff: receive, then refund (T2) or reject (R8)
+
+def receive_return(cur, actor, return_id: int) -> dict:
+    """Take the item in at the actor's own store, which must be retail (BR22). Nothing is restocked yet: the
+    store first sees what came back, then refunds or rejects it."""
+    actor = _require_return_handler(actor)
+    current = _lock_return(cur, return_id)
+    _require_status(actor, current, "requested", "received")
+    cur.execute(
+        """
+        UPDATE return_request
+        SET status = 'received', received_store_id = %s, processed_by_staff_id = %s, received_at = now()
+        WHERE return_id = %s
+        """,
+        (actor.store_id, actor.id, return_id),
+    )
+    return get_return(cur, actor, return_id)
+
+
+def refund_return(cur, actor, return_id: int) -> dict:
+    """T2: put what came back into the receiving store's stock, refund what it is worth, and mark the return
+    refunded, in the request's one transaction. Any failure rolls back all three."""
+    actor = _require_return_handler(actor)
+    current = _lock_return(cur, return_id)
+    _require_status(actor, current, "received", "refunded")
+
+    # Restock, in ascending product_id (a product is on an order once, BR07): two transactions that restock or
+    # sell the same products at this store lock their inventory rows in the same order, so they can't deadlock.
+    cur.execute(
+        """
+        SELECT ol.product_id, rl.quantity
+        FROM return_line rl
+        JOIN order_line ol ON ol.order_id = rl.order_id AND ol.line_no = rl.line_no
+        WHERE rl.return_id = %s
+        ORDER BY ol.product_id
+        """,
+        (return_id,),
+    )
+    for line in cur.fetchall():
+        # The receiving store may never have stocked this product: give it a row first (as T3 does), then add.
+        cur.execute(
+            """
+            INSERT INTO inventory (store_id, product_id, quantity) VALUES (%s, %s, 0)
+            ON CONFLICT ON CONSTRAINT inventory_pk DO NOTHING
+            """,
+            (actor.store_id, line["product_id"]),
+        )
+        cur.execute("UPDATE inventory SET quantity = quantity + %s WHERE store_id = %s AND product_id = %s",
+                    (line["quantity"], actor.store_id, line["product_id"]))
+
+    _refund(cur, return_id)
+    cur.execute(
+        """
+        UPDATE return_request
+        SET status = 'refunded', resolved_by_staff_id = %s, resolved_at = now()
+        WHERE return_id = %s
+        """,
+        (actor.id, return_id),
+    )
+    return get_return(cur, actor, return_id)
+
+
+def _refund(cur, return_id: int) -> None:
+    """The refund: one payment of the return's value (v_return_value), which BR14 checks is exactly that and
+    within what the order was charged. A return worth nothing gets no row (payment amounts are > 0), as a zero
+    total gets no charge. Its own function, so a test can make it fail."""
+    cur.execute(
+        """
+        INSERT INTO payment (order_id, kind, amount, return_id)
+        SELECT order_id, 'refund', value, return_id
+        FROM v_return_value
+        WHERE return_id = %s AND value > 0
+        """,
+        (return_id,),
+    )
+
+
+def reject_return(cur, actor, return_id: int, body: ReturnReject) -> dict:
+    """Refuse a received return, saying why. Nothing is restocked and nothing refunded: the item goes back to
+    the customer, and its units can be asked for again (BR12 doesn't count rejected returns)."""
+    actor = _require_return_handler(actor)
+    current = _lock_return(cur, return_id)
+    _require_status(actor, current, "received", "rejected")
+    cur.execute(
+        """
+        UPDATE return_request
+        SET status = 'rejected', rejection_reason = %s, resolved_by_staff_id = %s, resolved_at = now()
+        WHERE return_id = %s
+        """,
+        (body.reason, actor.id, return_id),
+    )
+    return get_return(cur, actor, return_id)
+
+
+def _require_return_handler(actor):
+    """Returns are handled by a store's own staff; support staff read them but don't act on them."""
+    actor = require_staff(actor)
+    if actor.is_support:
+        raise ApiError(403, "store_staff_only", "Returns are handled by a store's own staff.")
+    return actor
+
+
+def _lock_return(cur, return_id: int) -> dict:
+    """Lock the return's order, then the return (the module docstring's order), and return the return."""
+    cur.execute("SELECT order_id FROM return_request WHERE return_id = %s", (return_id,))
+    found = cur.fetchone()
+    if found is None:                               # as for reads: store staff get 403 for a missing return
+        raise ApiError(403, "other_store", "That return is handled by another store.")
+    cur.execute("SELECT 1 FROM customer_order WHERE order_id = %s FOR UPDATE", (found["order_id"],))
+    cur.execute("SELECT return_id, status, received_store_id FROM return_request WHERE return_id = %s FOR UPDATE",
+                (return_id,))
+    return cur.fetchone()
+
+
+def _require_status(actor, current: dict, needed: str, becoming: str) -> None:
+    """Once a return has been received, only its receiving store acts on it; and the action needs `needed`.
+    Checked under the locks, so a second click, or a page that is out of date, sees the status as it now is."""
+    if current["status"] != "requested" and current["received_store_id"] != actor.store_id:
+        raise ApiError(403, "other_store", "Only the store that received this return can act on it.")
+    if current["status"] != needed:
+        raise ApiError(409, "return_status_transition",
+                       f"This return is already {current['status']}, so it can't be {becoming} now.",
+                       {"status": current["status"]})

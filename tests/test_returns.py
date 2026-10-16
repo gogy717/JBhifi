@@ -12,7 +12,7 @@ from app.main import app
 from tests.auth_support import as_customer, as_staff
 from tests.checkout_support import a_customer, a_product, committed
 from tests.orders_support import paid_order
-from tests.returns_support import completed_days_ago, completed_order, returns_of
+from tests.returns_support import completed_days_ago, completed_order, refunds_of, returns_of
 
 client = TestClient(app)
 API = "/api/v1"
@@ -168,3 +168,170 @@ def test_a_return_is_read_by_its_customer_and_support():
     assert error_of(client.get(f"{API}/returns/999999", headers=as_customer(stranger))) == (403, "not_your_return")
     assert error_of(client.get(f"{API}/returns/999999", headers=as_staff(SUPPORT))) == (404, "not_found")
     assert error_of(client.get(url)) == (401, "not_signed_in")
+
+
+# ---------------------------------------------------------------- staff: receive, then refund (T2) or reject
+
+def act(headers: dict, return_id: int, action: str, reason: str | None = None):
+    """POST /returns/{id}/receive, /refund or /reject (with a reason) as the signed-in caller."""
+    body = None if reason is None else {"reason": reason}
+    return client.post(f"{API}/returns/{return_id}/{action}", json=body, headers=headers)
+
+
+def stock_of(store_id: int, product_id: int) -> int | None:
+    """The committed stock of a product at a store, or None when the store has never had a row for it."""
+    rows = committed("SELECT quantity FROM inventory WHERE store_id = %s AND product_id = %s", (store_id, product_id))
+    return rows[0]["quantity"] if rows else None
+
+
+def test_receiving_records_the_store_the_receiver_and_the_time_and_moves_no_stock():
+    product = a_product("189.00", stock=5)
+    _, email = a_customer()
+    order_id = completed_order(email, [(product["sku"], 2)])
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    # Collected at Sydney CBD, brought back to Bondi Junction: any retail store takes returns in.
+    received = act(as_staff(16), asked["return_id"], "receive")
+    assert received.status_code == 200, received.text
+    detail = received.json()
+    assert (detail["status"], detail["received_store_id"], detail["received_store_name"],
+            detail["processed_by_name"]) == ("received", 2, "Bondi Junction", "Isla Robinson")
+    assert detail["received_at"] is not None and detail["resolved_at"] is None
+    assert (stock_of(1, product["product_id"]), stock_of(2, product["product_id"])) == (5, None)
+
+
+def test_receiving_twice_is_a_status_conflict_with_the_current_status():
+    _, email, order_id = an_order(("189.00", 2))
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    assert act(as_staff(14), asked["return_id"], "receive").status_code == 200
+    again = act(as_staff(14), asked["return_id"], "receive")
+    assert error_of(again) == (409, "return_status_transition")
+    assert again.json()["error"]["detail"] == {"status": "received"}
+
+
+def test_the_warehouse_cannot_receive_a_return():
+    _, email, order_id = an_order(("189.00", 2))
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    assert error_of(act(as_staff(13), asked["return_id"], "receive")) == (409, "br22_return_received_at_retail_store")
+
+
+def test_refunding_restocks_the_receiving_store_and_refunds_the_value_once():
+    stocked = a_product("189.00", stock=3)             # stocked at Sydney CBD
+    unstocked = a_product("149.95")                    # never stocked anywhere: the refund gives it a row
+    _, email = a_customer()
+    order_id = completed_order(email, [(stocked["sku"], 2), (unstocked["sku"], 1)])
+    asked = ask(as_customer(email), order_id, [(1, 2), (2, 1)]).json()
+    assert act(as_staff(14), asked["return_id"], "receive").status_code == 200
+
+    refunded = act(as_staff(15), asked["return_id"], "refund")      # another staff member of the store
+    assert refunded.status_code == 200, refunded.text
+    detail = refunded.json()
+    assert (detail["status"], detail["refunded"], detail["value"]) == ("refunded", "527.95", "527.95")
+    assert (detail["processed_by_name"], detail["resolved_by_name"]) == ("Aiden Chen", "Zara Ahmed")
+    assert detail["resolved_at"] is not None
+    assert (stock_of(1, stocked["product_id"]), stock_of(1, unstocked["product_id"])) == (5, 1)
+    assert refunds_of(asked["return_id"]) == ["527.95"]
+    order = client.get(f"{API}/orders/{order_id}", headers=as_customer(email)).json()
+    assert order["payment"] == {"charged": "527.95", "refunded": "527.95", "balance": "0.00"}
+    assert error_of(act(as_staff(14), asked["return_id"], "refund")) == (409, "return_status_transition")
+
+
+def test_a_refund_pays_the_price_the_items_were_bought_at():
+    product = a_product("189.00")
+    _, email = a_customer()
+    order_id = completed_order(email, [(product["sku"], 2)])
+    committed("UPDATE product SET base_price = 249.00 WHERE product_id = %s", (product["product_id"],))
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    act(as_staff(14), asked["return_id"], "receive")
+    assert act(as_staff(14), asked["return_id"], "refund").json()["refunded"] == "189.00"
+    assert refunds_of(asked["return_id"]) == ["189.00"]
+
+
+def test_a_return_worth_nothing_is_refunded_without_a_payment():
+    product = a_product("0.00")
+    _, email = a_customer()
+    order_id = completed_order(email, [(product["sku"], 1)])
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    act(as_staff(14), asked["return_id"], "receive")
+    refunded = act(as_staff(14), asked["return_id"], "refund")
+    assert refunded.status_code == 200, refunded.text
+    assert (refunded.json()["status"], refunded.json()["refunded"]) == ("refunded", None)
+    assert refunds_of(asked["return_id"]) == []                     # payment_amount_positive: no 0.00 row
+    assert stock_of(1, product["product_id"]) == 1
+
+
+def test_a_rejection_keeps_its_reason_and_moves_no_stock_or_money():
+    product = a_product("189.00", stock=3)
+    _, email = a_customer()
+    order_id = completed_order(email, [(product["sku"], 2)])
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    act(as_staff(14), asked["return_id"], "receive")
+    assert error_of(act(as_staff(14), asked["return_id"], "reject", "   ")) == (422, "validation_error")
+    rejected = act(as_staff(15), asked["return_id"], "reject", "  Screen cracked  ")
+    assert rejected.status_code == 200, rejected.text
+    detail = rejected.json()
+    assert (detail["status"], detail["rejection_reason"], detail["resolved_by_name"], detail["refunded"]) == \
+        ("rejected", "Screen cracked", "Zara Ahmed", None)
+    assert stock_of(1, product["product_id"]) == 3
+    assert refunds_of(asked["return_id"]) == []
+    assert error_of(act(as_staff(14), asked["return_id"], "refund")) == (409, "return_status_transition")
+
+
+def test_a_return_is_refunded_or_rejected_only_once_it_is_received():
+    _, email, order_id = an_order(("189.00", 2))
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    for response in (act(as_staff(14), asked["return_id"], "refund"),
+                     act(as_staff(14), asked["return_id"], "reject", "Not seen yet")):
+        assert error_of(response) == (409, "return_status_transition")
+        assert response.json()["error"]["detail"] == {"status": "requested"}
+
+
+def test_only_the_receiving_store_refunds_or_rejects_a_return():
+    _, email, order_id = an_order(("189.00", 2))
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    act(as_staff(14), asked["return_id"], "receive")
+    assert error_of(act(as_staff(16), asked["return_id"], "refund")) == (403, "other_store")
+    assert error_of(act(as_staff(16), asked["return_id"], "reject", "Scratched")) == (403, "other_store")
+    assert error_of(act(as_staff(16), 999999, "receive")) == (403, "other_store")     # 403 before 404
+
+
+def test_only_store_staff_handle_returns():
+    _, email, order_id = an_order(("189.00", 2))
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    assert error_of(act(as_staff(SUPPORT), asked["return_id"], "receive")) == (403, "store_staff_only")
+    assert error_of(act(as_customer(email), asked["return_id"], "receive")) == (403, "staff_only")
+    assert error_of(act({}, asked["return_id"], "receive")) == (401, "not_signed_in")
+    assert client.get(f"{API}/returns/{asked['return_id']}", headers=as_customer(email)).json()["status"] == "requested"
+
+
+def test_store_staff_read_requested_returns_and_the_ones_their_store_received():
+    _, email, order_id = an_order(("189.00", 2))
+    asked = ask(as_customer(email), order_id, [(1, 1)]).json()
+    url = f"{API}/returns/{asked['return_id']}"
+    assert client.get(url, headers=as_staff(16)).status_code == 200            # any retail store may receive it
+    assert error_of(client.get(url, headers=as_staff(13))) == (403, "other_store")    # the warehouse can't
+    act(as_staff(14), asked["return_id"], "receive")
+    assert client.get(url, headers=as_staff(14)).status_code == 200
+    assert error_of(client.get(url, headers=as_staff(16))) == (403, "other_store")
+    assert error_of(client.get(f"{API}/returns/999999", headers=as_staff(14))) == (403, "other_store")
+
+
+def test_a_stores_desk_lists_its_orders_requested_returns_and_the_returns_it_received():
+    _, email = a_customer()
+    here = completed_order(email, [(a_product("189.00")["sku"], 1)], store_id=1)
+    there = completed_order(email, [(a_product("189.00")["sku"], 1)], store_id=2)
+    brought_here = completed_order(email, [(a_product("189.00")["sku"], 1)], store_id=2)
+    requested_here = ask(as_customer(email), here, [(1, 1)]).json()["return_id"]
+    requested_there = ask(as_customer(email), there, [(1, 1)]).json()["return_id"]
+    received_here = ask(as_customer(email), brought_here, [(1, 1)]).json()["return_id"]
+    act(as_staff(14), received_here, "receive")
+
+    desk = client.get(f"{API}/stores/1/returns", headers=as_staff(14))
+    assert desk.status_code == 200, desk.text
+    listed = [row["return_id"] for row in desk.json()]
+    assert received_here in listed and requested_here in listed and requested_there not in listed
+    assert listed.index(received_here) < listed.index(requested_here)          # newest first
+    assert [row["return_id"] for row in client.get(f"{API}/stores/1/returns", headers=as_staff(SUPPORT)).json()] \
+        == listed
+    assert error_of(client.get(f"{API}/stores/2/returns", headers=as_staff(14))) == (403, "other_store")
+    assert error_of(client.get(f"{API}/stores/1/returns", headers=as_customer(email))) == (403, "staff_only")
+    assert error_of(client.get(f"{API}/stores/999/returns", headers=as_staff(SUPPORT))) == (404, "not_found")
