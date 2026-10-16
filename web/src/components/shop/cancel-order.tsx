@@ -38,15 +38,17 @@ export function CancelOrder({ order, me, onDone }: { order: OrderDetail; me: Me;
   }
 
   return (
-    <div className="mt-3 space-y-2">
+    <div className="space-y-3 pt-1">
       {offered && !confirming && (
         <Button size="sm" disabled={busy} onClick={() => setConfirming(true)}>Cancel order…</Button>
       )}
       {offered && confirming && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span>Cancel this order? You&apos;ll be refunded {money(order.payment.balance)}.</span>
-          <Button size="sm" tone="danger" disabled={busy} onClick={cancel}>Yes, cancel it</Button>
-          <Button size="sm" disabled={busy} onClick={() => setConfirming(false)}>Keep it</Button>
+        <div className="flex flex-wrap items-center gap-3 rounded-tile border border-line bg-white px-4 py-3 text-[15px]">
+          <span>Cancel this order? You&apos;ll be refunded <b className="tabular-nums">{money(order.payment.balance)}</b>.</span>
+          <span className="flex gap-2">
+            <Button size="sm" tone="danger" disabled={busy} onClick={cancel}>Yes, cancel it</Button>
+            <Button size="sm" disabled={busy} onClick={() => setConfirming(false)}>Keep it</Button>
+          </span>
         </div>
       )}
       {error && <ErrorBox error={error} onClose={() => setError(undefined)} />}
