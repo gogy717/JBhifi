@@ -6,9 +6,11 @@ import { ApiAuth } from "@/components/api-auth";
 
 import "./globals.css";
 
-// Sora, the brand sheet's typeface: one variable font file (Latin, weights 600–700) under the SIL Open Font
-// License (fonts/Sora-OFL.txt). globals.css uses it for the wordmark and headings through --font-sora.
-const sora = localFont({ src: "./fonts/Sora-latin.woff2", weight: "600 700", variable: "--font-sora" });
+// The two typefaces, each one variable Latin font file under the SIL Open Font License (fonts/*-OFL.txt).
+// globals.css uses Sora (600–800) for the wordmark, headings and prices through --font-sora, and Figtree
+// (400–700) for everything else through --font-figtree.
+const sora = localFont({ src: "./fonts/Sora-latin.woff2", weight: "600 800", variable: "--font-sora" });
+const figtree = localFont({ src: "./fonts/Figtree-latin.woff2", weight: "400 700", variable: "--font-figtree" });
 
 // No `title` here: every page renders its own <title> (React 19), and a metadata title would come first in
 // <head> and win on every page.
@@ -20,8 +22,8 @@ export const metadata: Metadata = {
 // sits inside <body> (Clerk's rule for the App Router); sign-in and sign-up have their own pages.
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`h-full antialiased ${sora.variable}`}>
-      <body className="min-h-full bg-neutral-50 text-neutral-900">
+    <html lang="en" className={`h-full antialiased ${sora.variable} ${figtree.variable}`}>
+      <body className="min-h-full bg-canvas text-ink">
         <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up"><ApiAuth />{children}</ClerkProvider>
       </body>
     </html>

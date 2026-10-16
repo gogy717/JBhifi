@@ -1,23 +1,30 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 
 import type { ApiError } from "@/lib/api/client";
 
+// The redesign's language (globals.css has the tokens): controls are pills, 44px high (32px in dense admin rows);
+// content sits on white cards with a `line` border and 20px corners; quiet surfaces are sand; primary actions are
+// ink. Red means the brand, except in errors, which keep Tailwind's red.
+
 // ---------------------------------------------------------------- form controls
 
+// A textarea takes the same class for its colours and focus ring, but a pill would be the wrong shape for it.
 export const inputClass =
-  "h-9 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-900 " +
-  "placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-brand/30 " +
-  "disabled:bg-neutral-100 disabled:text-neutral-500";
+  "h-11 w-full rounded-full border border-line bg-white px-4 text-[15px] text-ink " +
+  "placeholder:text-faint focus:border-ink focus:outline-none focus:ring-2 focus:ring-brand/30 " +
+  "disabled:bg-sand disabled:text-muted [&:is(textarea)]:rounded-2xl";
 
-export const selectClass = `${inputClass} pr-8`;
+export const selectClass = `${inputClass} cursor-pointer pr-10`;
 
 const buttonTones = {
-  primary: "bg-neutral-900 text-white hover:bg-neutral-700 disabled:bg-neutral-400",
-  secondary: "border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50 disabled:text-neutral-400",
-  danger: "bg-red-600 text-white hover:bg-red-500 disabled:bg-red-300",
-  ghost: "text-neutral-700 hover:bg-neutral-100 disabled:text-neutral-300",
+  primary: "bg-ink text-white hover:bg-neutral-700 disabled:bg-neutral-300",
+  secondary: "border border-line bg-white text-ink hover:bg-sand disabled:text-faint",
+  danger: "bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300",
+  ghost: "text-muted hover:bg-sand hover:text-ink disabled:text-faint",
+  // brand-strong, not brand: white text on #E64626 is 4.0:1, under AA's 4.5:1 for button-sized text.
+  brand: "bg-brand-strong text-white hover:brightness-90 disabled:opacity-50",
 };
 
 export function Button({
@@ -29,12 +36,13 @@ export function Button({
   tone?: keyof typeof buttonTones;
   size?: "sm" | "md";
 }) {
-  const sizing = size === "sm" ? "h-7 px-2 text-xs" : "h-9 px-3.5 text-sm";
+  const sizing = size === "sm" ? "h-8 px-3.5 text-[13px] font-semibold" : "h-11 px-5 text-[15px] font-bold";
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors
-        disabled:cursor-not-allowed ${sizing} ${buttonTones[tone]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full
+        transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand
+        focus-visible:ring-offset-2 disabled:cursor-not-allowed ${sizing} ${buttonTones[tone]} ${className}`}
       {...props}
     />
   );
@@ -45,10 +53,10 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
   return (
     <div>
       <label className="block">
-        <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</span>
+        <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.08em] text-muted">{label}</span>
         {children}
       </label>
-      {hint && <p className="mt-1 text-xs text-neutral-500">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[13px] text-muted">{hint}</p>}
     </div>
   );
 }
@@ -56,30 +64,48 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 // ---------------------------------------------------------------- display
 
 const badgeTones = {
-  neutral: "bg-neutral-100 text-neutral-700",
-  green: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
-  amber: "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
-  red: "bg-red-50 text-red-700 ring-1 ring-red-200",
-  sale: "bg-brand-strong text-white",
-  blue: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
+  neutral: "bg-sand font-semibold text-muted",
+  green: "bg-emerald-50 font-semibold text-emerald-800",
+  amber: "bg-amber-50 font-semibold text-warn-ink",
+  red: "bg-red-50 font-semibold text-red-700",
+  sale: "bg-brand-strong font-extrabold text-white",
+  blue: "bg-sky-50 font-semibold text-sky-800",
 };
 
 export function Badge({ tone = "neutral", children }: { tone?: keyof typeof badgeTones; children: ReactNode }) {
   return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${badgeTones[tone]}`}>
+    <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs
+      ${badgeTones[tone]}`}>
       {children}
     </span>
   );
 }
 
+/** A small round status dot. Decorative: the words next to it say the same thing. */
+export function Dot({ className }: { className: string }) {
+  return <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${className}`} />;
+}
+
 export const LOW_STOCK = 3;
 
+/** Stock at one location, for tables: a green dot when there is plenty, amber for LOW_STOCK or fewer, and the words
+ *  "Out of stock" for none. The colour is never the only signal: each state also has words. */
 export function StockBadge({ quantity }: { quantity: number }) {
-  const tone = quantity === 0 ? "red" : quantity <= LOW_STOCK ? "amber" : "green";
+  if (quantity === 0) {
+    return (
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-sand px-2.5 py-1 text-[13px]
+        font-semibold text-ink">
+        <Dot className="bg-muted" />Out of stock
+      </span>
+    );
+  }
+  const low = quantity <= LOW_STOCK;
   return (
-    <span className={`inline-flex min-w-10 justify-center rounded-md px-2 py-1 text-sm font-semibold tabular-nums
-      ${badgeTones[tone]}`}>
-      {quantity}
+    <span className={`inline-flex min-w-14 items-center justify-center gap-1.5 rounded-full px-2.5 py-1 text-sm
+      font-semibold tabular-nums ${low ? "bg-amber-50 text-warn-ink" : "bg-white text-ink ring-1 ring-line"}`}>
+      <Dot className={low ? "bg-warn" : "bg-ok"} />
+      <span>{quantity}</span>
+      <span className="sr-only"> {low ? "low stock" : "in stock"}</span>
     </span>
   );
 }
@@ -90,12 +116,12 @@ export function PageHeader({ title, description, actions }: {
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{title}</h1>
-        {description && <p className="mt-1 max-w-3xl text-sm text-neutral-600">{description}</p>}
+        <h1 className="text-[28px] font-bold leading-tight tracking-[-0.02em] text-ink md:text-[32px]">{title}</h1>
+        {description && <p className="mt-2 max-w-3xl text-[15px] text-muted">{description}</p>}
       </div>
-      {actions && <div className="flex gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }
@@ -107,10 +133,10 @@ export function Card({ title, actions, children, className = "" }: {
   className?: string;
 }) {
   return (
-    <section className={`rounded-xl border border-neutral-200 bg-white shadow-sm ${className}`}>
+    <section className={`rounded-card border border-line bg-white ${className}`}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-neutral-900">{title}</h2>
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-ink">{title}</h2>
           {actions}
         </header>
       )}
@@ -120,7 +146,7 @@ export function Card({ title, actions, children, className = "" }: {
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="px-4 py-10 text-center text-sm text-neutral-500">{children}</p>;
+  return <p className="px-5 py-12 text-center text-[15px] text-muted">{children}</p>;
 }
 
 // ---------------------------------------------------------------- notices
@@ -147,29 +173,33 @@ export function NoticeBanner({ notice, onClose }: { notice?: Notice; onClose: ()
   if (!notice) return null;
   if (notice.kind === "success") {
     return (
-      <div role="status" className="mb-4 flex items-start justify-between gap-4 rounded-lg border border-emerald-200
-        bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-        <div>{notice.text}</div>
+      <div role="status" className="mb-5 flex items-start gap-3 rounded-card border border-emerald-200 bg-emerald-50
+        px-5 py-4 text-[15px] text-emerald-950">
+        <Dot className="mt-2 bg-ok" />
+        <div className="min-w-0 flex-1">{notice.text}</div>
         <CloseButton onClick={onClose} />
       </div>
     );
   }
-  return <ErrorBox error={notice.error} onClose={onClose} className="mb-4" />;
+  return <ErrorBox error={notice.error} onClose={onClose} className="mb-5" />;
 }
 
-/** Shows which database rule refused a request — the code is the constraint's name. */
+/** Shows which database rule refused a request — the code is the constraint's name. It is the demo's evidence that
+ *  the rules live in the database, so it stands out: a red edge, an icon and the constraint name in a pill. */
 export function ErrorBox({ error, onClose, className = "" }: {
   error: ApiError;
   onClose?: () => void;
   className?: string;
 }) {
   return (
-    <div role="alert" className={`flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50
-      px-4 py-3 text-sm text-red-900 ${className}`}>
-      <div>
-        <div className="font-semibold">{error.isRule ? "Rejected by the database" : "Request failed"}</div>
+    <div role="alert" className={`flex items-start gap-3 rounded-card border border-red-200 border-l-4
+      border-l-red-600 bg-red-50 px-5 py-4 text-[15px] text-red-950 ${className}`}>
+      <AlertIcon />
+      <div className="min-w-0 flex-1">
+        <div className="font-bold">{error.isRule ? "Rejected by the database" : "Request failed"}</div>
         <div className="mt-0.5">{error.message}</div>
-        <code className="mt-1.5 inline-block rounded bg-red-100 px-1.5 py-0.5 font-mono text-xs text-red-800">
+        <code className="mt-2 inline-block break-all rounded-full bg-white px-2.5 py-0.5 font-mono text-[13px]
+          font-semibold text-red-800 ring-1 ring-red-200">
           {error.code}
         </code>
       </div>
@@ -178,10 +208,22 @@ export function ErrorBox({ error, onClose, className = "" }: {
   );
 }
 
+function AlertIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="mt-0.5 h-5 w-5 shrink-0 text-red-600" fill="none"
+      stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5M12 16.5v.01" />
+    </svg>
+  );
+}
+
 function CloseButton({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-label="Dismiss"
-      className="rounded px-1.5 text-lg leading-none opacity-60 hover:opacity-100">
+      className="-my-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xl leading-none
+        opacity-60 hover:bg-black/5 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2
+        focus-visible:ring-brand">
       ×
     </button>
   );
@@ -195,6 +237,7 @@ export function Modal({ title, onClose, children, footer }: {
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const titleId = useId();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -202,15 +245,16 @@ export function Modal({ title, onClose, children, footer }: {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-neutral-900/40 p-4 pt-[10vh]"
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-4 pt-[10vh]"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-        <header className="flex items-center justify-between border-b border-neutral-200 px-5 py-4">
-          <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId}
+        className="w-full max-w-lg rounded-panel border border-line bg-white shadow-xl">
+        <header className="flex items-center justify-between gap-3 border-b border-line px-6 py-5">
+          <h2 id={titleId} className="text-lg font-semibold tracking-[-0.01em] text-ink">{title}</h2>
           <CloseButton onClick={onClose} />
         </header>
-        <div className="space-y-4 px-5 py-4">{children}</div>
-        {footer && <footer className="flex justify-end gap-2 border-t border-neutral-200 px-5 py-3">{footer}</footer>}
+        <div className="space-y-4 px-6 py-5 text-[15px]">{children}</div>
+        {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-line px-6 py-4">{footer}</footer>}
       </div>
     </div>
   );
