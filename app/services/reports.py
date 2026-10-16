@@ -41,6 +41,49 @@ def _low_stock(cur, store_id: int) -> list[dict]:
     return cur.fetchall()
 
 
+def _sales_by_category(cur, store_id: int, days: int) -> list[dict]:
+    """Orders, units and revenue per category over the window, at this store. Every category that has products
+    is listed, so the LEFT JOIN keeps a category with no sales: count() then counts no rows (0) and sum() is
+    NULL, hence COALESCE. The second LEFT JOIN, category to itself, names the parent (the recursive relationship;
+    a top-level category has none). The window conditions sit in the join's ON clause: in a WHERE they would drop
+    the categories with no sales, which is the outer join undone."""
+    cur.execute(
+        """
+        SELECT c.category_id, c.name AS category, parent.name AS parent_category,
+               count(DISTINCT s.order_id)                                AS orders,
+               COALESCE(sum(s.quantity), 0)                              AS units,
+               CAST(COALESCE(sum(s.line_total), 0) AS NUMERIC(12,2))     AS revenue
+        FROM category c
+        LEFT JOIN category parent ON parent.category_id = c.parent_id
+        LEFT JOIN v_sale_line s
+               ON s.category_id = c.category_id
+              AND s.store_id = %(store_id)s
+              AND s.placed_at >= now() - make_interval(days => %(days)s)
+        WHERE EXISTS (SELECT 1 FROM product p WHERE p.category_id = c.category_id)
+        GROUP BY c.category_id, c.name, parent.name
+        ORDER BY revenue DESC, c.name
+        """,
+        {"store_id": store_id, "days": days},
+    )
+    return cur.fetchall()
+
+
+def _sales_total(cur, store_id: int, days: int) -> dict:
+    """The whole store over the window. An order with lines in two categories counts once here, but once in each
+    category above, so the category order counts don't add up to this one (units and revenue do)."""
+    cur.execute(
+        """
+        SELECT count(DISTINCT order_id)                              AS orders,
+               COALESCE(sum(quantity), 0)                            AS units,
+               CAST(COALESCE(sum(line_total), 0) AS NUMERIC(12,2))   AS revenue
+        FROM v_sale_line
+        WHERE store_id = %(store_id)s AND placed_at >= now() - make_interval(days => %(days)s)
+        """,
+        {"store_id": store_id, "days": days},
+    )
+    return cur.fetchone()
+
+
 def build_store_report(cur, store_id: int, days: int) -> dict:
     """Every section of one store's report, read on `cur` in its current transaction. store_report runs this in
     one REPEATABLE READ snapshot; tests run it inside their own transaction."""
@@ -49,4 +92,10 @@ def build_store_report(cur, store_id: int, days: int) -> dict:
     store = cur.fetchone()
     if store is None:
         raise NotFound("Store", store_id)
-    return {**store, "days": days, "low_stock": _low_stock(cur, store_id)}
+    return {
+        **store,
+        "days": days,
+        "low_stock": _low_stock(cur, store_id),
+        "sales_by_category": _sales_by_category(cur, store_id, days),
+        "sales_total": _sales_total(cur, store_id, days),
+    }

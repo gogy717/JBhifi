@@ -102,3 +102,56 @@ def test_a_low_stock_row_names_the_product_and_its_category(cur):
     [row] = report(cur, store_id)["low_stock"]
     assert row == {"product_id": product_id, "sku": expected["sku"], "name": expected["name"],
                    "category": expected["category"], "quantity": 1, "sold_30d": 0, "days_of_cover": None}
+
+
+# ---------------------------------------------------------------- sales by category
+
+def category_sales(cur, store_id: int, days: int = 30) -> dict:
+    return {row["category_id"]: row for row in report(cur, store_id, days)["sales_by_category"]}
+
+
+def test_sales_by_category_adds_up_the_sales_in_the_window(cur):
+    store_id, _ = a_store(cur)
+    other_store, _ = a_store(cur)
+    category_id = a_category(cur)
+    speaker = a_product(cur, category_id, "25.00")
+    cable = a_product(cur, category_id, "10.00")
+    a_sale(cur, store_id, [(speaker, 2), (cable, 1)])                 # 60.00
+    a_sale(cur, store_id, [(speaker, 1)], days_ago=29)                # 25.00
+    a_sale(cur, store_id, [(cable, 3)], days_ago=31)                  # before the window
+    a_sale(cur, other_store, [(cable, 5)])                            # another store's sale
+    cancel(cur, a_sale(cur, store_id, [(speaker, 4)]))                # not a sale
+    row = category_sales(cur, store_id)[category_id]
+    assert (row["orders"], row["units"], row["revenue"]) == (2, 4, Decimal("85.00"))
+    assert row["parent_category"] == "Audio"
+
+
+def test_sales_by_category_follows_the_report_window(cur):
+    store_id, _ = a_store(cur)
+    category_id = a_category(cur)
+    speaker = a_product(cur, category_id, "25.00")
+    a_sale(cur, store_id, [(speaker, 1)], days_ago=5)
+    a_sale(cur, store_id, [(speaker, 2)], days_ago=60)
+    assert category_sales(cur, store_id, days=7)[category_id]["revenue"] == Decimal("25.00")
+    assert category_sales(cur, store_id, days=90)[category_id]["revenue"] == Decimal("75.00")
+
+
+def test_a_category_with_no_sales_shows_zero(cur):
+    store_id, _ = a_store(cur)
+    cur.execute("SELECT category_id FROM category WHERE name = 'Laptops'")
+    laptops_id = cur.fetchone()["category_id"]
+    laptops = category_sales(cur, store_id)[laptops_id]
+    assert laptops == {"category_id": laptops_id, "category": "Laptops",
+                       "parent_category": "Computers & Tablets", "orders": 0, "units": 0,
+                       "revenue": Decimal("0.00")}
+    assert str(laptops["revenue"]) == "0.00"
+
+
+def test_an_order_in_two_categories_counts_once_in_the_total(cur):
+    store_id, _ = a_store(cur)
+    first, second = a_category(cur), a_category(cur)
+    a_sale(cur, store_id, [(a_product(cur, first, "25.00"), 1), (a_product(cur, second, "10.00"), 2)])
+    sales = report(cur, store_id)
+    rows = {row["category_id"]: row for row in sales["sales_by_category"]}
+    assert (rows[first]["orders"], rows[second]["orders"]) == (1, 1)
+    assert sales["sales_total"] == {"orders": 1, "units": 3, "revenue": Decimal("45.00")}
