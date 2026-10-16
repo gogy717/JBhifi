@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type FormEvent, type ReactNode, Suspense, useState } from "react";
+import { type FormEvent, Suspense, useState } from "react";
 
+import { catalogueHref, CategoryPills, filterChips, type Filters, readFilters } from "@/components/shop/catalogue-filters";
 import { useShop } from "@/components/shop/context";
 import { Callout, Crumbs, focusRing, PageIntro, Skeleton } from "@/components/shop/page-parts";
 import { ProductCard } from "@/components/shop/product-card";
@@ -11,11 +12,6 @@ import { Button, Card, Empty, ErrorBox, Field, inputClass, selectClass } from "@
 import { api, call } from "@/lib/api/client";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 import { useLoad } from "@/lib/use-load";
-
-// The filters live in the URL, so the header's search box (?q=), the home page's category links (?category=),
-// back/forward and a shared link all show the same results.
-const FILTERS = ["q", "category", "brand", "min_price", "max_price"] as const;
-type Filters = Record<(typeof FILTERS)[number], string>;
 
 export default function CataloguePage() {
   // useSearchParams needs a Suspense boundary, or `next build` can't prerender the page.
@@ -32,19 +28,10 @@ function Catalogue() {
   const { store, categories } = useShop();
   const [added, setAdded] = useState<string>();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const filters = Object.fromEntries(FILTERS.map((name) => [name, params.get(name) ?? ""])) as Filters;
-  const filtered = FILTERS.some((name) => filters[name]);
-
-  /** The catalogue's address with these filters changed; an empty value removes a filter. */
-  const hrefWith = (changes: Partial<Filters>) => {
-    const next = new URLSearchParams(params.toString());
-    for (const [name, value] of Object.entries(changes)) {
-      if (value) next.set(name, value);
-      else next.delete(name);
-    }
-    const query = next.toString();
-    return query ? `${SHOP_PAGES.catalogue.href}?${query}` : SHOP_PAGES.catalogue.href;
-  };
+  // The filters live in the URL (components/shop/catalogue-filters.tsx).
+  const filters = readFilters(params);
+  const filtered = Object.values(filters).some(Boolean);
+  const hrefWith = (changes: Partial<Filters>) => catalogueHref(params, changes);
   /** Show the catalogue with these filters changed. */
   const show = (changes: Partial<Filters>) => router.replace(hrefWith(changes), { scroll: false });
   const clear = () => router.replace(SHOP_PAGES.catalogue.href, { scroll: false });
@@ -77,22 +64,9 @@ function Catalogue() {
     })));
   const rows = products.data ?? [];
 
-  // The chosen category, its top-level parent, and the parent's subcategories for the second row of pills.
   const chosen = categories.find((c) => c.category_id === categoryId);
-  const parent = chosen?.parent_id ? categories.find((c) => c.category_id === chosen.parent_id) : chosen;
-  const topLevel = categories.filter((c) => c.parent_id === null);
-  const subcategories = parent ? categories.filter((c) => c.parent_id === parent.category_id) : [];
   const brandName = (brands.data ?? []).find((b) => String(b.brand_id) === filters.brand)?.name;
-
-  // The filters in force, each with a way to drop it.
-  const chips: [string, Partial<Filters>][] = [
-    ...(filters.q ? [[`“${filters.q}”`, { q: "" }] as [string, Partial<Filters>]] : []),
-    ...(chosen ? [[chosen.name, { category: "" }] as [string, Partial<Filters>]] : []),
-    ...(filters.brand ? [[brandName ?? `Brand ${filters.brand}`, { brand: "" }] as [string, Partial<Filters>]] : []),
-    ...(filters.min_price || filters.max_price
-      ? [[priceRange(filters.min_price, filters.max_price), { min_price: "", max_price: "" }] as [string, Partial<Filters>]]
-      : []),
-  ];
+  const chips = filterChips(filters, { category: chosen?.name, brand: brandName });
 
   return (
     <div className="space-y-8">
@@ -107,38 +81,17 @@ function Catalogue() {
         </PageIntro>
       </div>
 
-      <nav aria-label="Filter by category" className="space-y-3">
-        <PillRow>
-          <CategoryPill href={hrefWith({ category: "" })} current={!chosen}>All products</CategoryPill>
-          {topLevel.map((c) => (
-            <CategoryPill key={c.category_id} href={hrefWith({ category: String(c.category_id) })}
-              current={c.category_id === categoryId} within={c.category_id === parent?.category_id}>
-              {c.name}
-            </CategoryPill>
-          ))}
-        </PillRow>
-        {parent && subcategories.length > 0 && (
-          <PillRow>
-            <CategoryPill small href={hrefWith({ category: String(parent.category_id) })}
-              current={parent.category_id === categoryId}>
-              All {parent.name}
-            </CategoryPill>
-            {subcategories.map((c) => (
-              <CategoryPill small key={c.category_id} href={hrefWith({ category: String(c.category_id) })}
-                current={c.category_id === categoryId}>
-                {c.name}
-              </CategoryPill>
-            ))}
-          </PillRow>
-        )}
-      </nav>
+      <CategoryPills categories={categories} category={filters.category}
+        hrefFor={(category) => hrefWith({ category })} />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="space-y-3 lg:sticky lg:top-6 lg:self-start">
           <Button className="w-full lg:hidden" aria-expanded={filtersOpen} aria-controls="catalogue-filters"
             onClick={() => setFiltersOpen(!filtersOpen)}>
-            {filtersOpen ? "Hide filters" : "Search and filters"}
+            Search and filters
           </Button>
+          {/* Outside the panel, which is folded away on a phone: a failed brand list shouldn't go unnoticed. */}
+          {brands.error && <ErrorBox error={brands.error} />}
           <div id="catalogue-filters" className={`${filtersOpen ? "block" : "hidden"} lg:block`}>
             <Card>
               {/* Keyed on the applied values: the page stays mounted when only the URL's query changes, so after a
@@ -159,19 +112,23 @@ function Catalogue() {
                     ))}
                   </select>
                 </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="From ($)">
-                    <input name="min_price" type="number" min={0} step="0.01" className={inputClass}
-                      defaultValue={filters.min_price} placeholder="0" />
-                  </Field>
-                  <Field label="To ($)">
-                    <input name="max_price" type="number" min={0} step="0.01" className={inputClass}
-                      defaultValue={filters.max_price} placeholder="Any" />
-                  </Field>
-                </div>
+                <fieldset>
+                  <legend className="mb-1.5 text-xs font-bold tracking-[0.08em] text-muted uppercase">Price ($)</legend>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label>
+                      <span className="mb-1 block text-[13px] text-muted"><span className="sr-only">Price </span>From</span>
+                      <input name="min_price" type="number" min={0} step="0.01" className={inputClass}
+                        defaultValue={filters.min_price} placeholder="0" />
+                    </label>
+                    <label>
+                      <span className="mb-1 block text-[13px] text-muted"><span className="sr-only">Price </span>To</span>
+                      <input name="max_price" type="number" min={0} step="0.01" className={inputClass}
+                        defaultValue={filters.max_price} placeholder="Any" />
+                    </label>
+                  </div>
+                </fieldset>
                 <Button type="submit" tone="primary" className="w-full">Apply</Button>
                 {filtered && <Button className="w-full" onClick={clear}>Clear filters</Button>}
-                {brands.error && <ErrorBox error={brands.error} />}
               </form>
             </Card>
           </div>
@@ -184,11 +141,12 @@ function Catalogue() {
                 {rows.length} {rows.length === 1 ? "product" : "products"}{filtered && " match"}
               </p>
             )}
-            {chips.map(([label, changes]) => (
-              <button key={label} type="button" onClick={() => show(changes)}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-full bg-sand pr-2.5 pl-3.5 text-[13px] font-semibold
-                  hover:bg-line ${focusRing}`}>
-                {label} <span aria-hidden="true" className="text-muted">×</span>
+            {chips.map((chip) => (
+              <button key={chip.key} type="button" onClick={() => show(chip.changes)}
+                className={`inline-flex h-8 max-w-full items-center gap-1.5 rounded-full bg-sand pr-2.5 pl-3.5 text-[13px]
+                  font-semibold hover:bg-line ${focusRing}`}>
+                <span className="truncate">{chip.label}</span>
+                <span aria-hidden="true" className="text-muted">×</span>
                 <span className="sr-only">(remove this filter)</span>
               </button>
             ))}
@@ -236,36 +194,3 @@ function Catalogue() {
     </div>
   );
 }
-
-function priceRange(min: string, max: string): string {
-  if (min && max) return `$${min} – $${max}`;
-  return min ? `From $${min}` : `Up to $${max}`;
-}
-
-/** A row of pills that scrolls sideways on a narrow screen instead of wrapping into a wall. */
-function PillRow({ children }: { children: ReactNode }) {
-  return <ul className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">{children}</ul>;
-}
-
-/** One category as a pill: ink when it is the one shown, outlined when the chosen subcategory is inside it. */
-function CategoryPill({ href, current, within = false, small = false, children }: {
-  href: string;
-  current: boolean;
-  within?: boolean;
-  small?: boolean;
-  children: ReactNode;
-}) {
-  const tone = current ? "bg-ink text-white"
-    : within ? "border border-ink bg-white text-ink"
-    : "border border-line bg-white text-ink hover:border-ink";
-  return (
-    <li className="shrink-0">
-      <Link href={href} replace scroll={false} aria-current={current ? "page" : undefined}
-        className={`inline-flex items-center rounded-full font-bold whitespace-nowrap transition-colors ${tone} ${focusRing}
-          ${small ? "h-8 px-3.5 text-[13px]" : "h-10 px-4.5 text-[15px]"}`}>
-        {children}
-      </Link>
-    </li>
-  );
-}
-
