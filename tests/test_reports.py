@@ -7,7 +7,7 @@ committed. The concurrency tests at the end commit, on products of their own.
 from decimal import Decimal
 
 from app.services.reports import build_store_report
-from tests.reports_support import a_category, a_product, a_sale, a_store, cancel, collect
+from tests.reports_support import a_category, a_product, a_return, a_sale, a_store, cancel, collect
 
 
 def report(cur, store_id: int, days: int = 30) -> dict:
@@ -155,3 +155,99 @@ def test_an_order_in_two_categories_counts_once_in_the_total(cur):
     rows = {row["category_id"]: row for row in sales["sales_by_category"]}
     assert (rows[first]["orders"], rows[second]["orders"]) == (1, 1)
     assert sales["sales_total"] == {"orders": 1, "units": 3, "revenue": Decimal("45.00")}
+
+
+# ---------------------------------------------------------------- return rate (plan §6 #6)
+
+def rates(cur, store_id: int, days: int = 30) -> tuple[dict, dict]:
+    """(by category id, by product id) → (sold, returned, rate)."""
+    sections = report(cur, store_id, days)
+    by_category = {row["category_id"]: (row["units_sold"], row["units_returned"], row["return_rate"])
+                   for row in sections["return_rate_by_category"]}
+    by_product = {row["product_id"]: (row["units_sold"], row["units_returned"], row["return_rate"])
+                  for row in sections["return_rate_by_product"]}
+    return by_category, by_product
+
+
+def collected_sale(cur, store_id: int, items, **options) -> int:
+    order_id = a_sale(cur, store_id, items, **options)
+    collect(cur, order_id)
+    return order_id
+
+
+def test_return_rate_is_a_fraction_not_integer_division(cur):
+    store_id, _ = a_store(cur)
+    category_id = a_category(cur)
+    speaker = a_product(cur, category_id)
+    a_return(cur, collected_sale(cur, store_id, [(speaker, 4)]), [(1, 1)])
+    by_category, by_product = rates(cur, store_id)
+    assert by_category[category_id] == (4, 1, Decimal("0.2500"))
+    assert by_product[speaker] == (4, 1, Decimal("0.2500"))
+
+
+def test_return_rate_counts_a_line_with_two_partial_returns_once(cur):
+    store_id, _ = a_store(cur)
+    category_id = a_category(cur)
+    speaker = a_product(cur, category_id)
+    order_id = collected_sale(cur, store_id, [(speaker, 4)])
+    a_return(cur, order_id, [(1, 1)])
+    a_return(cur, order_id, [(1, 1)])
+    by_category, by_product = rates(cur, store_id)
+    assert by_category[category_id] == (4, 2, Decimal("0.5000"))      # joined before summing: 8 sold
+    assert by_product[speaker] == (4, 2, Decimal("0.5000"))
+
+
+def test_return_rate_ignores_rejected_returns_without_dropping_unreturned_sales(cur):
+    store_id, _ = a_store(cur)
+    category_id = a_category(cur)
+    speaker = a_product(cur, category_id)
+    a_return(cur, collected_sale(cur, store_id, [(speaker, 2)]), [(1, 1)], status="rejected")
+    collected_sale(cur, store_id, [(speaker, 2)])                     # never returned
+    a_return(cur, collected_sale(cur, store_id, [(speaker, 1)]), [(1, 1)], status="received")
+    by_category, by_product = rates(cur, store_id)
+    # Filtering `status <> 'rejected'` in the outer WHERE would leave only the received line: 1 sold, 1 back.
+    assert by_category[category_id] == (5, 1, Decimal("0.2000"))
+    assert by_product[speaker] == (5, 1, Decimal("0.2000"))
+
+
+def test_return_rate_is_zero_when_nothing_came_back_and_null_when_nothing_sold(cur):
+    store_id, _ = a_store(cur)
+    sold, unsold = a_category(cur), a_category(cur)
+    speaker = a_product(cur, sold)
+    a_product(cur, unsold)
+    collected_sale(cur, store_id, [(speaker, 3)])
+    by_category, by_product = rates(cur, store_id)
+    assert by_category[sold] == (3, 0, Decimal("0.0000"))
+    assert by_category[unsold] == (0, 0, None)
+    assert set(by_product) == {speaker}                               # only products sold in the window
+
+
+def test_return_rate_is_over_the_units_sold_in_the_window(cur):
+    store_id, _ = a_store(cur)
+    category_id = a_category(cur)
+    speaker = a_product(cur, category_id)
+    a_return(cur, collected_sale(cur, store_id, [(speaker, 2)], days_ago=40), [(1, 2)])  # sold before the window
+    a_return(cur, collected_sale(cur, store_id, [(speaker, 4)]), [(1, 1)])
+    assert rates(cur, store_id)[0][category_id] == (4, 1, Decimal("0.2500"))
+    assert rates(cur, store_id, days=90)[0][category_id] == (6, 3, Decimal("0.5000"))
+
+
+def test_a_return_counts_for_the_store_that_sold_the_item_not_the_one_that_received_it(cur):
+    store_id, _ = a_store(cur)
+    other_store, other_manager = a_store(cur)
+    category_id = a_category(cur)
+    speaker = a_product(cur, category_id)
+    order_id = collected_sale(cur, store_id, [(speaker, 2)])
+    a_return(cur, order_id, [(1, 1)], status="received", at_store=(other_store, other_manager))
+    assert rates(cur, store_id)[1][speaker] == (2, 1, Decimal("0.5000"))
+    assert rates(cur, other_store)[0][category_id] == (0, 0, None)
+
+
+def test_products_are_listed_by_return_rate(cur):
+    store_id, _ = a_store(cur)
+    category_id = a_category(cur)
+    never, half, all_back = (a_product(cur, category_id) for _ in range(3))
+    collected_sale(cur, store_id, [(never, 2)])
+    a_return(cur, collected_sale(cur, store_id, [(half, 2)]), [(1, 1)])
+    a_return(cur, collected_sale(cur, store_id, [(all_back, 1)]), [(1, 1)])
+    assert list(rates(cur, store_id)[1]) == [all_back, half, never]

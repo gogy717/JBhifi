@@ -126,9 +126,11 @@ def cancel(cur, order_id: int) -> None:
     _move(cur, order_id, "cancelled")
 
 
-def a_return(cur, order_id: int, lines: list[tuple[int, int]], *, status: str = "requested") -> int:
+def a_return(cur, order_id: int, lines: list[tuple[int, int]], *, status: str = "requested",
+             at_store: tuple[int, int] | None = None) -> int:
     """A return of lines = [(line_no, quantity), ...] from a collected order, left `requested`, or moved on to
-    `received` (at the order's store, by its manager) or `rejected`."""
+    `received` or `rejected` — received at at_store = (store_id, staff_id), by default the order's own store and
+    its manager."""
     cur.execute("INSERT INTO return_request (order_id, reason) VALUES (%s, 'Report test') RETURNING return_id",
                 (order_id,))
     return_id = cur.fetchone()["return_id"]
@@ -136,12 +138,18 @@ def a_return(cur, order_id: int, lines: list[tuple[int, int]], *, status: str = 
         cur.execute("INSERT INTO return_line (return_id, line_no, order_id, quantity) VALUES (%s, %s, %s, %s)",
                     (return_id, line_no, order_id, quantity))
     if status in ("received", "rejected"):
+        if at_store is None:
+            cur.execute(
+                """
+                SELECT s.store_id, s.manager_id FROM customer_order o JOIN store s ON s.store_id = o.fulfilling_store_id
+                WHERE o.order_id = %s
+                """,
+                (order_id,),
+            )
+            at_store = tuple(cur.fetchone().values())
         cur.execute(
-            """
-            UPDATE return_request r SET status = %s, received_store_id = s.store_id, processed_by_staff_id = s.manager_id
-            FROM customer_order o JOIN store s ON s.store_id = o.fulfilling_store_id
-            WHERE r.return_id = %s AND o.order_id = r.order_id
-            """,
-            (status, return_id),
+            "UPDATE return_request SET status = %s, received_store_id = %s, processed_by_staff_id = %s "
+            "WHERE return_id = %s",
+            (status, *at_store, return_id),
         )
     return return_id
