@@ -119,3 +119,48 @@ hidden in a loop).
   It is timed. If it takes longer than the rest of the suite (~14 s), it gets a `seed` marker and is skipped by
   default. The generator and this test share the `_seed` database, so they must not run at the same time (noted
   in the README).
+
+## 6. Returns (added once SP3 was merged)
+
+- **Helpers**, one per action in `app/services/returns.py`:
+  - `seed_request_return(return_id, order_id, key, reason, at)` and `seed_return_line(return_id, line_no,
+    quantity)`: the request, then its lines. BR11 compares the `requested_at` written here with the history's
+    completion time; BR12 and BR13 check the lines, which are then fixed (`br14_return_line_immutable`).
+  - `seed_receive_return(return_id, store_id, staff_id, at)`: locks the order, then the return, `FOR UPDATE`,
+    as the service does. BR22 requires a retail store.
+  - `seed_refund_return(return_id, staff_id, at)` (T2): restocks at the receiving store in ascending
+    `product_id` (make sure of the row, then a relative UPDATE). Then one refund of `v_return_value.value` at
+    `at`, none if it is worth 0 (BR14: it matches the return and stays within the charge). Then refunded.
+  - `seed_reject_return(return_id, staff_id, at, reason)`.
+  
+  The receiving store's staff resolve the return (`return_request_resolver_at_store`).
+- **Content.**
+  - About 5% of completed orders get a return; 15% of Sydney CBD's, so SP4's 30- and 90-day return rates have data.
+  - A return is requested between 1 hour and 25 days after completion, in waking hours (BR11 allows 30 days).
+  - It is received 1–5 days later at the receiving store: the collection store for C&C, the customer's home
+    (retail) store for a delivery.
+  - It is then refunded (~85%) or rejected with a reason (~15%), 1 hour to 3 days later. Staff steps fall in
+    store hours, and anything after the anchor waits.
+  - About 40% are partial: some lines, or fewer units. One return per order.
+  - Return ids are explicit, in request order, then `setval`; keys are `uuid5` literals.
+  - Scripted:
+    - Alice asks to return the speaker from the order she collected 5 days ago (requested yesterday at 10:00;
+      stays requested, for staff to receive).
+    - A Sydney CBD return received 3 days ago by Aiden, waiting to be refunded or rejected.
+- **Tests.**
+  - Helpers: request → receive → refund (restocks the receiving store; the refund equals the value, at its
+    time); reject; BR11 refuses a request 31 days after completion; BR22 refuses a receipt at the warehouse.
+  - Planner:
+    - Returns are only on completed orders, requested after completion and within 30 days.
+    - They are received at a retail store by its staff, in path order and in hours.
+    - All four statuses and partial returns exist.
+    - Quantities never exceed what was bought, with one return per order.
+    - Refunds restock in the stock walk.
+    - The scripted returns exist.
+  - Load:
+    - Each order's refunds equal its refunded returns' values (plus a cancellation's balance).
+    - Stock = opening + received − sold + units of refunded returns, at the receiving store.
+    - Sydney CBD has non-rejected returns on sales from the last 30 and 90 days.
+    - No return time is after `now()`.
+    - The anchored replays also check each return's timeline: requested < received < resolved, with staff
+      working 09:00–20:59.
