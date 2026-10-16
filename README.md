@@ -2,7 +2,7 @@
 
 COMP9120 group project: a PostgreSQL-first prototype of an omnichannel electronics retailer — catalogue,
 per-store stock, promotions, orders (home delivery or Click & Collect) and returns. The database itself
-enforces the business rules (BR01–BR18); a FastAPI backend and a Next.js storefront + store admin sit on top.
+enforces the business rules (BR01–BR22); a FastAPI backend and a Next.js storefront + store admin sit on top.
 
 ```
 web/ (Next.js, :3000) ──/api/*──▶ app/ (FastAPI, :8000) ──▶ PostgreSQL 18 in Docker (:5433)
@@ -50,14 +50,15 @@ Frontend unit tests (Vitest): `npm --prefix web run test:unit`.
 
 **Rebuilding the dev database from a branch.** `sql/*.sql` only run when the Docker volume is empty, and the
 compose file mounts `./sql` from the directory you run it in. To load the SQL of the branch you are on, without
-touching the volume:
+touching the volume (the database container must be running):
 
 ```bash
-docker exec jbhifi-db psql -U jbhifi -d postgres -c "DROP DATABASE IF EXISTS jbhifi WITH (FORCE)"
-docker exec jbhifi-db psql -U jbhifi -d postgres -c "CREATE DATABASE jbhifi"
-for f in sql/*.sql; do docker exec -i jbhifi-db psql -U jbhifi -d jbhifi -v ON_ERROR_STOP=1 -q < "$f" || break; done
-.venv/bin/python scripts/clerk_personas.py     # re-link the demo personas
+.venv/bin/python scripts/reset_db.py           # Windows: .venv\Scripts\python scripts\reset_db.py
 ```
+
+It drops and recreates the database named by `POSTGRES_DB` in `.env` (never a system or test database), runs
+`sql/*.sql` in filename order, and re-links the demo personas (`scripts/clerk_personas.py`, link only — it needs
+the internet to reach Clerk; if it can't, the database is still rebuilt and the script says so).
 
 Sign-in (Clerk). Everyone signs in through Clerk; our database decides who is a customer or staff (BR19).
 Ask the team for access to the Clerk application, or create your own free development application, then:
@@ -78,7 +79,19 @@ Ask the team for access to the Clerk application, or create your own free develo
 
 ## Run it
 
-Three terminals, each starting in the repo root:
+**One command (the demo).** With the setup above done and Docker Desktop running:
+
+```bash
+.venv/bin/python scripts/demo.py               # Windows: .venv\Scripts\python scripts\demo.py
+```
+
+It starts the database (`docker compose up -d db`) if it isn't running, builds the web app (about a minute) and
+starts it with the API, waits until both answer, and prints the addresses and the demo personas. Ctrl-C stops the
+API and the web app; the database keeps running. `--reset` first rebuilds the dev database from `sql/`
+(`scripts/reset_db.py`), `--dev` runs `next dev` instead of a production build, and `--api-port` / `--web-port`
+choose other ports. Logs go to `.demo/`. Sign-in is Clerk's hosted service, so the demo needs the internet.
+
+**For development**, three terminals, each starting in the repo root:
 
 | # | Start | Then open |
 |---|---|---|
@@ -89,15 +102,18 @@ Three terminals, each starting in the repo root:
 The first `docker compose up` creates the tables and loads the seed data from `sql/` (a few seconds).
 Port 5433 is deliberate, so it can't clash with a PostgreSQL you may already run on 5432.
 
-**Storefront** (`/`): the home page is live — current deals with stock at your store, categories, stores near
-you. Sign in (top right) as a customer — or create an account, which makes you a new customer — and pick a store
-under "My store". The other customer pages (catalogue,
-product, cart, checkout, orders, returns, stores, account) are *reserved*: each says what it will do, which
-requirements and rules it covers, and which API it needs.
+**Storefront** (`/`): current deals, categories and stores near you. Browse and filter the catalogue (keyword,
+category, brand, price), see a product's stock at each store, and add it to the cart. Sign in (top right) as a
+customer — or create an account, which makes you a new customer — and pick a store under "My store". Checkout places
+a Click & Collect or delivery order, paid in full (simulated). **My orders** shows each order with its status
+timeline; a paid order can still be cancelled (refunded and restocked), and a delivered or collected one can be
+returned within 30 days. **Returns** follows each return; **Account** manages delivery addresses.
 
-**Store admin** (`/admin`, staff only): store staff use **±1** or **Adjust…** on their own store's stock; store
-managers and support staff also edit products, specs and prices and create promotions; support staff can look at
-any store's stock. When the database refuses something (stock below zero, staff from another store,
+**Store admin** (`/admin`, staff only): **Orders** is the store's queue — staff move an order along (picking →
+ready → collected, or shipped → delivered) or cancel it; **Returns** is the returns desk — receive a return, then
+refund it (restocking the items) or reject it with a reason. Store staff use **±1** or **Adjust…** on their own
+store's stock; store managers and support staff also edit products, specs and prices and create promotions;
+support staff can look at any store's stock, orders and returns. When the database refuses something (stock below zero, staff from another store,
 a sale price above the base price…) the page shows which rule refused it, e.g. `br03_inventory_qty_nonneg`.
 **Reports** (`/admin/reports`) show a store's low stock, sales by category and return rate to its manager (support
 staff pick any store), plus the products in stock at every store of a state; **Support** (`/admin/support`) lets
@@ -107,8 +123,10 @@ support staff find a customer and read their orders and full history.
 
 | Task | Command |
 |---|---|
+| Start everything for a demo | `.venv/bin/python scripts/demo.py` (see Run it) |
 | Stop the database (data is kept) | `docker compose down` |
 | **Reset** the database to the seed data | `docker compose down -v && docker compose up -d` |
+| Rebuild your dev database from `sql/`, keeping the container | `.venv/bin/python scripts/reset_db.py` |
 | SQL shell | `docker compose exec db psql -U jbhifi -d jbhifi` |
 | Run the tests (database must be up, venv active) | `pytest` |
 | Regenerate the frontend's API types after changing the API (API running) | `cd web && npm run gen:api` |
@@ -121,7 +139,7 @@ support staff find a customer and read their orders and full history.
 **Several worktrees at once.** All of them share the one `jbhifi-db` container; only the main checkout runs
 `docker compose`. In each worktree's `.env`, give `POSTGRES_DB` and `POSTGRES_TEST_DB` names of its own — the test
 run drops its database with `FORCE`, which would cut off another worktree's tests — and build its dev database with
-the commands above, using that name. Run the API and the web app on their own ports
+`scripts/reset_db.py` (it uses that name). Run the API and the web app on their own ports
 (`fastapi dev app/main.py --port 8002`, `API_URL=http://127.0.0.1:8002 npx next dev -p 3002` in `web/`), add the
 web port to `AUTH_AUTHORIZED_PARTIES`, and regenerate the API types with
 `npx openapi-typescript http://127.0.0.1:8002/openapi.json -o src/lib/api/schema.d.ts` (`gen:api` assumes port 8000).
@@ -132,7 +150,8 @@ web port to `AUTH_AUTHORIZED_PARTIES`, and regenerate the API types with
 |---|---|
 | `sql/` | `00_domains` → `01_tables` → `02_rules` (triggers) → `03_views` → `10_seed_reference`, run in that order |
 | `app/` | FastAPI. `routers/` handle HTTP only; `services/` hold the SQL (one call = one transaction); `errors.py` turns a rule violation into a 409 whose `code` is the constraint name |
-| `tests/` | `test_business_rules.py` (one test per BR), `test_transactions.py` (stock adjustments under concurrency), `test_api.py` |
+| `tests/` | `test_business_rules.py` (one test per BR), one file per area (`test_checkout.py`, `test_fulfilment.py`, `test_returns.py`, `test_reports.py`, …) and its `*_transactions.py` concurrency tests, `test_permissions.py` (every caller × every endpoint) |
+| `scripts/` | `demo.py` (one command for the demo), `reset_db.py` (rebuild the dev database from `sql/`), `clerk_personas.py` (the demo personas in Clerk) |
 | `web/` | Next.js: the customer storefront (`/`) and the store admin (`/admin`) — see [`web/README.md`](web/README.md) |
 | `doc/progress.md` | decisions, experiments and AI-use notes, newest first |
 
@@ -143,7 +162,7 @@ web port to `AUTH_AUTHORIZED_PARTIES`, and regenerate the API types with
 | Pages stay on "Loading…" / the admin sidebar says "API unreachable" | Start the API (terminal 2). |
 | API errors: `connection refused` / `KeyError: 'POSTGRES_HOST'` | Start the database (terminal 1) / create `.env` from `.env.example`. |
 | `fastapi: command not found` | Activate the virtual environment first. |
-| Changed `sql/` but nothing changed | Reset the database (`docker compose down -v && docker compose up -d`). |
+| Changed `sql/` but nothing changed | Rebuild the dev database: `.venv/bin/python scripts/reset_db.py` (or `docker compose down -v && docker compose up -d`). |
 | Every sign-in says "expired or isn't valid" | `.env` lacks the Clerk lines, or `web/.env.local` holds keys of a different Clerk application than `CLERK_ISSUER`. |
 | "This person is already linked to a different sign-in" | A Clerk account was re-created for the same person: remove the old link with `DELETE FROM user_account WHERE auth_subject = '<old user id>'`. |
 | "Sign-in couldn't load" | No connection to Clerk: guests can still browse; sign-in needs the network. |

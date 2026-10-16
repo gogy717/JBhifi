@@ -2,14 +2,12 @@
 
 Two apps in one Next.js project, on the same FastAPI backend:
 
-- **Storefront** at `/` — what customers see. The home page is live: current deals with stock at your store,
-  shop by category, stores near you. Clerk's sign-in controls sit in the header; a "My store" picker chooses
-  the store whose stock is shown.
-  The other customer pages are **reserved**: each shows what it will do, which requirements (R#), rules (BR#)
-  and transaction it covers, the API it needs (existing or to build) and the owner slice. Their content comes
-  from `src/lib/shop-pages.ts` — build a page by replacing its `<ReservedPage>`.
-- **Store admin** at `/admin` — stock per store with ± adjustments, products (prices, specs), promotions,
-  store reports, and the support team's customer lookup.
+- **Storefront** at `/` — what customers see: deals, the catalogue with filters, products with per-store stock,
+  cart, checkout (Click & Collect or delivery), my orders with their timeline and cancel, returns, stores and
+  account addresses. Clerk's sign-in controls sit in the header; a "My store" picker chooses the store whose
+  stock is shown. `src/lib/shop-pages.ts` describes each customer page (R#, BR#, API).
+- **Store admin** at `/admin` — the store's order queue and status moves, the returns desk, stock per store with
+  ± adjustments, products (prices, specs), promotions, store reports, and the support team's customer lookup.
 
 Every rule is enforced by the database; when it refuses a request, the page shows the constraint that fired
 (e.g. `br03_inventory_qty_nonneg`).
@@ -24,6 +22,8 @@ source .venv/bin/activate && fastapi dev app/main.py   # API on :8000 (docs at /
 cd web && npm install && npm run dev                   # http://localhost:3000 and /admin
 ```
 
+For the demo, `.venv/bin/python scripts/demo.py` from the repo root starts all three (see the root README).
+
 The browser only talks to Next.js. `next.config.ts` forwards `/api/*` to FastAPI (set `API_URL` to point
 elsewhere), so there is no CORS setup.
 
@@ -37,9 +37,9 @@ every endpoint, read from FastAPI's OpenAPI spec. Commit the regenerated file.
 | Path | What |
 |---|---|
 | `src/app/(shop)/` | storefront pages; `(shop)` is a route group, so it adds nothing to the URL |
-| `src/app/(shop)/page.tsx` | the home page (live) |
-| `src/app/(shop)/{products,cart,checkout,orders,returns,stores,account}` | reserved customer pages |
-| `src/app/admin/` | store admin: `inventory`, `products`, `promotions`, `reports`, `support` |
+| `src/app/(shop)/page.tsx` | the home page |
+| `src/app/(shop)/{products,cart,checkout,orders,returns,stores,account}` | the customer pages |
+| `src/app/admin/` | store admin: `orders`, `returns`, `inventory`, `products`, `promotions`, `reports`, `support` |
 | `src/components/shop/` | storefront header (Clerk sign-in), shop context (signed-in customer, my store), `ReservedPage` |
 | `src/proxy.ts` | Clerk's proxy: signed-out visitors to `/admin` go to sign-in (who may do what is the API's call) |
 | `src/components/api-auth.tsx`, `src/lib/me.ts` | each API request carries the Clerk session token; `useMe()` = who the API says you are |
