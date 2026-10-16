@@ -4,6 +4,51 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/techlight-brand`: the web app becomes TechLight
+
+The storefront and the store admin now carry a fictional brand, TechLight, from its brand sheet: the logo (a
+rounded #E64626 tile with a white "T" and a dot), the wordmark "Tech" + "Light" in Sora, and the colours #E64626
+(brand), #1A1A1A (ink) and #F5F2EE (cream). Only the web app changed: the database, the API, the README and the
+docs still describe the retailer as modelled on JB Hi-Fi.
+
+- **Brand tokens** (`web/src/app/globals.css`): `brand`, `brand-strong` (#C8381A), `ink` and `cream` as Tailwind
+  theme colours, and `font-display` for Sora.
+  - `brand` marks the logo, sale badges, focus rings and the current admin page.
+  - `brand-strong` is for small text and for white text on a brand fill. #E64626 behind white text is 4.0:1, under
+    the 4.5:1 that small text needs; #C8381A is 5.2:1, and it is the brand sheet's own darker option.
+  - Buttons stay ink and errors keep Tailwind's red, so a red fill always means the brand.
+- **Sora** is bundled (`web/src/app/fonts/`: one variable Latin file, weights 600–700, with its SIL Open Font
+  License) and loaded with `next/font/local`, so nothing is downloaded when the app builds or runs. The wordmark
+  and every `h1`/`h2` use it; body text and the admin tables keep the system fonts.
+- **Logo** (`web/src/components/brand.tsx`): `LogoMark` and `Wordmark`, used by the shop header (now white, with
+  the ink category bar below), the admin sidebar (the dark version of the logo; the current page has a brand-coloured
+  edge and `aria-current`) and the sign-in and sign-up pages. `app/icon.svg` and a regenerated `app/favicon.ico`
+  (16, 32 and 48 px) are the same mark.
+- **Name**: every page title, the home greeting, the return copy, the metadata and the footer ("TechLight is a
+  fictional store — a COMP9120 prototype"). Admin titles are "· TechLight Admin" everywhere; the orders pages said
+  "· Store Admin" before. The browser storage keys (`jb.shop.*`) are internal and unchanged, so saved carts survive.
+- **The yellow is gone**: selected rows and the chosen delivery method are cream, the highlighted order has a brand
+  ring, and "Starting soon" has a brand dot.
+
+**Verification (actually run).**
+
+- `npm run test:unit` → **38 passed**. 3 are new in `web/src/components/brand.test.tsx`: the wordmark's text and
+  colour, the decorative mark, and that no page or component still names the old brand. That last test first
+  listed the 17 files with "JB Hi-Fi"; once widened, it also caught the "JB Admin" titles in 9 files and the
+  sidebar's "JB".
+- `typecheck` and `lint` are clean. `build` passes, and its CSS carries the brand colours and the Sora rule.
+- `pytest` → **675 passed** (no Python or SQL changed).
+- In the browser, against the production build on ports 3004 and 8004:
+  - the home page, a product page and the sign-in page at desktop width, and the home and sign-in pages at
+    390 px;
+  - Sora is loaded (`document.fonts`), and both icons are served.
+- **Not done:**
+  - The admin pages need a staff sign-in, so the sidebar was checked by typecheck and build only.
+  - Clerk's sign-in box still says "Sign in to JBhifi". That is the application name in the Clerk dashboard, not
+    in the code.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/indexes-explain`: two indexes chosen from measured plans (optional, T-8)
 
 Optional, beyond Week 10 (Weeks 11–12), plan T-8: done after the seed, so the plans are measured on 1,500 orders.

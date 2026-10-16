@@ -29,7 +29,7 @@ export default function ReturnsDeskPage() {
 
   return (
     <>
-      <title>Returns · JB Admin</title>
+      <title>Returns · TechLight Admin</title>
       <PageHeader
         title="Returns"
         description={<>

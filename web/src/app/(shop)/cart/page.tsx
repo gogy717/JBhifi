@@ -34,7 +34,7 @@ export default function CartPage() {
 
   return (
     <div className="space-y-5">
-      <title>Cart · JB Hi-Fi</title>
+      <title>Cart · TechLight</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> /{" "}
         <Link href={SHOP_PAGES.catalogue.href} className="hover:underline">Shop all products</Link> / Cart

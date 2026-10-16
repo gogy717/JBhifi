@@ -60,7 +60,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
-      <title>JB Hi-Fi · Home</title>
+      <title>TechLight · Home</title>
 
       {/* ---------------------------------------------------------------- greeting */}
       <section className="flex flex-wrap items-end justify-between gap-6 rounded-2xl bg-white p-6 shadow-sm
@@ -70,7 +70,7 @@ export default function HomePage() {
             ? <div aria-hidden="true" className="h-9 w-48 animate-pulse rounded bg-neutral-200" />
             : (
               <h1 className="text-3xl font-bold tracking-tight">
-                {customer ? `Hi, ${customer.full_name.split(" ")[0]}` : "Welcome to JB Hi-Fi"}
+                {customer ? `Hi, ${customer.full_name.split(" ")[0]}` : "Welcome to TechLight"}
               </h1>
             )}
           {loadError ? (
@@ -122,9 +122,11 @@ export default function HomePage() {
           </div>
         )}
         {soonDeals.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-neutral-900 px-4 py-3 text-sm
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-ink px-4 py-3 text-sm
             text-neutral-200">
-            <span className="font-semibold text-yellow-300">Starting soon</span>
+            <span className="flex items-center gap-2 font-semibold text-white">
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brand" />Starting soon
+            </span>
             {soonDeals.map((p) => (
               <span key={p.promotion_id}>
                 {p.brand} {p.product_name} <b className="text-white">{money(p.sale_price)}</b>
@@ -155,7 +157,7 @@ export default function HomePage() {
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {children.map((c) => (
                     <Link key={c.category_id} href={`${SHOP_PAGES.catalogue.href}?category=${c.category_id}`}
-                      className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-700 hover:bg-yellow-200">
+                      className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-700 hover:bg-cream hover:text-brand-strong">
                       {c.name}{products.data && <span className="text-neutral-500"> {count(c.category_id)}</span>}
                     </Link>
                   ))}
@@ -217,7 +219,7 @@ function DealCard({ deal, store, quantity }: { deal: Promotion; store?: Store; q
       className="group flex flex-col rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200 transition
         hover:shadow-md hover:ring-neutral-300">
       <div className="flex items-start justify-between gap-2">
-        <span className="rounded bg-yellow-300 px-2 py-0.5 text-xs font-black uppercase text-neutral-900">
+        <span className="rounded bg-brand-strong px-2 py-0.5 text-xs font-black uppercase text-white">
           {percentOff(deal.base_price, deal.sale_price)}
         </span>
         <span className="text-xs text-neutral-500">last day {formatLastDay(deal.ends_at)}</span>

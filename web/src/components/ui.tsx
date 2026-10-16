@@ -8,7 +8,7 @@ import type { ApiError } from "@/lib/api/client";
 
 export const inputClass =
   "h-9 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm text-neutral-900 " +
-  "placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-yellow-300 " +
+  "placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-2 focus:ring-brand/30 " +
   "disabled:bg-neutral-100 disabled:text-neutral-500";
 
 export const selectClass = `${inputClass} pr-8`;
@@ -60,7 +60,7 @@ const badgeTones = {
   green: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
   amber: "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
   red: "bg-red-50 text-red-700 ring-1 ring-red-200",
-  sale: "bg-yellow-300 text-neutral-900",
+  sale: "bg-brand-strong text-white",
   blue: "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
 };
 

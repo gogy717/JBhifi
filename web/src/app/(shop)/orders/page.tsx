@@ -13,7 +13,7 @@ import { useLoad } from "@/lib/use-load";
 export default function OrdersPage() {
   return (
     <div className="space-y-5">
-      <title>My orders · JB Hi-Fi</title>
+      <title>My orders · TechLight</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> / My orders
       </nav>
@@ -82,7 +82,7 @@ function OrderCard({ order, highlight = false }: { order: OrderSummary; highligh
   return (
     <Link href={`${SHOP_PAGES.orders.href}/${order.order_id}`}
       className={`block rounded-xl bg-white p-4 shadow-sm ring-1 transition hover:shadow-md ${
-        highlight ? "ring-2 ring-yellow-400" : "ring-neutral-200"}`}>
+        highlight ? "ring-2 ring-brand" : "ring-neutral-200"}`}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="font-semibold">Order #{order.order_id}</div>

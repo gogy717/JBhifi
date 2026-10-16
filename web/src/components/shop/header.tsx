@@ -4,14 +4,15 @@ import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import Form from "next/form";
 import Link from "next/link";
 
+import { LogoMark, Wordmark } from "@/components/brand";
 import { useShop } from "@/components/shop/context";
 import { useCart } from "@/lib/cart-context";
 import type { MeState } from "@/lib/me";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 
 const pickerClass =
-  "h-9 max-w-[12rem] rounded-md border border-neutral-900/15 bg-white/80 px-2 text-sm text-neutral-900 " +
-  "focus:outline-none focus:ring-2 focus:ring-neutral-900";
+  "h-9 max-w-[12rem] rounded-md border border-neutral-300 bg-white px-2 text-sm text-neutral-900 " +
+  "focus:outline-none focus:ring-2 focus:ring-brand";
 
 export function ShopHeader() {
   const { session, retailStores, store, setStoreId, categories } = useShop();
@@ -20,26 +21,25 @@ export function ShopHeader() {
 
   return (
     <header>
-      <div className="bg-yellow-300">
+      <div className="border-b border-neutral-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
-          <Link href="/" className="flex items-center gap-2" aria-label="JB Hi-Fi home">
-            <span className="rounded bg-neutral-900 px-2 py-1 text-lg font-black italic tracking-tight text-yellow-300">
-              JB HI-FI
-            </span>
+          <Link href="/" className="flex items-center gap-2.5 rounded-md text-ink" aria-label="TechLight home">
+            <LogoMark className="h-9 w-9" />
+            <Wordmark className="text-2xl" />
           </Link>
 
           {/* A plain GET form: the catalogue page receives ?q= (next/form navigates client-side). */}
           <Form action={SHOP_PAGES.catalogue.href} role="search" className="flex min-w-[12rem] flex-1">
             <input name="q" type="search" placeholder="Search products, brands, SKUs" aria-label="Search products"
-              className="h-10 w-full rounded-l-md border border-neutral-900/20 bg-white px-3 text-sm
-                focus:outline-none focus:ring-2 focus:ring-neutral-900" />
+              className="h-10 w-full rounded-l-md border border-neutral-300 bg-white px-3 text-sm
+                focus:outline-none focus:ring-2 focus:ring-brand" />
             <button type="submit"
-              className="h-10 rounded-r-md bg-neutral-900 px-4 text-sm font-semibold text-white hover:bg-neutral-700">
+              className="h-10 rounded-r-md bg-ink px-4 text-sm font-semibold text-white hover:bg-neutral-700">
               Search
             </button>
           </Form>
 
-          <label className="flex items-center gap-2 text-xs font-medium text-neutral-800">
+          <label className="flex items-center gap-2 text-xs font-medium text-neutral-700">
             My store
             <select className={pickerClass} value={store?.store_id ?? ""}
               onChange={(e) => setStoreId(Number(e.target.value))}>
@@ -57,16 +57,16 @@ export function ShopHeader() {
 
           <Link href={SHOP_PAGES.cart.href}
             aria-label={count > 0 ? `Cart, ${count} ${count === 1 ? "item" : "items"}` : "Cart"}
-            className="flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-neutral-900 hover:bg-yellow-400">
+            className="flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-ink hover:bg-neutral-100">
             <CartIcon /> Cart
             {count > 0 && (
-              <span className="rounded-full bg-neutral-900 px-1.5 text-xs font-bold text-yellow-300">{count}</span>
+              <span className="rounded-full bg-brand-strong px-1.5 text-xs font-bold text-white">{count}</span>
             )}
           </Link>
         </div>
       </div>
 
-      <nav aria-label="Shop" className="bg-neutral-900 text-sm text-neutral-200">
+      <nav aria-label="Shop" className="bg-ink text-sm text-neutral-200">
         <div className="mx-auto flex max-w-7xl flex-col lg:flex-row lg:items-center">
           {/* Account links come first on narrow screens, so they are never scrolled out of view; from lg they sit
               on the right and only the categories scroll. */}
@@ -103,7 +103,7 @@ function AccountControls({ session }: { session: MeState }) {
     <div className="flex items-center gap-2 text-sm">
       <Show when="signed-out">
         <SignInButton mode="modal">
-          <button type="button" className="h-9 rounded-md px-3 font-semibold text-neutral-900 hover:bg-yellow-400">
+          <button type="button" className="h-9 rounded-md px-3 font-semibold text-ink hover:bg-neutral-100">
             Sign in
           </button>
         </SignInButton>

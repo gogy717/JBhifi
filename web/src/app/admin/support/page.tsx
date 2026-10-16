@@ -20,7 +20,7 @@ export default function SupportPage() {
   if (me.staff_type !== "support") {
     return (
       <>
-        <title>Support · JB Admin</title>
+        <title>Support · TechLight Admin</title>
         <PageHeader title="Support" />
         <Card><p className="p-4 text-sm text-neutral-600">Customer lookup is for support staff.</p></Card>
       </>
@@ -29,7 +29,7 @@ export default function SupportPage() {
 
   return (
     <>
-      <title>Support · JB Admin</title>
+      <title>Support · TechLight Admin</title>
       <PageHeader
         title="Support"
         description={<>
@@ -73,7 +73,7 @@ function SearchResults({ q, selected, onSelect }: {
         <li key={c.customer_id}>
           <button type="button" onClick={() => onSelect(c.customer_id)}
             className={`w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 ${
-              c.customer_id === selected ? "bg-yellow-50" : ""}`}>
+              c.customer_id === selected ? "bg-cream" : ""}`}>
             <div className="font-medium text-neutral-900">{c.full_name}</div>
             <div className="text-xs text-neutral-500">{c.email}</div>
           </button>

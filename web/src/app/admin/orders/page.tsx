@@ -40,7 +40,7 @@ export default function OrdersPage() {
 
   return (
     <>
-      <title>Orders · Store Admin</title>
+      <title>Orders · TechLight Admin</title>
       <PageHeader
         title="Orders"
         description={<>The store&apos;s orders, oldest first. Open one to move it along: picking, then ready for

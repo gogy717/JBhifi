@@ -92,7 +92,7 @@ export default function InventoryPage() {
 
   return (
     <>
-      <title>Inventory · JB Admin</title>
+      <title>Inventory · TechLight Admin</title>
       <PageHeader
         title="Inventory"
         description={<>

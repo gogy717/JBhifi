@@ -23,7 +23,7 @@ export default function ReturnPage() {
 
   return (
     <>
-      <title>{valid ? `Return #${returnId} · JB Admin` : "Return · JB Admin"}</title>
+      <title>{valid ? `Return #${returnId} · TechLight Admin` : "Return · TechLight Admin"}</title>
       <nav aria-label="Breadcrumb" className="mb-3 text-sm text-neutral-500">
         <Link href="/admin/returns" className="hover:underline">Returns</Link> / {valid ? `#${returnId}` : "…"}
       </nav>

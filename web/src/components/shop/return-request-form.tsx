@@ -82,7 +82,7 @@ function RequestForm({ order, customerId, deadline }: { order: OrderDetail; cust
       <div className="space-y-4 px-4 py-3 text-sm">
         {asked && (
           <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800 ring-1 ring-emerald-200">
-            Return #{asked.return_id} requested. Bring the items to any JB Hi-Fi store; you&apos;re refunded{" "}
+            Return #{asked.return_id} requested. Bring the items to any TechLight store; you&apos;re refunded{" "}
             {money(asked.value)} once they are checked. Follow it on{" "}
             <Link href={SHOP_PAGES.returns.href} className="font-medium underline">My returns</Link>.
           </p>

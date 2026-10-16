@@ -13,7 +13,7 @@ import { useLoad } from "@/lib/use-load";
 export default function ReturnsPage() {
   return (
     <div className="space-y-5">
-      <title>My returns · JB Hi-Fi</title>
+      <title>My returns · TechLight</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> / My returns
       </nav>
@@ -21,7 +21,7 @@ export default function ReturnsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">My returns</h1>
           <p className="mt-1 text-sm text-neutral-600">
-            Ask for a return from a delivered or collected order, within 30 days. Bring the items to any JB Hi-Fi
+            Ask for a return from a delivered or collected order, within 30 days. Bring the items to any TechLight
             store: once they are checked you&apos;re refunded what you paid.
           </p>
         </div>
@@ -82,7 +82,7 @@ function ReturnCard({ row }: { row: ReturnSummary }) {
       </ul>
       <p className="mt-2 text-xs text-neutral-500">Your reason: {row.reason}</p>
       <div className="mt-3 text-sm">
-        {row.status === "requested" && <>Bring the items to any JB Hi-Fi store. Worth <b>{money(row.value)}</b>.</>}
+        {row.status === "requested" && <>Bring the items to any TechLight store. Worth <b>{money(row.value)}</b>.</>}
         {row.status === "received" && (
           <>Received at {row.received_store_name} on {row.received_at && formatDateTime(row.received_at)}: being checked.</>
         )}
