@@ -34,9 +34,17 @@ BR22 has no store-side guard, unlike BR06. BR06 is a standing state: while a sto
 must stay retail. BR22 is a fact about one moment: the store was retail when the item came in, and a later
 change of store type doesn't undo a past receipt.
 
-**View `v_return_value (return_id, order_id, quantity, value)`**: `return_request LEFT JOIN return_line JOIN
-order_line`, `value = Σ quantity × unit_price` cast to `NUMERIC(10,2)`. The BR14 trigger, T2 and the reads all use
-it, so the refund is computed in one place (derived data is not stored, T-2).
+**View `v_return_value (return_id, order_id, quantity, value)`**: `return_request r LEFT JOIN (return_line rl
+JOIN order_line ol ON …) ON …` — the parenthesised join, because a plain `LEFT JOIN … JOIN` groups left to right
+and its inner join would drop a return that has no lines yet. One row per return; `quantity` and `value`
+(`Σ quantity × unit_price`, cast to `NUMERIC(10,2)`) are `COALESCE`d to 0 and 0.00, so the BR14 trigger never
+compares an amount with `NULL`. The BR14 trigger, T2 and the reads all use it, so the refund is computed in one
+place (derived data is not stored, T-2).
+
+**A return has at least one line** is enforced by the service and the request's shape (`lines` ≥ 1), not by
+the database: the database way would be a deferred constraint trigger, as BR07's, which is beyond Week 10. It is
+acceptable because a return inserted by SQL without lines is worth 0.00, so refunding it inserts no payment row:
+nothing can go wrong with the money.
 
 ## 2. Transactions (`app/services/returns.py`; one call = one transaction, `READ COMMITTED`)
 
