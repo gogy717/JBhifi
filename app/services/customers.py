@@ -1,11 +1,26 @@
 """Customers: the support team's directory, each customer's own record, and their delivery addresses."""
 from app.auth import require_customer_self, require_own_account, require_support
 from app.errors import NotFound
+from app.services.filters import contains_pattern
 
 
-def list_customers(cur, actor):
+def list_customers(cur, actor, q: str | None = None):
+    """The directory (support only). q narrows it to customers whose name or email contains q, in any case;
+    its % and _ are matched literally (contains_pattern escapes them)."""
     require_support(actor)
-    cur.execute("SELECT customer_id, full_name, email FROM customer ORDER BY customer_id")
+    q = (q or "").strip()
+    if not q:
+        cur.execute("SELECT customer_id, full_name, email FROM customer ORDER BY customer_id")
+        return cur.fetchall()
+    pattern = contains_pattern(q)
+    cur.execute(
+        """
+        SELECT customer_id, full_name, email FROM customer
+        WHERE full_name ILIKE %s OR email ILIKE %s
+        ORDER BY customer_id
+        """,
+        (pattern, pattern),
+    )
     return cur.fetchall()
 
 

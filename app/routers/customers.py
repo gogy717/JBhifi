@@ -10,8 +10,9 @@ router = APIRouter(prefix="/customers", tags=["customers"], responses=ERROR_RESP
 
 
 @router.get("", response_model=list[CustomerSummary])
-def list_customers(cur: DbCursor, actor: CurrentActor):
-    return customers.list_customers(cur, actor)
+def list_customers(cur: DbCursor, actor: CurrentActor, q: str | None = None):
+    """The customer directory, for support staff; `q` finds customers by part of their name or email."""
+    return customers.list_customers(cur, actor, q)
 
 
 @router.get("/{customer_id}", response_model=CustomerDetail)
