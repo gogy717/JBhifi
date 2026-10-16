@@ -238,7 +238,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Customers */
+        /**
+         * List Customers
+         * @description The customer directory, for support staff; `q` finds customers by part of their name or email.
+         */
         get: operations["list_customers"];
         put?: never;
         post?: never;
@@ -430,6 +433,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stores/{store_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Store Report
+         * @description Low stock, sales by category and return rate for one store, read from one snapshot: its manager, or
+         *     support staff for any store.
+         */
+        get: operations["store_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/stocked-in-every-store": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stocked In Every Store
+         * @description The products in stock at every retail store of a state (relational division). Any staff member.
+         */
+        get: operations["stocked_in_every_store"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customer_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customer History
+         * @description Everything that happened to a customer — status changes, payments, return requests — newest first: the
+         *     customer themselves, or support staff.
+         */
+        get: operations["customer_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -568,6 +633,34 @@ export interface components {
             /** Parent Name */
             parent_name: string | null;
         };
+        /** CategoryReturnRate */
+        CategoryReturnRate: {
+            /** Category Id */
+            category_id: number;
+            /** Category */
+            category: string;
+            /** Units Sold */
+            units_sold: number;
+            /** Units Returned */
+            units_returned: number;
+            /** Return Rate */
+            return_rate: string | null;
+        };
+        /** CategorySales */
+        CategorySales: {
+            /** Category Id */
+            category_id: number;
+            /** Category */
+            category: string;
+            /** Parent Category */
+            parent_category: string | null;
+            /** Orders */
+            orders: number;
+            /** Units */
+            units: number;
+            /** Revenue */
+            revenue: string;
+        };
         /** CustomerDetail */
         CustomerDetail: {
             /** Customer Id */
@@ -645,6 +738,31 @@ export interface components {
             /** Changed By Name */
             changed_by_name: string | null;
         };
+        /**
+         * HistoryEvent
+         * @description One thing that happened to a customer: an order status change, a payment, or a return request.
+         */
+        HistoryEvent: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Kind */
+            kind: string;
+            /** Order Id */
+            order_id: number;
+            /** Return Id */
+            return_id: number | null;
+            /** From Status */
+            from_status: string | null;
+            /** To Status */
+            to_status: string | null;
+            /** Amount */
+            amount: string | null;
+            /** Staff Name */
+            staff_name: string | null;
+        };
         /** InventoryRow */
         InventoryRow: {
             /** Product Id */
@@ -665,6 +783,23 @@ export interface components {
             is_active: boolean;
             /** Quantity */
             quantity: number;
+        };
+        /** LowStockRow */
+        LowStockRow: {
+            /** Product Id */
+            product_id: number;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Category */
+            category: string;
+            /** Quantity */
+            quantity: number;
+            /** Sold 30D */
+            sold_30d: number;
+            /** Days Of Cover */
+            days_of_cover: string | null;
         };
         /**
          * Me
@@ -868,6 +1003,30 @@ export interface components {
             /** Promotions */
             promotions: components["schemas"]["PromotionOut"][];
         };
+        /** ProductRef */
+        ProductRef: {
+            /** Product Id */
+            product_id: number;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+        };
+        /** ProductReturnRate */
+        ProductReturnRate: {
+            /** Product Id */
+            product_id: number;
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Units Sold */
+            units_sold: number;
+            /** Units Returned */
+            units_returned: number;
+            /** Return Rate */
+            return_rate: string;
+        };
         /** ProductSummary */
         ProductSummary: {
             /** Product Id */
@@ -964,6 +1123,15 @@ export interface components {
              */
             status: "upcoming" | "active" | "ended";
         };
+        /** SalesTotal */
+        SalesTotal: {
+            /** Orders */
+            orders: number;
+            /** Units */
+            units: number;
+            /** Revenue */
+            revenue: string;
+        };
         /** Spec */
         Spec: {
             /** Spec Name */
@@ -999,6 +1167,19 @@ export interface components {
              */
             to_status: "picking" | "ready" | "shipped" | "collected" | "delivered";
         };
+        /**
+         * StockedEverywhere
+         * @description Plan §6 #5: the products in stock at every retail store of the state (`stores`, the divisor). With no
+         *     retail stores in the state, every active product qualifies.
+         */
+        StockedEverywhere: {
+            /** State */
+            state: string;
+            /** Stores */
+            stores: components["schemas"]["StoreRef"][];
+            /** Products */
+            products: components["schemas"]["ProductRef"][];
+        };
         /** StoreOut */
         StoreOut: {
             /** Store Id */
@@ -1015,6 +1196,39 @@ export interface components {
             manager_id: number;
             /** Manager Name */
             manager_name: string;
+        };
+        /** StoreRef */
+        StoreRef: {
+            /** Store Id */
+            store_id: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * StoreReport
+         * @description One store's report, every section read from one snapshot.
+         */
+        StoreReport: {
+            /** Store Id */
+            store_id: number;
+            /** Store Name */
+            store_name: string;
+            /** Days */
+            days: number;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Low Stock */
+            low_stock: components["schemas"]["LowStockRow"][];
+            /** Sales By Category */
+            sales_by_category: components["schemas"]["CategorySales"][];
+            sales_total: components["schemas"]["SalesTotal"];
+            /** Return Rate By Category */
+            return_rate_by_category: components["schemas"]["CategoryReturnRate"][];
+            /** Return Rate By Product */
+            return_rate_by_product: components["schemas"]["ProductReturnRate"][];
         };
         /** StoreStock */
         StoreStock: {
@@ -2278,7 +2492,9 @@ export interface operations {
     };
     list_customers: {
         parameters: {
-            query?: never;
+            query?: {
+                q?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3008,6 +3224,238 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    store_report: {
+        parameters: {
+            query?: {
+                /** @description The window: sales placed in the last `days` days */
+                days?: number;
+            };
+            header?: never;
+            path: {
+                store_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreReport"];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    stocked_in_every_store: {
+        parameters: {
+            query: {
+                /** @description e.g. NSW; the au_state domain decides which exist */
+                state: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockedEverywhere"];
+                };
+            };
+            /** @description Not signed in, or the sign-in token is not valid */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but not allowed to do this */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Rejected by a database rule; code = constraint name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Malformed request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The sign-in provider could not be reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    customer_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryEvent"][];
                 };
             };
             /** @description Not signed in, or the sign-in token is not valid */
