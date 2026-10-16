@@ -169,7 +169,7 @@ function Catalogue() {
           )}
 
           {!products.error && !products.data && (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4">
               {Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-96" />)}
             </div>
           )}
@@ -182,7 +182,7 @@ function Catalogue() {
           )}
 
           {!products.error && rows.length > 0 && (
-            <div className={`grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4
+            <div className={`grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4
               ${products.loading ? "opacity-60" : ""}`}>
               {rows.map((product) => (
                 <ProductCard key={product.product_id} product={product} storeName={store?.name} onAdded={setAdded} />
