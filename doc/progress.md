@@ -4,6 +4,19 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/walkthrough-seed`: the walkthrough on the seeded data
+
+- `docs/demo-walkthrough.md` names the seeded orders, returns and stock instead of placeholders, each checked with
+  SQL on a database rebuilt from `sql/`. Alice: #1141 (delivered about 40 days ago, so BR11 refuses a return),
+  #1436 (collected; return #79 asks for the speaker, the AirPods can still go back), #1488 (ready), #1500 (paid,
+  to cancel). Sydney CBD: return #78 (Ryan Rossi's, received), and the PlayStation 5 with exactly one left — the
+  video's last console; the losing shopper now switches to Chatswood (2 left). The optional API-docs step for
+  BR11 became the BR11 test, since the docs page sends no sign-in token.
+- `scripts/reset_db.py` reads the `sql/` files as UTF-8 (Windows defaults to cp1252), as `tests/conftest.py` does;
+  `demo.py` reads its logs the same way.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/seed-generated-data`: generated customers, orders and returns
 
 Design: `docs/superpowers/specs/2026-10-16-seed-design.md`; plan: `docs/superpowers/plans/2026-10-16-seed.md`.

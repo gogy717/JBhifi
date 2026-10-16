@@ -61,7 +61,7 @@ def rebuild(dbname: str) -> None:
     with conn.cursor() as cur:
         for path in sorted(SQL_DIR.glob("*.sql")):
             print(f"  {path.name}")
-            cur.execute(path.read_text())
+            cur.execute(path.read_text(encoding="utf-8"))   # the files are UTF-8; Windows defaults to cp1252
     conn.close()
 
 

@@ -122,7 +122,7 @@ def answers(url: str) -> bool:
 
 
 def tail(name: str, lines: int = 15) -> str:
-    text = (LOGS / f"{name}.log").read_text(errors="replace").splitlines()
+    text = (LOGS / f"{name}.log").read_text(encoding="utf-8", errors="replace").splitlines()
     return "\n".join(text[-lines:])
 
 
