@@ -5,10 +5,13 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { useShop } from "@/components/shop/context";
+import {
+  Callout, Crumbs, DetailRow, Eyebrow, pillLink, Price, SectionTitle, Skeleton,
+} from "@/components/shop/page-parts";
 import { StoreLine } from "@/components/shop/product-card";
 import { Badge, Button, Card, Empty, ErrorBox, inputClass, StockBadge } from "@/components/ui";
 import { api, call } from "@/lib/api/client";
-import { MAX_QUANTITY } from "@/lib/cart";
+import { fromCents, MAX_QUANTITY, toCents } from "@/lib/cart";
 import { useCart } from "@/lib/cart-context";
 import { money, percentOff } from "@/lib/format";
 import { SHOP_PAGES } from "@/lib/shop-pages";
@@ -34,7 +37,7 @@ export default function ProductPage() {
     return (
       <Card><Empty>
         That isn&apos;t a product number.{" "}
-        <Link href={SHOP_PAGES.catalogue.href} className="underline">Back to the shop</Link>.
+        <Link href={SHOP_PAGES.catalogue.href} className="font-bold text-brand-strong underline">Back to the shop</Link>.
       </Empty></Card>
     );
   }
@@ -46,13 +49,9 @@ export default function ProductPage() {
   const mine = stock.find((row) => row.store_id === store?.store_id);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <title>{`${detail?.name ?? "Product"} · TechLight`}</title>
-      <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
-        <Link href="/" className="hover:underline">Home</Link> /{" "}
-        <Link href={SHOP_PAGES.catalogue.href} className="hover:underline">Shop all products</Link> /{" "}
-        {detail?.name ?? "…"}
-      </nav>
+      <Crumbs trail={[["Home", "/"], ["Shop all products", SHOP_PAGES.catalogue.href], [detail?.name ?? "…"]]} />
 
       {product.error && (
         <div className="flex flex-wrap items-center gap-3">
@@ -60,114 +59,123 @@ export default function ProductPage() {
           <Button onClick={product.reload}>Try again</Button>
         </div>
       )}
-      {!product.error && !detail && <div className="h-40 animate-pulse rounded-xl bg-neutral-200" />}
+      {!product.error && !detail && <Skeleton className="h-[420px]" />}
 
       {detail && (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <div className="space-y-5">
-            <Card className="p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{detail.brand}</div>
-                  <h1 className="mt-1 text-2xl font-semibold tracking-tight">{detail.name}</h1>
-                  <div className="mt-1 font-mono text-xs text-neutral-500">{detail.sku}</div>
-                </div>
-                <div className="flex gap-2">
-                  {detail.on_sale && <Badge tone="sale">{percentOff(detail.base_price, detail.current_price)}</Badge>}
+        <>
+          <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-10">
+            {/* The product image block. The database has no product photos: the tile shows the brand. */}
+            <div className="relative flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-panel bg-sand
+              p-8 sm:min-h-[420px]">
+              {detail.on_sale && (
+                <span className="absolute top-5 left-5 rounded-full bg-brand-strong px-3.5 py-1.5 text-[15px] font-extrabold
+                  text-white uppercase">
+                  {percentOff(detail.base_price, detail.current_price)}
+                </span>
+              )}
+              <span className="font-display text-[28px] font-bold tracking-[-0.02em] text-muted">{detail.brand}</span>
+              <span className="text-[13px] font-semibold tracking-[0.08em] text-faint uppercase">{detail.category}</span>
+            </div>
+
+            <div className="flex flex-col gap-5">
+              <div className="space-y-2">
+                <Eyebrow>{detail.brand} · {detail.category}</Eyebrow>
+                <h1 className="font-display text-[28px] leading-[1.15] font-bold tracking-[-0.025em] sm:text-[34px]">
+                  {detail.name}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-[13px] text-muted">{detail.sku}</span>
                   {!detail.is_active && <Badge>retired</Badge>}
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-wrap items-end gap-3">
-                <span className="text-3xl font-bold">{money(detail.current_price)}</span>
+              <div className="space-y-1">
+                <Price size="xl" value={detail.current_price} was={detail.on_sale ? detail.base_price : undefined} />
                 {detail.on_sale && (
-                  <s className="text-neutral-500"><span className="sr-only">was </span>{money(detail.base_price)}</s>
+                  <p className="text-[15px] font-bold text-brand-strong">
+                    Save {money(fromCents(toCents(detail.base_price) - toCents(detail.current_price)))}
+                  </p>
                 )}
               </div>
 
+              {mine && <StoreLine quantity={mine.quantity} storeName={store?.name} />}
+
               {!detail.is_active && (
-                <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <Callout tone="warn">
                   This product has been retired, so it can&apos;t be bought (BR07). Its record is kept because past
                   orders point to it.
-                </p>
+                </Callout>
               )}
 
-              <div className="mt-5 flex flex-wrap items-end gap-3">
-                <label className="block w-28">
-                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                    Quantity
-                  </span>
+              <div className="flex flex-wrap items-end gap-3 rounded-card border border-line bg-white p-4">
+                <label className="block w-24">
+                  <span className="mb-1.5 block text-[12px] font-bold tracking-[0.08em] text-muted uppercase">Quantity</span>
                   <input className={inputClass} type="number" min={1} max={MAX_QUANTITY} step={1} value={quantity}
                     onChange={(event) => setQuantity(event.target.value)} />
                 </label>
                 {/* Enabled even when My store has none: a delivery can ship from another store. */}
-                <Button tone="primary" disabled={!detail.is_active}
+                <Button tone="primary" className="min-w-40 flex-1" disabled={!detail.is_active}
                   onClick={() => {
                     addItem(detail.product_id, units);
                     setAdded(units);
                   }}>
                   Add to cart
                 </Button>
-                <Link href={SHOP_PAGES.cart.href}
-                  className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-100">
-                  Go to cart
-                </Link>
+                <Link href={SHOP_PAGES.cart.href} className={pillLink("outline")}>Go to cart</Link>
               </div>
               {added !== undefined && (
-                <p role="status" className="mt-3 text-sm text-emerald-800">
+                <Callout tone="ok" role="status">
                   Added {added} to your cart. Stock is only taken when checkout commits.
+                </Callout>
+              )}
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-10">
+            <section>
+              <SectionTitle>Specifications</SectionTitle>
+              <Card>
+                {detail.specs.length === 0
+                  ? <Empty>No specifications recorded for this product.</Empty>
+                  : (
+                    <dl className="divide-y divide-line">
+                      {detail.specs.map((spec) => (
+                        <DetailRow key={spec.spec_name} label={spec.spec_name}>{spec.spec_value}</DetailRow>
+                      ))}
+                    </dl>
+                  )}
+              </Card>
+            </section>
+
+            <section>
+              <SectionTitle aside={<span className="text-[13px] text-muted">R3</span>}>Where it is in stock</SectionTitle>
+              <Card>
+                <ul className="divide-y divide-line">
+                  {stock.map((row) => {
+                    const isMine = row.store_id === store?.store_id;
+                    return (
+                      <li key={row.store_id}
+                        className={`flex items-center justify-between gap-3 px-5 py-3 ${isMine ? "bg-brand-soft" : ""}`}>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 font-semibold">
+                            {row.store_name}
+                            {row.store_type === "warehouse" && <Badge tone="blue">warehouse</Badge>}
+                            {isMine && <Badge tone="sale">your store</Badge>}
+                          </div>
+                          <div className="text-[13px] text-muted">{row.state}</div>
+                        </div>
+                        <StockBadge quantity={row.quantity} />
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="border-t border-line px-5 py-3 text-[13px] text-muted">
+                  To collect from another store, change “My store” at the top of the page.
                 </p>
-              )}
-              {mine && (
-                <div className="mt-4 border-t border-neutral-200 pt-3">
-                  <StoreLine quantity={mine.quantity} storeName={store?.name} />
-                </div>
-              )}
-            </Card>
-
-            <Card title="Specifications">
-              {detail.specs.length === 0
-                ? <Empty>No specifications recorded for this product.</Empty>
-                : (
-                  <dl className="divide-y divide-neutral-100">
-                    {detail.specs.map((spec) => (
-                      <div key={spec.spec_name} className="flex gap-4 px-4 py-2.5 text-sm">
-                        <dt className="w-40 shrink-0 text-neutral-500">{spec.spec_name}</dt>
-                        <dd className="text-neutral-900">{spec.spec_value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                )}
-            </Card>
+              </Card>
+            </section>
           </div>
-
-          <Card title="Where it is in stock" actions={<span className="text-xs text-neutral-500">R3</span>}>
-            <ul className="divide-y divide-neutral-100">
-              {stock.map((row) => {
-                const isMine = row.store_id === store?.store_id;
-                return (
-                  <li key={row.store_id}
-                    className={`flex items-center justify-between gap-3 px-4 py-2.5 text-sm ${isMine ? "bg-cream" : ""}`}>
-                    <div>
-                      <div className="font-medium text-neutral-900">
-                        {row.store_name}
-                        {row.store_type === "warehouse" && (
-                          <span className="ml-2"><Badge tone="blue">warehouse</Badge></span>
-                        )}
-                        {isMine && <span className="ml-2"><Badge tone="sale">your store</Badge></span>}
-                      </div>
-                      <div className="text-xs text-neutral-500">{row.state}</div>
-                    </div>
-                    <StockBadge quantity={row.quantity} />
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="border-t border-neutral-200 px-4 py-3 text-xs text-neutral-500">
-              To collect from another store, change “My store” at the top of the page.
-            </p>
-          </Card>
-        </div>
+        </>
       )}
     </div>
   );
