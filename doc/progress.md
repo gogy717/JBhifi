@@ -31,7 +31,7 @@ product code, no `sql/`).
 **Open.** Whether the Week 9 lecture covered SQL isolation levels is unconfirmed; until it is, the
 `REPEATABLE READ` / `SERIALIZABLE` material is marked *optional — confirm against the Week 9 transactions lecture*.
 
-**Verification (actually run).** `pytest` → **607 passed** (8 new); `test_concurrency_evidence.py` five times in a
+**Verification (actually run).** `pytest` → **618 passed** (8 new); `test_concurrency_evidence.py` five times in a
 row → 8/8 each; no demo table left in the test database afterwards. Dropping `AND quantity >= 1` from the
 conditional `UPDATE` makes its test fail (BR03 refuses B's write).
 
