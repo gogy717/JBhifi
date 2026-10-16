@@ -14,6 +14,8 @@ plan §6, and its return figures were wrong); every query was derived again.
 
 - **`v_sale_line`** (the only SQL change): what counts as a sale, defined once — an order line of a paid order
   that isn't cancelled, dated by `placed_at`, credited to the fulfilling store, at the price paid.
+  `sql/` runs only on an empty volume, so an existing dev database needs the view added (rebuild it, or run the
+  `-- ===== SP4: reports =====` section of `sql/03_views.sql`); without it the report answers 500.
 - **Store report**, `GET /api/v1/stores/{id}/report?days=` (the store's manager, or support for any store):
   low stock (plan §6 #4: down to 3, or under 14 days of cover at the last 30 days' rate — a `HAVING` on the sales
   total), sales by category with the store's total, and return rate by category and product (§6 #6: of the units

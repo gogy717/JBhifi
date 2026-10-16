@@ -44,9 +44,10 @@ All queries use `%s` parameters. The window is `s.placed_at >= now() - make_inte
    product (products sold in the window). The sold lines `LEFT JOIN` a derived table of returned units **per order
    line**: `SELECT order_id, line_no, sum(quantity) FROM return_line JOIN return_request … WHERE status <> 'rejected'
    GROUP BY order_id, line_no`. `rate = round(COALESCE(sum(returned), 0)::numeric / NULLIF(sum(sold), 0), 4)`:
-   `0.0000` when nothing came back, null when nothing was sold. The `::numeric` matters: `sum()` of an `INT` column is
-   a `bigint`, and `bigint / bigint` is integer division, which would make every rate 0 or 1. Two mistakes this
-   layout avoids, for the report:
+   `0.0000` when nothing came back, null when nothing was sold. The `::numeric` is a guard: `sum()` of an `INT` column
+   is a `bigint`, and `bigint / bigint` is integer division (1 of 4 back would read 0). Here the numerator is a sum
+   of the derived table's sums, which PostgreSQL already makes `numeric`, but the explicit cast keeps the division
+   exact whatever the inputs. Two mistakes this layout avoids, for the report:
    - **Fan-out.** Joining `return_line` before aggregating repeats a sale line once per return line, so a line with
      two partial returns counts its sold units twice. Each sale line meets at most one aggregated row here.
    - **`WHERE` turning the outer join into an inner join.** `WHERE rr.status <> 'rejected'` on the outer query drops
