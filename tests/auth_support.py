@@ -55,7 +55,9 @@ def as_subject(subject: str, email: str, *, name: str = "Test User", verified: b
 # Seeded staff the tests sign in as (sql/10_seed_reference.sql).
 STAFF_EMAILS = {
     1: "olivia.nguyen@jbhifi.example",      # manages Sydney CBD (store 1)
+    13: "hannah.walker@jbhifi.example",     # manages Eastern Creek DC (store 13, the warehouse)
     14: "aiden.chen@jbhifi.example",        # works at Sydney CBD
+    15: "zara.ahmed@jbhifi.example",        # works at Sydney CBD
     16: "isla.robinson@jbhifi.example",     # works at Bondi Junction (store 2)
     40: "nora.fitzgerald@jbhifi.example",   # support
 }

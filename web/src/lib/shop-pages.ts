@@ -1,7 +1,7 @@
 // The customer pages of Phase 1 (plan §7): what each one does, which requirements, rules and transaction it
-// covers, and the API it calls. Only /returns is still reserved (it comes with T2): it shows its entry as a
-// ReservedPage, so whoever builds it knows where to start. R# and BR# refer to .claude/plan.md §3, T# to §5,
-// slices to §10.
+// covers, and the API it calls. Every page is built now; a page planned later can show its entry as a
+// ReservedPage (components/shop/reserved.tsx), so whoever builds it knows where to start. R# and BR# refer to
+// .claude/plan.md §3, T# to §5, slices to §10.
 
 export type Endpoint = { method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string; exists: boolean };
 
@@ -34,11 +34,11 @@ export const RULES: Record<string, string> = {
   BR07: "Line quantity > 0; a product once per order, and only while on sale; every order has a line",
   BR08: "A line keeps the price it was sold at",
   BR09: "Status follows the allowed transitions, and is logged",
-  BR10: "A retried checkout creates at most one order",
+  BR10: "A retried checkout or return request creates at most one order or return",
   BR11: "Returns only for completed orders, within 30 days",
   BR12: "Returned quantity ≤ purchased quantity",
   BR13: "Return lines come from the returned order",
-  BR14: "Refunds never exceed what was charged",
+  BR14: "A return's refund is what its items were bought for; refunds never exceed what was charged",
   BR15: "Promotions: below base price, never overlapping",
   BR16: "Addresses are never edited, only replaced",
   BR17: "A delivery address belongs to the customer and is current",
@@ -138,13 +138,13 @@ export const SHOP_PAGES = {
     features: [
       "Lines keep the price they were sold at; the payment shows charged, refunded and the balance",
       "Timeline from order_status_history: every status change, when, and by whom; then what can happen next",
-      "Requesting a return for delivered or collected orders comes with T2",
+      "Delivered or collected orders: ask to return items within 30 days, at the prices paid; a retry keeps its key",
     ],
-    requirements: ["R5", "R11"],
-    rules: ["BR08", "BR09", "BR16", "BR20"],
+    requirements: ["R5", "R6", "R11"],
+    rules: ["BR08", "BR09", "BR10", "BR11", "BR12", "BR16", "BR20"],
     api: [
       get("/api/v1/orders/{order_id}", true),
-      { method: "POST", path: "/api/v1/orders/{order_id}/returns  (header: Idempotency-Key)", exists: false },
+      { method: "POST", path: "/api/v1/orders/{order_id}/returns  (header: Idempotency-Key)", exists: true },
     ],
     slice: "B — Orders & checkout",
   },
@@ -153,13 +153,14 @@ export const SHOP_PAGES = {
     title: "My returns",
     summary: "Returns you have requested, and where each one is up to: requested → received → refunded.",
     features: [
-      "Status of each return and the refund amount once refunded",
-      "Rejected returns stay visible (rejected is final)",
+      "Status of each return: requested → received → refunded, or rejected with the store's reason",
+      "What came back, at the prices paid, and the refund: exactly what the items were bought for (BR14)",
+      "Rejected returns stay visible (rejected is final), and their items can be asked for again",
     ],
     requirements: ["R6"],
     rules: ["BR11", "BR12", "BR14"],
     transaction: "T2",
-    api: [get("/api/v1/customers/{customer_id}/returns", false)],
+    api: [get("/api/v1/customers/{customer_id}/returns", true)],
     slice: "C — Returns, staff & reporting",
   },
   stores: {

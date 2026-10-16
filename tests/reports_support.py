@@ -140,9 +140,10 @@ def a_return(cur, order_id: int, lines: list[tuple[int, int]], *, status: str = 
              at_store: tuple[int, int] | None = None) -> int:
     """A return of lines = [(line_no, quantity), ...] from a collected order, left `requested`, or moved on to
     `received` or `rejected` — received at at_store = (store_id, staff_id), by default the order's own store and
-    its manager."""
-    cur.execute("INSERT INTO return_request (order_id, reason) VALUES (%s, 'Report test') RETURNING return_id",
-                (order_id,))
+    its manager. As the returns API does (SP3): a request carries a retry key, a receipt records where, by whom and
+    when, and a return is rejected only once received, with a reason and who rejected it."""
+    cur.execute("INSERT INTO return_request (order_id, idempotency_key, reason) "
+                "VALUES (%s, gen_random_uuid(), 'Report test') RETURNING return_id", (order_id,))
     return_id = cur.fetchone()["return_id"]
     for line_no, quantity in lines:
         cur.execute("INSERT INTO return_line (return_id, line_no, order_id, quantity) VALUES (%s, %s, %s, %s)",
@@ -158,8 +159,14 @@ def a_return(cur, order_id: int, lines: list[tuple[int, int]], *, status: str = 
             )
             at_store = tuple(cur.fetchone().values())
         cur.execute(
-            "UPDATE return_request SET status = %s, received_store_id = %s, processed_by_staff_id = %s "
-            "WHERE return_id = %s",
-            (status, *at_store, return_id),
+            "UPDATE return_request SET status = 'received', received_store_id = %s, processed_by_staff_id = %s, "
+            "received_at = now() WHERE return_id = %s",
+            (*at_store, return_id),
+        )
+    if status == "rejected":
+        cur.execute(
+            "UPDATE return_request SET status = 'rejected', rejection_reason = 'Report test', "
+            "resolved_by_staff_id = processed_by_staff_id, resolved_at = now() WHERE return_id = %s",
+            (return_id,),
         )
     return return_id

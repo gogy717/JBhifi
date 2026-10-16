@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { useShop } from "@/components/shop/context";
 import { StatusBadge } from "@/components/shop/order-timeline";
+import { RecentReturns } from "@/components/shop/recent-returns";
 import { Badge, Button, ErrorBox, LOW_STOCK } from "@/components/ui";
 import { type ApiError, api, call, type OrderSummary, type Promotion, type Store } from "@/lib/api/client";
 import { formatDate, formatDateTime, formatLastDay, money, percentOff } from "@/lib/format";
@@ -165,13 +166,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ---------------------------------------------------------------- my orders, and returns (reserved) */}
+      {/* ---------------------------------------------------------------- my orders and returns */}
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <RecentOrders checking={customerLoading} signedIn={customer !== undefined}
           staff={session.status === "signed-in" && session.me.kind === "staff"} orders={recentOrders}
           error={orders.error} />
-        <ReservedCard title="Returns" href={SHOP_PAGES.returns.href} waitsFor="returns processing (T2)"
-          body="Returns in progress will appear here: requested → received → refunded, within the 30-day window." />
+        <RecentReturns />
       </section>
 
       {/* ---------------------------------------------------------------- stores */}
@@ -285,20 +285,6 @@ function RecentOrders({ checking, signedIn, staff, orders, error }: {
             ))}
           </ul>
         )}
-    </div>
-  );
-}
-
-function ReservedCard({ title, href, waitsFor, body }: { title: string; href: string; waitsFor: string; body: string }) {
-  return (
-    <div className="rounded-xl border-2 border-dashed border-neutral-300 bg-white/60 p-5">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-bold">{title}</h2>
-        <Badge tone="amber">Reserved</Badge>
-      </div>
-      <p className="mt-2 text-sm text-neutral-600">{body}</p>
-      <p className="mt-1 text-xs text-neutral-500">Appears once {waitsFor} is built.</p>
-      <Link href={href} className="mt-3 inline-block text-sm font-medium hover:underline">Open {title} →</Link>
     </div>
   );
 }

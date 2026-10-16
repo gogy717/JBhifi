@@ -10,7 +10,9 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from tests.auth_support import as_customer, as_staff
+from tests.checkout_support import committed
 from tests.orders_support import paid_order
+from tests.returns_support import completed_order
 
 client = TestClient(app)
 API = "/api/v1"
@@ -42,6 +44,7 @@ STALE_CANCEL = {"from_status": "picking"}
 # POST /orders needs an Idempotency-Key: without one it is a 422 for everyone, before anyone is asked who they
 # are. Every request carries this one; the other endpoints ignore it.
 RETRY_KEY = "5d6c3b9e-8f1a-4e2b-9c7d-0a1b2c3d4e5f"
+RETURN = {"reason": "Changed my mind", "lines": [{"line_no": 1, "quantity": 1}]}
 
 ENDPOINTS = [
     ("GET", "/me", None, SIGNED_IN),
@@ -82,6 +85,17 @@ ENDPOINTS = [
     ("GET", "/customers?q=a", None, {"nora"}),
     ("GET", "/customers/{alice}/history", None, {"alice", "nora"}),
     ("GET", "/customers/999999/history", None, {"nora"}),
+    # Returns. Alice's order is paid, not collected: her request is refused by BR11 (409), nothing kept.
+    ("POST", "/orders/{alice_order}/returns", RETURN, {"alice"}),
+    ("POST", "/orders/999999/returns", RETURN, set()),                     # no such order: still 403
+    ("GET", "/returns/{alice_return}", None, {"alice", "aiden", "isla", "olivia", "nora"}),   # requested: any retail store
+    ("GET", "/returns/999999", None, {"nora"}),                             # others learn nothing: 403
+    ("GET", "/customers/{alice}/returns", None, {"alice", "nora"}),
+    ("GET", "/customers/999999/returns", None, {"nora"}),
+    ("GET", "/stores/1/returns", None, {"aiden", "olivia", "nora"}),
+    ("POST", "/returns/999999/receive", None, set()),                      # acting on a missing return: 403
+    ("POST", "/returns/999999/refund", None, set()),
+    ("POST", "/returns/999999/reject", {"reason": "Scratched"}, set()),
 ]
 
 
@@ -96,10 +110,21 @@ def alice_order() -> int:
     return paid_order(ALICE, [("APL-AP4", 1)])
 
 
+@cache
+def alice_return() -> int:
+    """A requested return of one AirPods from a collected order of Alice's at Sydney CBD."""
+    order_id = completed_order(ALICE, [("APL-AP4", 1)])
+    rows = committed("""INSERT INTO return_request (order_id, idempotency_key, reason)
+                        VALUES (%s, gen_random_uuid(), 'Too big') RETURNING return_id""", (order_id,))
+    committed("INSERT INTO return_line (return_id, line_no, order_id, quantity) VALUES (%s, 1, %s, 1)",
+              (rows[0]["return_id"], order_id))
+    return rows[0]["return_id"]
+
+
 @pytest.mark.parametrize("method, path, body, allowed", ENDPOINTS, ids=[f"{m} {p}" for m, p, _, _ in ENDPOINTS])
 @pytest.mark.parametrize("caller", sorted(CALLERS))
 def test_who_may_call_what(caller, method, path, body, allowed):
-    url = API + path.format(alice=alice_id(), alice_order=alice_order())
+    url = API + path.format(alice=alice_id(), alice_order=alice_order(), alice_return=alice_return())
     response = client.request(method, url, json=body, headers={**CALLERS[caller](), "Idempotency-Key": RETRY_KEY})
     if caller in allowed:
         assert response.status_code not in (401, 403), response.text

@@ -66,6 +66,8 @@ export type StaffMove = Schemas["StatusMove"]["to_status"];
 export type StoreReport = Schemas["StoreReport"];
 export type StockedEverywhere = Schemas["StockedEverywhere"];
 export type HistoryEvent = Schemas["HistoryEvent"];
+export type ReturnSummary = Schemas["ReturnSummary"];
+export type ReturnDetail = Schemas["ReturnDetail"];
 
 /** The 409s the application itself answers: at checkout (T1), the price changed since the review or the stock ran
  *  out; on an order's status, it moved on since the screen showed it (status_changed). Every other 409 is the
