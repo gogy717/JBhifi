@@ -51,6 +51,7 @@ def timeline_breaks(cur, text: str, anchor: str) -> dict:
         cur.execute("SET LOCAL timezone = 'Australia/Sydney'")
         cur.execute("SELECT set_config('seed.anchor', %s, true)", (anchor,))
         cur.execute(text.replace("\nBEGIN;\n", "\n", 1).replace("\nCOMMIT;\n", "\n", 1))
+        cur.execute("ANALYZE")             # statistics of the rows just loaded (rolled back with them), not stale ones
         found = {}
         for check, query in TIMELINE_CHECKS.items():
             cur.execute(query)
@@ -79,6 +80,9 @@ def seeded():
             started = time.monotonic()
             cur.execute(text)
             loaded_in = time.monotonic() - started
+            # The replays inserted and rolled back thousands of rows, which can make autovacuum ANALYZE these tables
+            # while they are empty; fresh statistics keep the checks' plans fit for 1,500 orders.
+            cur.execute("ANALYZE")
             yield cur, opening, regenerated, loaded_in, anchored
     finally:
         conn.close()
@@ -93,6 +97,13 @@ def test_the_committed_file_is_what_the_generator_writes(seeded):
     _, _, regenerated, loaded_in, _ = seeded
     print(f"\nseed loaded in {loaded_in:.1f} s")
     assert gen.SEED_FILE.read_text(encoding="utf-8") == regenerated, "run: python scripts/generate_seed.py"
+
+
+def test_the_checks_are_planned_on_the_loaded_rows(seeded):
+    """The replays above insert and roll back thousands of rows, so autovacuum may ANALYZE these tables while they
+    are empty; planned on those statistics (0 rows), the checks below take minutes instead of milliseconds."""
+    assert rows(seeded[0], "SELECT reltuples FROM pg_class WHERE relname = 'customer_order'") \
+        == [{"reltuples": gen.ORDERS}]
 
 
 def test_the_history_checks_find_nothing(seeded):

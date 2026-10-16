@@ -38,8 +38,8 @@ Plan §7's data volume, returns included (rebased on SP3 and SP4).
 - Considered and rejected: a rule that history times never go backwards. `now()` is a transaction's start time,
   so a request that waited on a lock can legitimately write an earlier time than the row before it.
 
-**Verification (actually run).** `pytest` → **664 passed** (46 new): the BR09 time test, the helpers (12), the
-planner (18) and the loaded seed (15). The loaded seed:
+**Verification (actually run).** `pytest` → **671 passed** (47 new): the BR09 time test, the helpers (12), the
+planner (18) and the loaded seed (16). The loaded seed:
 - passes the history checks;
 - matches money to every order's status and every return's;
 - runs every order's and return's timeline forward and dates nothing after `now()`;
