@@ -4,6 +4,50 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/sp4-reports-support-queries`: manager reports and support lookup (R9, R10)
+
+Design: `docs/superpowers/specs/2026-10-16-reports-support-design.md`; plan: `docs/superpowers/plans/2026-10-16-reports-support.md`.
+Sub-project 4 of 4 that finish the Phase 1 business logic. Yuhang's report code was not ported (it doesn't follow
+plan §6, and its return figures were wrong); every query was derived again.
+
+**What's on the branch.**
+
+- **`v_sale_line`** (the only SQL change): what counts as a sale, defined once — an order line of a paid order
+  that isn't cancelled, dated by `placed_at`, credited to the fulfilling store, at the price paid.
+  `sql/` runs only on an empty volume, so an existing dev database needs the view added (rebuild it, or run the
+  `-- ===== SP4: reports =====` section of `sql/03_views.sql`); without it the report answers 500.
+- **Store report**, `GET /api/v1/stores/{id}/report?days=` (the store's manager, or support for any store):
+  low stock (plan §6 #4: down to 3, or under 14 days of cover at the last 30 days' rate — a `HAVING` on the sales
+  total), sales by category with the store's total, and return rate by category and product (§6 #6: of the units
+  sold in the window, how many came back; returns summed per order line before the outer join, the rejected
+  filter inside that subquery, `NULLIF` for nothing sold). Every section is read in one
+  `REPEATABLE READ READ ONLY` transaction: the service commits the request's sign-in step, then sets the
+  isolation level as the new transaction's first statement (`app/db.py` and `app/auth.py` unchanged).
+- **Relational division** (§6 #5), `GET /api/v1/reports/stocked-in-every-store?state=`: products in stock at every
+  retail store of a state (double `NOT EXISTS`); a misspelt state is a 409 from the `au_state` domain, and a state
+  with no retail stores lists every product (vacuous truth), with the divisor stores in the answer.
+- **Support lookup** (R10): `GET /api/v1/customers?q=` searches names and emails; `GET /api/v1/customers/{id}/history`
+  merges status changes (with the staff member), payments and return requests in one `UNION ALL`, newest first,
+  with an explicit sort step so same-instant events read in order: placed → charge → paid at checkout, refund →
+  cancelled on a cancellation.
+- **Web**: `/admin/reports` (7 / 30 / 90 days, the four sections, the division panel) and `/admin/support` (search,
+  profile, orders, history).
+
+**Decisions.** Spec §1: the sale definition; `days` 1–365 (default 30) with low stock's rate fixed at 30 days;
+return rate by the cohort sold in the window (recent windows read low: items have 30 days to come back);
+managers plus support read reports; the returns list on the support page will use SP3's endpoint, and is hidden
+until SP3 is merged; indexes and `EXPLAIN` move to a separate PR after the seed (T-8).
+
+**Verification (actually run, after rebasing on SP2).** `pytest` → **488 passed** (92 new: 33 in
+`test_reports.py`, 10 in `test_support.py`, 49 permission-matrix cases), including the report §4 evidence pair
+`test_repeatable_read_keeps_a_sale_committed_mid_report_out_of_every_section` /
+`test_read_committed_would_let_a_sale_committed_mid_report_into_later_sections`. Web `typecheck`, `lint` and `build`
+clean; `test:unit` → **20 passed**. A final whole-branch review found nothing critical or important; its minor
+findings are listed in the pull request. **Not done:** the in-browser walk-through (Clerk sign-in needs the
+personas' passwords).
+
+---
+
 ## 2026-10-16 — Branch `gogy717/sp2-order-fulfilment-cancellation`: staff status moves, store queue, cancellation (T4)
 
 Design: `docs/superpowers/specs/2026-10-16-fulfilment-design.md`; plan: `docs/superpowers/plans/2026-10-16-fulfilment.md`.

@@ -75,6 +75,13 @@ ENDPOINTS = [
     ("POST", "/orders/999999/status", STALE_MOVE, {"nora"}),
     ("POST", "/orders/{alice_order}/cancel", STALE_CANCEL, {"alice", "aiden", "olivia"}),   # 409: it is paid
     ("POST", "/orders/999999/cancel", STALE_CANCEL, set()),                 # support never cancels
+    ("GET", "/stores/1/report", None, {"olivia", "nora"}),                 # the store's manager, support
+    ("GET", "/stores/2/report", None, {"nora"}),                           # Olivia manages store 1 only
+    ("GET", "/stores/999999/report", None, {"nora"}),                      # others learn nothing: 403
+    ("GET", "/reports/stocked-in-every-store?state=NSW", None, STAFF),
+    ("GET", "/customers?q=a", None, {"nora"}),
+    ("GET", "/customers/{alice}/history", None, {"alice", "nora"}),
+    ("GET", "/customers/999999/history", None, {"nora"}),
 ]
 
 

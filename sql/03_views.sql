@@ -71,3 +71,24 @@ SELECT h.order_id,
        st.full_name AS changed_by_name
 FROM order_status_history h
 LEFT JOIN staff st ON st.staff_id = h.changed_by_staff_id;
+
+-- ===== SP4: reports =====
+
+-- R9: what counts as a sale, defined once for every report. A sale is an order line whose order is paid and not
+-- cancelled ('placed' exists only inside checkout, before the charge). It is dated by when the order was placed
+-- and credited to the store that fulfils it — the store checkout took the stock from, and the one a cancellation
+-- puts it back into — at the price paid (order_line.unit_price, plan T-1), not today's price.
+CREATE VIEW v_sale_line AS
+SELECT o.order_id,
+       l.line_no,
+       o.fulfilling_store_id       AS store_id,
+       o.placed_at,
+       l.product_id,
+       p.category_id,
+       l.quantity,
+       l.unit_price,
+       l.quantity * l.unit_price   AS line_total
+FROM customer_order o
+JOIN order_line l ON l.order_id = o.order_id
+JOIN product p    ON p.product_id = l.product_id
+WHERE o.status NOT IN ('placed', 'cancelled');
