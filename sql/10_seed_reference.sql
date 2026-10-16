@@ -243,11 +243,13 @@ CROSS JOIN product p;
 -- ---------------------------------------------------------------- demo customers
 -- The storefront's "signed in as" switcher (a stand-in for the plan's demo login) picks one of these.
 
-INSERT INTO customer (email, full_name, phone) VALUES
-    ('alice.morgan@example.com', 'Alice Morgan', '0412 345 678'),
-    ('ben.okafor@example.com',   'Ben Okafor',   '0423 456 789'),
-    ('mei.zhou@example.com',     'Mei Zhou',     '0434 567 890'),
-    ('tom.fraser@example.com',   'Tom Fraser',   NULL);
+-- Long-standing customers: they signed up well before the generated orders (20_seed_generated.sql) begin,
+-- relative to the build date like the promotions above.
+INSERT INTO customer (email, full_name, phone, created_at) VALUES
+    ('alice.morgan@example.com', 'Alice Morgan', '0412 345 678', date_trunc('day', now()) - interval '400 days'),
+    ('ben.okafor@example.com',   'Ben Okafor',   '0423 456 789', date_trunc('day', now()) - interval '300 days'),
+    ('mei.zhou@example.com',     'Mei Zhou',     '0434 567 890', date_trunc('day', now()) - interval '250 days'),
+    ('tom.fraser@example.com',   'Tom Fraser',   NULL,           date_trunc('day', now()) - interval '200 days');
 
 INSERT INTO customer_address (customer_id, address_no, line1, suburb, state, postcode, is_active)
 SELECT c.customer_id, v.address_no, v.line1, v.suburb, v.state, v.postcode, v.is_active
