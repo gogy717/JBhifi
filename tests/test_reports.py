@@ -8,9 +8,14 @@ from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
+from app.auth import Actor
 from app.main import app
+from app.services import reports
 from app.services.reports import build_store_report
 from tests.auth_support import as_customer, as_staff
+from tests.checkout_support import a_product as a_committed_product
+from tests.orders_support import paid_order
+from tests.support import connect
 from tests.reports_support import a_category, a_product, a_return, a_sale, a_store, cancel, collect
 
 
@@ -305,3 +310,56 @@ def test_support_reads_any_stores_report_and_is_told_when_a_store_does_not_exist
 def test_customers_and_guests_cannot_read_reports():
     assert error_of(get_report(1, as_customer("report.reader@example.com"))) == (403, "staff_only")
     assert error_of(get_report(1, {})) == (401, "not_signed_in")
+
+
+# ---------------------------------------------------------------- one snapshot (report §4 evidence)
+# A sale is committed on another connection while the report is half read: after the sales by category, before
+# the total and the return rates. These assertions hold whatever else store 1 has sold.
+
+SUPPORT = Actor("staff", NORA, "Nora Fitzgerald", staff_type="support")
+
+
+def a_sale_committed_after_the_category_query(monkeypatch, price: str = "100.00") -> dict:
+    """Patch the report so that, right after its sales-by-category query, another connection commits a sale at
+    store 1 of a fresh product; return that product. Tells the report's transaction settings too."""
+    product = a_committed_product(price)
+    seen = {}
+    category_query = reports._sales_by_category
+
+    def then_a_sale(cur, store_id, days):
+        rows = category_query(cur, store_id, days)
+        cur.execute("SELECT current_setting('transaction_isolation') AS isolation, "
+                    "current_setting('transaction_read_only') AS read_only")
+        seen.update(cur.fetchone())
+        paid_order("snapshot.buyer@example.com", [(product["sku"], 1)], store_id=1)
+        return rows
+
+    monkeypatch.setattr(reports, "_sales_by_category", then_a_sale)
+    return {**product, "seen": seen}
+
+
+def read_report(run):
+    conn = connect()
+    try:
+        with conn, conn.cursor() as cur:
+            return run(cur)
+    finally:
+        conn.close()
+
+
+def test_repeatable_read_keeps_a_sale_committed_mid_report_out_of_every_section(monkeypatch):
+    sale = a_sale_committed_after_the_category_query(monkeypatch)
+    result = read_report(lambda cur: reports.store_report(cur, SUPPORT, 1, 30))
+    assert sale["seen"] == {"isolation": "repeatable read", "read_only": "on"}
+    assert sale["product_id"] not in {row["product_id"] for row in result["return_rate_by_product"]}
+    assert sum(row["revenue"] for row in result["sales_by_category"]) == result["sales_total"]["revenue"]
+    assert sum(row["units"] for row in result["sales_by_category"]) == result["sales_total"]["units"]
+
+
+def test_read_committed_would_let_a_sale_committed_mid_report_into_later_sections(monkeypatch):
+    sale = a_sale_committed_after_the_category_query(monkeypatch, price="100.00")
+    result = read_report(lambda cur: build_store_report(cur, 1, 30))        # no SET TRANSACTION: READ COMMITTED
+    assert sale["seen"]["isolation"] == "read committed"
+    assert sale["product_id"] in {row["product_id"] for row in result["return_rate_by_product"]}
+    categories = sum(row["revenue"] for row in result["sales_by_category"])
+    assert result["sales_total"]["revenue"] - categories == Decimal("100.00")   # the total saw the sale, they didn't

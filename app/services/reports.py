@@ -190,6 +190,21 @@ def _require_report_reader(actor, store_id: int):
 
 
 def store_report(cur, actor, store_id: int, days: int) -> dict:
-    """R9: one store's report."""
+    """R9: one store's report, every section read from one snapshot (plan §5 Reads).
+
+    One statement always sees one snapshot, but the report runs several, and under READ COMMITTED (the default)
+    each statement sees whatever has committed by the time it starts: a sale committed between the category
+    query and the total would be in the total but not in the categories. REPEATABLE READ takes the snapshot at
+    the transaction's first query and keeps it to the end; READ ONLY says the report changes nothing.
+
+    The isolation level has to be set before a transaction's first query, and the request's transaction has
+    already run queries: the sign-in step (current_actor) looked up who is calling. So the permission check runs
+    first (it needs no query), then that transaction is committed — the only write it can hold is the
+    user_account row of a first sign-in, which would be committed anyway — and the report runs in a new one.
+    This is still one transaction per service call: the sign-in step isn't part of this service, and everything
+    the service reads is read in that one transaction. get_cursor (app/db.py) commits it at the end.
+    """
     _require_report_reader(actor, store_id)
+    cur.connection.commit()
+    cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
     return build_store_report(cur, store_id, days)
