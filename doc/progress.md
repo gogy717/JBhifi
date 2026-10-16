@@ -4,6 +4,49 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/sp2-order-fulfilment-cancellation`: staff status moves, store queue, cancellation (T4)
+
+Design: `docs/superpowers/specs/2026-10-16-fulfilment-design.md`; plan: `docs/superpowers/plans/2026-10-16-fulfilment.md`.
+Sub-project 2 of 4 (orders → **fulfilment & cancellation** → returns → reports). R7, R11.
+
+**What's on the branch.**
+
+- **Rules in the database.** BR14 widens: a refund without a return is the order's cancellation refund, and the
+  trigger `br14_refund_without_return_is_cancellation` allows it only while BR09's transition table still lets the
+  order move to cancelled (the payment CHECK becomes `br14_charge_has_no_return`; a refund with a return is
+  unchanged). **BR21 (new):** an order moves to cancelled only when nothing it was charged is still held
+  (`br21_cancelled_order_refunded`), the mirror of BR20.
+- **Store queue** `GET /stores/{id}/orders?status=…`: oldest first, for that store's staff or support.
+- **Status moves** `POST /orders/{id}/status` `{from_status, to_status}`: the fulfilling store's staff, or support,
+  move an order one step (picking, then ready or shipped, then collected or delivered). BR09 decides which moves
+  are legal and logs the mover's `staff_id` through `app.staff_id`.
+- **T4 cancel** `POST /orders/{id}/cancel` `{from_status}`, one transaction: lock the order `FOR UPDATE` → who
+  (the customer before picking starts; the fulfilling store's staff whenever BR09 allows; support never) → the
+  status the screen showed → the transition table allows cancelling → restock at the fulfilling store, in
+  ascending `product_id`, making sure the inventory row exists first (as T3) → refund what is held → cancelled →
+  the order in full. Any failure changes nothing.
+- **Web**: the admin "Orders" queue (staff see their store, support pick one) and order page (one button per
+  allowed move, a two-step cancel for the store's staff), and a "Cancel order" button on the customer's paid order.
+
+**Decisions.** The decision table in spec §1: refund on cancel (every committed order is paid, so "cancel only
+placed" would cancel nothing); restock to the store checkout took the stock from, with no `stock_adjustment` row
+(T-7 logs manual changes only); who may cancel and move as above (support moving orders was the user's choice).
+The status the screen showed (`from_status`) replaces an `Idempotency-Key` for these requests: a move happens at
+most once from a given status, so a second clerk or a retry gets 409 `status_changed` with the current status.
+During implementation: T4 asks the transition table before refunding, so a picking order's cancel is reported as
+BR09 rather than under BR14's name; the spec's deadlock argument was corrected (the two transactions can wait for
+each other only on inventory rows, which both lock in ascending `product_id`); `StoreSelect` moved into
+`components/admin/store-select.tsx` so the queue reuses it.
+
+**Verification (actually run).** `pytest` → **396 passed** (73 new); `test_fulfilment_transactions.py` five times
+in a row, all passing; removing the `from_status` check or the `FOR UPDATE` makes those tests fail. Web
+`typecheck`, `lint` and `build` clean; `test:unit` → **20 passed** (4 new, for the cancel button). A final
+whole-branch review found nothing critical; its two fixes (a customer whose cancel came too late is now told why,
+and a move to the status an order already has is refused as BR09) were made test-first. **Not yet run:**
+the in-browser walk-through (it needs a Clerk sign-in), left for after the merge.
+
+---
+
 ## 2026-10-03 — Branch `ethan/orders`: checkout (T1), order reads, addresses, price filter
 
 Design: `docs/superpowers/specs/2026-10-02-orders-design.md`; plan: `docs/superpowers/plans/2026-10-02-orders.md`.
