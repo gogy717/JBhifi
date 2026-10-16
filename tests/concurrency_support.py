@@ -36,10 +36,13 @@ def run(conn, query, params=()) -> int:
 
 
 def timed(work):
-    """work() in a thread's terms: returns (its result, seconds it took) — for a statement that waits for a lock,
-    how long it waited. Measured around the call, so it includes the polling step that released it."""
+    """Run work() and return (its result — or the database error it raised — and the seconds it took): for a
+    statement that waits for a lock, roughly how long it waited, measured around the call."""
     started = time.monotonic()
-    result = work()
+    try:
+        result = work()
+    except psycopg2.Error as error:
+        result = error
     return result, round(time.monotonic() - started, 2)
 
 
