@@ -267,6 +267,25 @@ def test_br09_every_status_change_is_logged_with_who_made_it(cur, collected_orde
     ]
 
 
+def test_br09_a_service_can_name_when_a_change_happened(cur, customer, product_id):
+    # As app.staff_id names who made a change, app.changed_at names when (the seed replays six months this way).
+    # Unset or empty, the log uses the transaction's now(), as before.
+    order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
+    cur.execute("SELECT set_config('app.changed_at', '2026-01-02 03:04:05+00', true)")
+    pay(cur, order_id)
+    advance(cur, order_id, "picking", staff_id=14)
+    cur.execute("SELECT set_config('app.changed_at', '', true)")
+    advance(cur, order_id, "ready", staff_id=14)
+    cur.execute("""SELECT to_status, changed_at = '2026-01-02 03:04:05+00' AS named, changed_at = now() AS now
+                   FROM order_status_history WHERE order_id = %s ORDER BY seq""", (order_id,))
+    assert [tuple(row.values()) for row in cur.fetchall()] == [
+        ("placed", False, True),            # inserted before the setting was made
+        ("paid", True, False),
+        ("picking", True, False),
+        ("ready", False, True),
+    ]
+
+
 def test_br09_the_order_header_never_changes(cur, customer, product_id, violates):
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])    # Click & Collect at store 1
     other = make_customer(cur, "other.customer@example.com", with_address=False)
@@ -588,12 +607,13 @@ def test_current_price_includes_the_running_promotion(cur):
 
 def test_order_summary_has_the_total_store_and_last_update(cur, customer, product_id):
     # now() is fixed for a whole transaction, so every history row here would get the same changed_at and
-    # the newest change couldn't be told from the first. For this test, history rows record the real time
-    # (clock_timestamp()); the ALTER is rolled back with everything else.
-    cur.execute("ALTER TABLE order_status_history ALTER COLUMN changed_at SET DEFAULT clock_timestamp()")
+    # the newest change couldn't be told from the first. app.changed_at names later times for the later moves,
+    # as the seed does (BR09's log writes changed_at itself, so a column default would no longer apply).
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 2, "189.00"),
                                            (product_id("JBL-FLIP7-B"), 1, "149.95")])
+    cur.execute("SELECT set_config('app.changed_at', (now() + interval '1 hour')::text, true)")
     pay(cur, order_id)
+    cur.execute("SELECT set_config('app.changed_at', (now() + interval '2 hours')::text, true)")
     advance(cur, order_id, "picking", "ready", "collected", staff_id=14)
 
     cur.execute("SELECT * FROM v_order_summary WHERE order_id = %s", (order_id,))

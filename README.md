@@ -60,6 +60,16 @@ It drops and recreates the database named by `POSTGRES_DB` in `.env` (never a sy
 `sql/*.sql` in filename order, and re-links the demo personas (`scripts/clerk_personas.py`, link only — it needs
 the internet to reach Clerk; if it can't, the database is still rebuilt and the script says so).
 
+**Generated data.** `sql/20_seed_generated.sql` adds ~300 customers, 1,500 orders and ~80 returns over the last
+182 days, loaded through every rule (`docs/superpowers/specs/2026-10-16-seed-design.md`); `scripts/reset_db.py`
+loads it with the other files. Its times are relative to Sydney midnight on the day it is loaded, so **rebuild the demo
+database on demo day**. It is generated, never edited: change `scripts/generate_seed.py` or
+`scripts/seed_helpers.sql`, then run `.venv/bin/python scripts/generate_seed.py`. That builds a scratch database
+(`$POSTGRES_TEST_DB` + `_seed`), loads the new file into it to prove it passes, and only then writes it. `pytest`
+checks the committed file in the same database (`tests/test_seed.py`), so don't run the generator and the tests
+at the same time. The test database itself (`tests/conftest.py`) loads only the hand-written files, numbered
+below 20.
+
 Sign-in (Clerk). Everyone signs in through Clerk; our database decides who is a customer or staff (BR19).
 Ask the team for access to the Clerk application, or create your own free development application, then:
 

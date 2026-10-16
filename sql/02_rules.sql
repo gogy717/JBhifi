@@ -179,6 +179,10 @@ CREATE TRIGGER br09_order_status_transition
 -- R11: the staff member making the change is read from the transaction-local setting app.staff_id,
 -- which a service sets with set_config('app.staff_id', '<id>', true) before its UPDATE.
 -- Unset means the customer or the system made the change.
+-- When it happened is read the same way from app.changed_at; unset or empty means now(). The API never sets
+-- it: the generated seed (20_seed_generated.sql) does, to replay six months of orders through these same
+-- triggers. Both are settings the service layer makes and the database trusts, for one transaction only;
+-- restricting who may set them is a question of database roles, beyond this prototype.
 CREATE FUNCTION br09_log_status_change() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
     previous order_status;
@@ -190,8 +194,9 @@ BEGIN
         previous := OLD.status;
     END IF;
 
-    INSERT INTO order_status_history (order_id, seq, from_status, to_status, changed_by_staff_id)
+    INSERT INTO order_status_history (order_id, seq, from_status, to_status, changed_at, changed_by_staff_id)
     SELECT NEW.order_id, COALESCE(max(h.seq), 0) + 1, previous, NEW.status,
+           COALESCE(NULLIF(current_setting('app.changed_at', true), '')::timestamptz, now()),
            NULLIF(current_setting('app.staff_id', true), '')::int
     FROM order_status_history h
     WHERE h.order_id = NEW.order_id;
