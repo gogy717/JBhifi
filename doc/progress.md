@@ -4,6 +4,35 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/demo-startup`: one command for the demo, README, walkthrough
+
+- **`scripts/demo.py`**: one command starts the demo — the database (`docker compose up -d db`, main checkout
+  only; a worktree never runs compose), the API (`fastapi run`) and the web app (a production build, or
+  `next dev` with `--dev`), waits until `/health` and the web app's `/api/health` answer, prints the addresses and
+  personas, and stops the API and the web app on Ctrl-C. `--reset` rebuilds the dev database first;
+  `--api-port` / `--web-port` for worktrees. Logs in `.demo/` (git-ignored). Python rather than shell, so it also
+  runs on Windows.
+- **`scripts/reset_db.py`**: drops and rebuilds the database named by `POSTGRES_DB` from `sql/*.sql` (so the
+  future generated seed is included) and re-links the personas; refuses an empty name, `postgres`,
+  `template0/1` and the test database; if Clerk can't be reached it says the database is rebuilt but not linked.
+- **README**: the one-command demo and `reset_db.py`; the storefront and admin paragraphs describe the pages as
+  they are now (they still said the customer pages were reserved). **`docs/demo-walkthrough.md`**: a checklist
+  per persona (page, click, expected result, R#/BR#/T#) and a ≤ 3-minute video script; seed-specific orders are
+  marked *[seed: …]* until the seed is merged.
+
+**Decision** (coordinator): scripts instead of api/web services in `docker compose` — fewer moving parts, no
+Clerk keys in images, the demo runs the code the tests run. The demo needs the internet (Clerk), so plan §10's
+"works offline" no longer holds.
+
+**Verification (actually run).** `pytest` → **610 passed** (8 new, for the scripts' safety checks).
+`reset_db.py` against `jbhifi_sp4`: rebuilt and linked (exit 0); with Clerk unreachable it reports the database
+rebuilt but not linked (exit 1); `POSTGRES_DB=postgres` is refused. `demo.py --api-port 8004 --web-port 3004`:
+built, both health checks answered, the storefront answered 200; Ctrl-C stopped the API and the web app within
+2 seconds and freed both ports. **Not done:** a run in the main checkout (where it would start the database with
+compose), and the browser walkthrough itself.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/sp4-support-returns`: returns in the support lookup (R10, after SP3)
 
 The two items SP4's design left for after SP3 (`docs/superpowers/specs/2026-10-16-reports-support-design.md` §4).
