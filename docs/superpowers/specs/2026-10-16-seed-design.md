@@ -101,11 +101,14 @@ hidden in a loop).
   - The history checks (`history_breaks`) find nothing.
   - Every order at `paid` or later was charged exactly its total, and every cancelled order holds 0.
   - Every order's history is chronological, its first row is at `placed_at`, and its charge is at `placed_at`.
-  - Every delivery's address was active when the order was placed.
   - No time is later than `now()`.
   - Stock = snapshot + Σ received − Σ lines of orders not cancelled.
   - The scripted scenarios exist, and the volumes are in range.
   - The committed file equals a fresh generation.
+
+  That a delivery's address was active when it was placed can't be checked after loading: `customer_address`
+  has no retirement time. BR17's trigger guarantees it at load time (an order to a retired address would fail
+  the load, so a clean load is the evidence), and the planner test checks no retired address is used again.
   
   It is timed. If it takes longer than the rest of the suite (~14 s), it gets a `seed` marker and is skipped by
   default. The generator and this test share the `_seed` database, so they must not run at the same time (noted
