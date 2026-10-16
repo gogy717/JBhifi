@@ -7,6 +7,7 @@ import { ReturnStatusBadge } from "@/components/return-status";
 import { Button, Card, ErrorBox, Field, inputClass } from "@/components/ui";
 import { api, type ApiError, call, type Me, type OrderDetail, type ReturnSummary, toApiError } from "@/lib/api/client";
 import { fromCents, lineTotalCents } from "@/lib/cart";
+import { keepsAttempt } from "@/lib/checkout-attempt";
 import { formatDate, money } from "@/lib/format";
 import { attemptFor, type ReturnAttempt, returnable, returnDeadline } from "@/lib/return-attempt";
 import { SHOP_PAGES } from "@/lib/shop-pages";
@@ -65,9 +66,10 @@ function RequestForm({ order, customerId, deadline }: { order: OrderDetail; cust
     } catch (caught) {
       const failure = toApiError(caught);
       setError(failure);
-      // No answer, or no clear one: the request may have gone through. Keep it exactly as sent, so "Try again"
-      // repeats it with its key. A clear refusal saved nothing, so the next request is a new one.
-      const unknown = failure.status === 0 || failure.status >= 500;
+      // No answer, no clear one, or a sign-in problem (401/403) that says nothing about an earlier try: the request
+      // may have gone through. Keep it exactly as sent, so "Try again" repeats it with its key — as checkout does.
+      // A clear refusal saved nothing, so the next request is a new one.
+      const unknown = keepsAttempt(failure.status);
       setUnanswered(unknown);
       if (!unknown) setAttempt(undefined);
     } finally {

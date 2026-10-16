@@ -1,9 +1,16 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
-import type { Me, ReturnDetail } from "@/lib/api/client";
+import { ApiError, type Me, type ReturnDetail } from "@/lib/api/client";
 
 import { ReturnActions } from "./return-actions";
+
+const api = vi.hoisted(() => ({ POST: vi.fn() }));
+vi.mock("@/lib/api/client", async (original) => ({
+  ...(await original<typeof import("@/lib/api/client")>()),
+  api,
+  call: <T,>(request: Promise<T>) => request,
+}));
 
 const aiden: Me = { kind: "staff", id: 14, display_name: "Aiden Chen", store_id: 1, store_name: "Sydney CBD",
   staff_type: "store", runs_store: false };
@@ -52,5 +59,33 @@ describe("which return actions a staff member gets", () => {
   it("a_final_return_has_no_actions", () => {
     show(aReturn("refunded", 1), aiden);
     expect(buttons()).toEqual([]);
+  });
+});
+
+describe("when someone else got there first", () => {
+  it("a_second_refund_shows_why_after_the_page_reloads", async () => {
+    // Two staff press Refund: the second gets 409 and the page reloads. The reloaded return is final, so it has
+    // no buttons, but the second person must still see that someone else refunded it.
+    api.POST.mockRejectedValueOnce(new ApiError(409, "return_status_transition",
+      "This return is already refunded, so it can't be refunded now.", { status: "refunded" }));
+    const onStale = vi.fn();
+    const { rerender } = render(<ReturnActions detail={aReturn("received", 1)} me={aiden} onChanged={() => {}}
+      onStale={onStale} />);
+    fireEvent.click(screen.getByRole("button", { name: "Refund $189.00…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restock and refund $189.00" }));
+    await screen.findByText(/already refunded/);
+    expect(onStale).toHaveBeenCalledOnce();
+    rerender(<ReturnActions detail={aReturn("refunded", 1)} me={aiden} onChanged={() => {}} onStale={onStale} />);
+    expect(screen.getByText(/already refunded/)).toBeTruthy();
+  });
+
+  it("a_receipt_by_another_store_meanwhile_reloads_the_page", async () => {
+    // Bondi receives it while Sydney's page still says requested: Sydney's click is refused as other_store.
+    api.POST.mockRejectedValueOnce(new ApiError(403, "other_store", "Only the store that received this return can act on it."));
+    const onStale = vi.fn();
+    render(<ReturnActions detail={aReturn("requested")} me={aiden} onChanged={() => {}} onStale={onStale} />);
+    fireEvent.click(screen.getByRole("button", { name: "Receive at Sydney CBD" }));
+    await screen.findByText(/Only the store that received/);
+    expect(onStale).toHaveBeenCalledOnce();
   });
 });

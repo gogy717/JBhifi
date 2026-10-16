@@ -28,12 +28,18 @@ export function ReturnActions({ detail, me, onChanged, onStale }: {
   const ours = detail.received_store_id === me.store_id;
   const canReceive = detail.status === "requested";
   const canResolve = detail.status === "received" && ours;
+  // Kept above the "nothing to do" branch: after a refused click the page reloads, often into a final return,
+  // and the person who came second still needs to read why their click did nothing.
+  const errorBox = error && <ErrorBox error={error} onClose={() => setError(undefined)} />;
   if (!canReceive && !canResolve) {
     return (
-      <p className="text-sm text-neutral-500">
-        {detail.status === "received" ? `Received at ${detail.received_store_name}: that store finishes it.`
-          : "Nothing left to do: this return is final."}
-      </p>
+      <div className="space-y-3">
+        {errorBox}
+        <p className="text-sm text-neutral-500">
+          {detail.status === "received" ? `Received at ${detail.received_store_name}: that store finishes it.`
+            : "Nothing left to do: this return is final."}
+        </p>
+      </div>
     );
   }
 
@@ -53,7 +59,8 @@ export function ReturnActions({ detail, me, onChanged, onStale }: {
       const failure = toApiError(caught);
       setError(failure);
       setDialog(undefined);
-      if (failure.code === "return_status_transition") onStale();   // someone else got there first
+      // Someone else got there first: another click moved it on (409), or another store received it (403).
+      if (failure.code === "return_status_transition" || failure.code === "other_store") onStale();
     } finally {
       setSending(false);
     }
@@ -62,7 +69,7 @@ export function ReturnActions({ detail, me, onChanged, onStale }: {
   const items = detail.lines.reduce((sum, line) => sum + line.quantity, 0);
   return (
     <div className="space-y-3">
-      {error && <ErrorBox error={error} onClose={() => setError(undefined)} />}
+      {errorBox}
       <div className="flex flex-wrap gap-2">
         {canReceive && (
           <Button tone="primary" disabled={sending} onClick={() => act("receive")}>
