@@ -75,13 +75,18 @@ def events(customer: int) -> list[tuple]:
 
 
 def a_return_request(order_id: int) -> int:
-    return committed("INSERT INTO return_request (order_id, reason) VALUES (%s, 'Too big') RETURNING return_id",
-                     (order_id,))[0]["return_id"]
+    """A return of the order's line 1 (one unit), as the returns API asks for it (SP3): with a retry key."""
+    return_id = committed("INSERT INTO return_request (order_id, idempotency_key, reason) "
+                          "VALUES (%s, gen_random_uuid(), 'Too big') RETURNING return_id", (order_id,))[0]["return_id"]
+    committed("INSERT INTO return_line (return_id, line_no, order_id, quantity) VALUES (%s, 1, %s, 1)",
+              (return_id, order_id))
+    return return_id
 
 
 def refund(return_id: int, order_id: int, amount: str) -> None:
-    committed("UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = %s "
-              "WHERE return_id = %s", (AIDEN, return_id))
+    """Receive the return at Sydney CBD, then refund it: the amount must be what the return is worth (BR14)."""
+    committed("UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = %s, "
+              "received_at = now() WHERE return_id = %s", (AIDEN, return_id))
     committed("INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, 'refund', %s, %s)",
               (order_id, amount, return_id))
 
