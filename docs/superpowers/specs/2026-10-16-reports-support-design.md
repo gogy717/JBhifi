@@ -43,8 +43,10 @@ All queries use `%s` parameters. The window is `s.placed_at >= now() - make_inte
 3. **Return rate (§6 #6: outer join + aggregates + `NULLIF`)**, by category (every category with products) and by
    product (products sold in the window). The sold lines `LEFT JOIN` a derived table of returned units **per order
    line**: `SELECT order_id, line_no, sum(quantity) FROM return_line JOIN return_request … WHERE status <> 'rejected'
-   GROUP BY order_id, line_no`. `rate = round(COALESCE(sum(returned), 0) / NULLIF(sum(sold), 0), 4)`: `0.0000` when
-   nothing came back, null when nothing was sold. Two mistakes this layout avoids, for the report:
+   GROUP BY order_id, line_no`. `rate = round(COALESCE(sum(returned), 0)::numeric / NULLIF(sum(sold), 0), 4)`:
+   `0.0000` when nothing came back, null when nothing was sold. The `::numeric` matters: `sum()` of an `INT` column is
+   a `bigint`, and `bigint / bigint` is integer division, which would make every rate 0 or 1. Two mistakes this
+   layout avoids, for the report:
    - **Fan-out.** Joining `return_line` before aggregating repeats a sale line once per return line, so a line with
      two partial returns counts its sold units twice. Each sale line meets at most one aggregated row here.
    - **`WHERE` turning the outer join into an inner join.** `WHERE rr.status <> 'rejected'` on the outer query drops
@@ -67,8 +69,10 @@ every query; `get_cursor` commits at the end. Three points for the report:
   start time, so every section uses the same window.
 
 Permission helper (in `reports.py`, not `auth.py`): `require_staff`; support passes; store staff who don't manage
-their store get 403 `manager_only`; a manager of another store gets 403 `other_store` (also for a store that doesn't
-exist). Only support is told 404.
+their store get 403 `manager_only` (`Actor.runs_store`, so no SQL); a manager of another store gets 403
+`other_store` (also for a store that doesn't exist). Only support is told 404: the store lookup is the first query
+inside the `REPEATABLE READ` transaction, after the commit. The queries live in `build_store_report(cur, store_id,
+days)`, which sets no isolation level, so tests can run it inside their own transaction.
 
 ## 4. Division and support lookup
 
@@ -83,9 +87,12 @@ exist). Only support is told 404.
   support; 404 only for support). One `UNION ALL` of three branches for this customer's orders: status changes
   (`v_order_timeline`, so the staff name comes from its `LEFT JOIN`), payments (`charge` / `refund`, each at its own
   `created_at`, as ledger events), and return requests (`requested_at`). Columns: `at, kind, order_id, return_id,
-  from_status, to_status, amount, staff_name`. Newest first, then by order id, status `seq`, payment id (checkout
-  writes `placed`, its charge and `paid` with one `now()`). After rebasing on SP3: add received / resolved events
-  from its new columns.
+  from_status, to_status, amount, staff_name`, plus an explicit sort column `step` in every branch, because
+  checkout writes `placed`, its charge and `paid` with one `now()`. A status row's step is `2 × seq`. A payment's
+  step is `2 × (the highest seq of that order's history rows with exactly its timestamp) − 1`, so it lands just
+  before the status change it enables: placed → charge → paid in checkout, refund → cancelled in SP2's
+  cancellation. A return request's step is 0. Ordered by `at, order_id, step` (descending: newest first), then by
+  payment or return id. After rebasing on SP3: add received / resolved events from its new columns.
 - **Returns list:** the page calls SP3's `GET /customers/{id}/returns`. A return is SP3's entity, so its shape and
   value (`v_return_value`) are defined once. Until SP3 is merged, the section is not rendered.
 
@@ -112,24 +119,31 @@ New code goes in new files: `app/{services,routers,schemas}/reports.py`, `app/{s
 
 ## 7. Testing
 
-Data is built in SQL in `tests/reports_support.py`, committed: a fresh leaf category and products per test, so a
-test's figures don't depend on what other tests committed at the same store. Orders are inserted with an explicit
-`placed_at` for "n days ago", because BR09 forbids updating it later. Returns are built as `requested` or
-`rejected` only.
+Data is built in SQL by builders in `tests/reports_support.py` that take a cursor. Figure tests build a fresh store
+(with its manager), a fresh category and products **inside the test's own transaction**, call `build_store_report`
+on that cursor, and are rolled back. Their figures are exact, and nothing is committed: `test_api` counts the seeded
+stores and categories. Orders are inserted with an explicit `placed_at` for "n days ago", because BR09 forbids
+updating it later. Returns are built with today's states (`requested`, `received`, `rejected`). The concurrency
+tests commit, on fresh products only.
 
 - `tests/test_reports.py`: `test_a_sale_is_a_paid_order_that_is_not_cancelled` (the view);
   low stock by the threshold, by days of cover, the 30 days not following `days`, stores not stocking it, retired
   products; sales by category with exact `revenue` / `units` / `orders`, the window edge, other stores excluded,
   `0.00` rows; `test_return_rate_counts_a_line_with_two_partial_returns_once`,
-  `test_return_rate_ignores_rejected_returns_without_dropping_unreturned_sales`, a null rate with no sales, credit to
+  `test_return_rate_ignores_rejected_returns_without_dropping_unreturned_sales`,
+  `test_return_rate_is_a_fraction_not_integer_division` (4 sold, 1 back → `0.2500`), a null rate with no sales, credit to
   the order's store when another store received the return; division: a product missing from one store, quantity 0,
   the warehouse ignored, `test_a_state_with_no_retail_stores_divides_to_every_product`, `au_state_valid`;
   permissions (manager, other manager, store staff, support, missing store).
 - **Concurrency evidence (report §4):** `test_repeatable_read_keeps_a_sale_committed_mid_report_out_of_every_section`
-  and `test_read_committed_would_let_a_sale_committed_mid_report_into_later_sections` (another connection commits a
-  sale between the first and second query; the second test runs the same sections without `SET TRANSACTION`).
+  and `test_read_committed_would_let_a_sale_committed_mid_report_into_later_sections`. Another connection commits a
+  sale of a fresh product between two queries. The assertions hold whatever else the store has sold: under
+  `REPEATABLE READ` the product is in no section and the category revenues add up to `sales_total`; under `READ
+  COMMITTED` (the same sections, run by `build_store_report` without `SET TRANSACTION`) the later sections include it
+  and the sums disagree.
 - `tests/test_support.py`: search by name and email, support only; history merges status changes, payments and
-  return requests newest first with the staff name, and no other customer's events.
+  return requests newest first with the staff name, and no other customer's events;
+  `test_checkout_events_at_one_instant_read_placed_charge_paid`.
 - `tests/test_permissions.py`: rows for the three new endpoints.
 - Web: `typecheck`, `lint`, `build`, `test:unit`. The browser walk-through needs Clerk passwords, so it isn't done
   here; the PR says so.
