@@ -38,7 +38,7 @@ Plan §7's data volume, returns included (rebased on SP3 and SP4).
 - Considered and rejected: a rule that history times never go backwards. `now()` is a transaction's start time,
   so a request that waited on a lock can legitimately write an earlier time than the row before it.
 
-**Verification (actually run).** `pytest` → **648 passed** (46 new): the BR09 time test, the helpers (12), the
+**Verification (actually run).** `pytest` → **664 passed** (46 new): the BR09 time test, the helpers (12), the
 planner (18) and the loaded seed (15). The loaded seed:
 - passes the history checks;
 - matches money to every order's status and every return's;
@@ -46,7 +46,8 @@ planner (18) and the loaded seed (15). The loaded seed:
 - adds up the stock: opening + received − sold + refunded returns, per store and product.
 
 The file is also replayed as of four other load dates, the days after daylight saving starts and ends among them.
-Loading takes about 0.6 s, and the whole `sql/` directory also loads with `psql`. A whole-branch review found
+Loading takes about 0.6 s; the whole `sql/` directory also loads with `psql`, and `scripts/reset_db.py`
+rebuilt this branch's dev database with it. A whole-branch review found
 nothing critical; its fixes (daylight-saving times, staff hours, UTF-8 files on Windows) were made test-first.
 ---
 
