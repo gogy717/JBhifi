@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { CancelOrder } from "@/components/shop/cancel-order";
 import { SignedInGate } from "@/components/shop/customer-gate";
 import { NextStatuses, OrderTimeline, StatusBadge } from "@/components/shop/order-timeline";
+import { ReturnRequestForm } from "@/components/shop/return-request-form";
 import { Button, Card, Empty, ErrorBox } from "@/components/ui";
 import { api, call, type Me } from "@/lib/api/client";
 import { formatDateTime, money } from "@/lib/format";
@@ -127,6 +128,8 @@ function Order({ orderId, me }: { orderId: number; me: Me }) {
               <Amount label="Balance (charged − refunded)" value={detail.payment.balance} strong />
             </dl>
           </Card>
+
+          <ReturnRequestForm order={detail} me={me} />
         </div>
       </div>
     </>
