@@ -67,6 +67,11 @@ def advance_order(cur, actor, order_id: int, body: StatusMove) -> dict:
     order = _lock_order(cur, order_id)
     _require_mover(actor, order, order_id)
     _check_from_status(order, body.from_status)
+    if body.to_status == order["status"]:
+        # Not a row of the transition table, but BR09's trigger lets an unchanged status through (it isn't a
+        # move), so it would answer 200 for nothing: report it as the illegal move it is.
+        raise ApiError(409, "br09_order_status_transition", f"The order is already {order['status']}.",
+                       {"status": order["status"]})
     _set_status(cur, actor, order_id, body.to_status)
     return get_order(cur, actor, order_id)
 

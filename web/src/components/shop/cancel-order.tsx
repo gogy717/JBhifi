@@ -13,7 +13,9 @@ export function CancelOrder({ order, me, onDone }: { order: OrderDetail; me: Me;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError>();
 
-  if (me.kind !== "customer" || order.customer_id !== me.id || order.status !== "paid") return null;
+  const offered = me.kind === "customer" && order.customer_id === me.id && order.status === "paid";
+  // A refusal stays on screen after the reload that hides the button, so the customer sees why it failed.
+  if (!offered && !error) return null;
 
   async function cancel() {
     setBusy(true);
@@ -37,8 +39,10 @@ export function CancelOrder({ order, me, onDone }: { order: OrderDetail; me: Me;
 
   return (
     <div className="mt-3 space-y-2">
-      {!confirming && <Button size="sm" disabled={busy} onClick={() => setConfirming(true)}>Cancel order…</Button>}
-      {confirming && (
+      {offered && !confirming && (
+        <Button size="sm" disabled={busy} onClick={() => setConfirming(true)}>Cancel order…</Button>
+      )}
+      {offered && confirming && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span>Cancel this order? You&apos;ll be refunded {money(order.payment.balance)}.</span>
           <Button size="sm" tone="danger" disabled={busy} onClick={cancel}>Yes, cancel it</Button>

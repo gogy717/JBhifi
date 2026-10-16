@@ -81,6 +81,14 @@ def test_an_illegal_move_is_refused_by_br09():
     assert len(history_of(order.order_id)) == 2                   # placed, paid: nothing logged
 
 
+def test_a_move_to_the_status_it_already_has_is_refused_by_br09():
+    order = bought()
+    move(order.order_id, "picking", staff_id=AIDEN)
+    response = move_to(order.order_id, "picking", "picking", as_staff(AIDEN))   # not a row of the transition table
+    assert error_of(response) == (409, "br09_order_status_transition")
+    assert len(history_of(order.order_id)) == 3                   # placed, paid, picking: nothing new
+
+
 def test_paid_and_cancelled_are_not_moves():
     order = bought()
     for to_status in ("paid", "cancelled", "nowhere"):           # paid is checkout's; cancelling is T4

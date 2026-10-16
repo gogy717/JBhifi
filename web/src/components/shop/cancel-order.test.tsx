@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { Me, OrderDetail } from "@/lib/api/client";
+import { api, type Me, type OrderDetail } from "@/lib/api/client";
 
 import { CancelOrder } from "./cancel-order";
 
@@ -41,6 +42,31 @@ describe("the customer's cancel button", () => {
     expect(button()).not.toBeInTheDocument();
     unmount();
     render(<CancelOrder order={anOrder("paid", 8)} me={customer} onDone={() => {}} />);
+    expect(button()).not.toBeInTheDocument();
+  });
+});
+
+describe("a cancel that comes too late", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("cancel_explains_why_when_the_store_started_first", async () => {
+    // The store starts picking while the customer is confirming: the API answers 409 status_changed.
+    vi.spyOn(api, "POST").mockResolvedValue({
+      error: { error: { code: "status_changed", message: "This order is picking now, not paid.",
+        detail: { status: "picking" } } },
+      response: new Response(null, { status: 409 }),
+    } as never);
+    // The page reloads the order on onDone(): it comes back picking, so the button itself goes away.
+    function Page() {
+      const [order, setOrder] = useState(anOrder("paid"));
+      return <CancelOrder order={order} me={customer} onDone={() => setOrder(anOrder("picking"))} />;
+    }
+    render(<Page />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel order…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    expect(await screen.findByText("This order is picking now, not paid.")).toBeInTheDocument();
     expect(button()).not.toBeInTheDocument();
   });
 });
