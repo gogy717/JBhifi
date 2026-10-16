@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { FilterPills } from "@/components/admin/filters";
 import { canEditCatalogue, useStaff } from "@/components/admin/staff-gate";
+import { Cell, ProductName, Row, Table } from "@/components/admin/table";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, Modal, NoticeBanner, PageHeader, selectClass, useNotice,
 } from "@/components/ui";
@@ -55,60 +57,41 @@ export default function PromotionsPage() {
       />
       <NoticeBanner notice={notice} onClose={clear} />
 
-      <Card
-        title={
-          <div className="flex gap-1">
-            {TABS.map((tab) => (
-              <button key={tab.label} type="button" onClick={() => setStatus(tab.value)}
-                className={`rounded-md px-2.5 py-1 text-sm ${
-                  status === tab.value ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"}`}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        }
-      >
-        {promotions.error && <ErrorBox error={promotions.error} className="m-4" />}
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+          <FilterPills label="Show" value={status} onChange={setStatus}
+            options={TABS.map((tab) => ({ value: tab.value, label: tab.label }))} />
+          <span className="text-sm text-muted"><span className="tabular-nums">{rows.length}</span> promotions</span>
+        </div>
+        {promotions.error && <ErrorBox error={promotions.error} className="m-5" />}
         {!promotions.error && rows.length === 0 && (
           <Empty>{promotions.loading ? "Loading…" : "No promotions here."}</Empty>
         )}
         {rows.length > 0 && (
-          <div className={`overflow-x-auto ${promotions.loading ? "opacity-60" : ""}`}>
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Product</th>
-                  <th className="px-4 py-2 text-right font-medium">Base</th>
-                  <th className="px-4 py-2 text-right font-medium">Sale</th>
-                  <th className="px-4 py-2 font-medium">Runs</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {rows.map((p) => (
-                  <tr key={p.promotion_id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-2.5">
-                      <Link href={`/admin/products/${p.product_id}`} className="font-medium hover:underline">
-                        {p.brand} {p.product_name}
-                      </Link>
-                      <div className="font-mono text-xs text-neutral-500">{p.sku}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-neutral-600">{money(p.base_price)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">
-                      <div className="font-semibold">{money(p.sale_price)}</div>
-                      <div className="text-xs text-neutral-500">{percentOff(p.base_price, p.sale_price)}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-neutral-600">
-                      {formatDateTime(p.starts_at)}<br />→ {formatDateTime(p.ends_at)}
-                    </td>
-                    <td className="px-4 py-2.5"><Badge tone={STATUS_TONE[p.status]}>{p.status}</Badge></td>
-                    <td className="px-4 py-2.5 text-right">{canEdit && <DeleteButton onConfirm={() => remove(p)} />}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table label="Promotions" loading={promotions.loading}
+            columns={["Product", { label: "Base", align: "right" }, { label: "Sale", align: "right" }, "Runs", "Status",
+              { label: "Actions", align: "right", srOnly: true }]}>
+            {rows.map((p) => (
+              <Row key={p.promotion_id}>
+                <Cell>
+                  <ProductName sku={p.sku} name={
+                    <Link href={`/admin/products/${p.product_id}`} className="hover:text-brand-strong hover:underline">
+                      {p.brand} {p.product_name}
+                    </Link>} />
+                </Cell>
+                <Cell numeric className="text-muted">{money(p.base_price)}</Cell>
+                <Cell numeric>
+                  <div className="font-semibold">{money(p.sale_price)}</div>
+                  <div className="text-xs font-semibold text-brand-strong">{percentOff(p.base_price, p.sale_price)}</div>
+                </Cell>
+                <Cell className="whitespace-nowrap text-xs tabular-nums text-muted">
+                  {formatDateTime(p.starts_at)}<br />→ {formatDateTime(p.ends_at)}
+                </Cell>
+                <Cell><Badge tone={STATUS_TONE[p.status]}>{p.status}</Badge></Cell>
+                <Cell align="right">{canEdit && <DeleteButton onConfirm={() => remove(p)} />}</Cell>
+              </Row>
+            ))}
+          </Table>
         )}
       </Card>
 
@@ -131,7 +114,7 @@ export default function PromotionsPage() {
 function DeleteButton({ onConfirm }: { onConfirm: () => void }) {
   const [armed, setArmed] = useState(false);
   return armed ? (
-    <span className="inline-flex gap-1">
+    <span className="inline-flex gap-1.5">
       <Button size="sm" tone="danger" onClick={onConfirm}>Delete</Button>
       <Button size="sm" tone="ghost" onClick={() => setArmed(false)}>Keep</Button>
     </span>
@@ -213,7 +196,7 @@ function NewPromotionDialog({ products, onClose, onCreated }: {
           <input className={inputClass} type="date" value={lastDay} onChange={(e) => setLastDay(e.target.value)} />
         </Field>
       </div>
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-muted">
         Runs from the start of the first day to the end of the last day, in your time zone. It may not overlap
         another promotion for the same product — check the product&apos;s page for existing ones.
       </p>

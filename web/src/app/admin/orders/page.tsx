@@ -3,40 +3,62 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { CountTiles, FilterPills } from "@/components/admin/filters";
+import { CollectIcon, DeliveryIcon } from "@/components/admin/icons";
+import { MOVES, nextMove } from "@/components/admin/order-moves";
 import { useStaff } from "@/components/admin/staff-gate";
-import { StoreSelect } from "@/components/admin/store-select";
-import { ORDER_STATUS_TEXT, StatusBadge } from "@/components/shop/order-timeline";
-import { Card, Empty, ErrorBox, Field, PageHeader, selectClass } from "@/components/ui";
+import { StorePicker } from "@/components/admin/store-select";
+import { Cell, Row, Table } from "@/components/admin/table";
+import { StatusBadge } from "@/components/shop/order-timeline";
+import { Card, Empty, ErrorBox, PageHeader } from "@/components/ui";
 import { api, call, type OrderStatus } from "@/lib/api/client";
 import { formatDateTime, money, timeAgo } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
 
-// What the store still has to do: everything paid and not yet handed over or cancelled.
-const FILTERS: Record<string, { label: string; statuses?: OrderStatus[] }> = {
-  todo: { label: "To do", statuses: ["paid", "picking", "ready", "shipped"] },
-  paid: { label: ORDER_STATUS_TEXT.paid, statuses: ["paid"] },
-  picking: { label: ORDER_STATUS_TEXT.picking, statuses: ["picking"] },
-  ready: { label: ORDER_STATUS_TEXT.ready, statuses: ["ready"] },
-  shipped: { label: ORDER_STATUS_TEXT.shipped, statuses: ["shipped"] },
-  done: { label: "Delivered or collected", statuses: ["delivered", "collected"] },
-  cancelled: { label: ORDER_STATUS_TEXT.cancelled, statuses: ["cancelled"] },
-  all: { label: "All" },
+// What the store still has to do: everything paid and not yet handed over or cancelled, one tile per step.
+const WAITING: { status: OrderStatus; label: string; hint: string; attention?: boolean }[] = [
+  { status: "paid", label: "To pick", hint: "Paid, not started", attention: true },
+  { status: "picking", label: "Picking", hint: "Being picked now" },
+  { status: "ready", label: "Ready to collect", hint: "Waiting for the customer" },
+  { status: "shipped", label: "Shipped", hint: "On the way" },
+];
+
+const QUEUES = {
+  todo: { label: "To do", statuses: WAITING.map((w) => w.status) },
+  done: { label: "Delivered or collected", statuses: ["delivered", "collected"] as OrderStatus[] },
+  cancelled: { label: "Cancelled", statuses: ["cancelled"] as OrderStatus[] },
+  all: { label: "All", statuses: undefined },
 };
+type Queue = keyof typeof QUEUES;
 
 export default function OrdersPage() {
   const me = useStaff();
   // Store staff work their own store's queue; support staff can open any store's (spec §4).
   const [storeId, setStoreId] = useState(me.store_id ?? 1);
-  const [filter, setFilter] = useState("todo");
-  const statuses = FILTERS[filter].statuses;
+  const [queue, setQueue] = useState<Queue>("todo");
+  const [step, setStep] = useState<OrderStatus>();   // one tile of the to-do queue, or all of it
 
   const stores = useLoad("stores", () => call(api.GET("/api/v1/stores")));
-  const orders = useLoad(`store-orders:${storeId}:${filter}`, () =>
-    call(api.GET("/api/v1/stores/{store_id}/orders", {
-      params: { path: { store_id: storeId }, query: { status: statuses } },
-    })));
+  const listOrders = (statuses?: OrderStatus[]) => call(api.GET("/api/v1/stores/{store_id}/orders", {
+    params: { path: { store_id: storeId }, query: { status: statuses } },
+  }));
+  // The to-do queue is always loaded: its counts head the page. The other queues are one more request.
+  const todo = useLoad(`store-orders:${storeId}:todo`, () => listOrders(QUEUES.todo.statuses));
+  const other = useLoad(`store-orders:${storeId}:${queue}`, () =>
+    queue === "todo" ? Promise.resolve(undefined) : listOrders(QUEUES[queue].statuses));
+  const shown = queue === "todo" ? todo : other;
+  const rows = (shown.data ?? []).filter((row) => !step || row.status === step);
   const store = stores.data?.find((s) => s.store_id === storeId);
-  const rows = orders.data ?? [];
+
+  function chooseQueue(next: Queue) {
+    setQueue(next);
+    setStep(undefined);
+  }
+
+  function chooseStep(next: string) {
+    setQueue("todo");
+    setStep(step === next ? undefined : next as OrderStatus);
+  }
 
   return (
     <>
@@ -45,61 +67,68 @@ export default function OrdersPage() {
         title="Orders"
         description={<>The store&apos;s orders, oldest first. Open one to move it along: picking, then ready for
           collection or shipped, then collected or delivered (R7). Every move is logged with who made it (R11).</>}
+        actions={<StorePicker ownStore={me.staff_type === "support" ? undefined : me.store_name ?? undefined}
+          stores={stores.data ?? []} value={storeId} onChange={setStoreId} />}
       />
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[16rem_14rem]">
-        <Field label="Store">
-          {me.staff_type === "support"
-            ? <StoreSelect stores={stores.data ?? []} value={storeId} onChange={setStoreId} />
-            : <p className="flex h-9 items-center text-sm font-medium">{me.store_name}</p>}
-        </Field>
-        <Field label="Show">
-          <select className={selectClass} value={filter} onChange={(e) => setFilter(e.target.value)}>
-            {Object.entries(FILTERS).map(([key, { label }]) => <option key={key} value={key}>{label}</option>)}
-          </select>
-        </Field>
+      <div className="mb-5">
+        <CountTiles label={`Orders waiting at ${store?.name ?? "this store"}`} selected={step} onSelect={chooseStep}
+          tiles={WAITING.map((w) => ({
+            key: w.status, label: w.label, hint: w.hint, attention: w.attention,
+            count: todo.loading ? undefined : todo.data?.filter((row) => row.status === w.status).length,
+          }))} />
       </div>
 
-      <Card title={store?.name ?? "Orders"} actions={<span className="text-xs text-neutral-500">{rows.length} orders</span>}>
-        {orders.error && <ErrorBox error={orders.error} className="m-4" />}
-        {!orders.error && rows.length === 0 && <Empty>{orders.loading ? "Loading…" : "No orders here."}</Empty>}
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+          <FilterPills label="Show" value={queue} onChange={chooseQueue}
+            options={(Object.keys(QUEUES) as Queue[]).map((key) => ({ value: key, label: QUEUES[key].label }))} />
+          <span className="text-sm text-muted">
+            {store?.name} · <span className="tabular-nums">{rows.length}</span> {rows.length === 1 ? "order" : "orders"}
+          </span>
+        </div>
+        {shown.error && <ErrorBox error={shown.error} className="m-5" />}
+        {!shown.error && rows.length === 0 && (
+          <Empty>{shown.loading ? "Loading…" : queue === "todo" ? "Nothing waiting: every order is handed over." : "No orders here."}</Empty>
+        )}
         {rows.length > 0 && (
-          <div className={`overflow-x-auto ${orders.loading ? "opacity-60" : ""}`}>
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Order</th>
-                  <th className="px-4 py-2 font-medium">Placed</th>
-                  <th className="px-4 py-2 font-medium">How</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 text-right font-medium">Items</th>
-                  <th className="px-4 py-2 text-right font-medium">Total</th>
-                  <th className="px-4 py-2 font-medium">Last change</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {rows.map((row) => (
-                  <tr key={row.order_id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-2.5">
-                      <Link href={`/admin/orders/${row.order_id}`} className="font-medium hover:underline">
-                        #{row.order_id}
+          <Table label={`Orders at ${store?.name ?? "this store"}`} loading={shown.loading}
+            columns={["Order", "Placed", "How", "Status", "Next", { label: "Items", align: "right" },
+              { label: "Total", align: "right" }, "Last change"]}>
+            {rows.map((row) => {
+              const next = nextMove(row.status, row.fulfilment_method);
+              return (
+                <Row key={row.order_id}>
+                  <Cell>
+                    <Link href={`/admin/orders/${row.order_id}`}
+                      className="font-semibold tabular-nums text-ink hover:text-brand-strong hover:underline">
+                      #{row.order_id}
+                    </Link>
+                  </Cell>
+                  <Cell className="whitespace-nowrap tabular-nums text-muted">{formatDateTime(row.placed_at)}</Cell>
+                  <Cell className="whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      {row.fulfilment_method === "delivery"
+                        ? <><DeliveryIcon className="h-4 w-4 text-muted" />Delivery</>
+                        : <><CollectIcon className="h-4 w-4 text-muted" />Click &amp; Collect</>}
+                    </span>
+                  </Cell>
+                  <Cell><StatusBadge status={row.status} /></Cell>
+                  <Cell className="whitespace-nowrap">
+                    {next ? (
+                      <Link href={`/admin/orders/${row.order_id}`}
+                        className="font-semibold text-brand-strong hover:underline">
+                        {MOVES[next]} →
                       </Link>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-neutral-600">
-                      {formatDateTime(row.placed_at)}
-                    </td>
-                    <td className="px-4 py-2.5 text-neutral-600">
-                      {row.fulfilment_method === "delivery" ? "Delivery" : "Click & Collect"}
-                    </td>
-                    <td className="px-4 py-2.5"><StatusBadge status={row.status} /></td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{row.line_count}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{money(row.total)}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-neutral-500">{timeAgo(row.last_updated_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    ) : <span className="text-faint">—</span>}
+                  </Cell>
+                  <Cell numeric>{row.line_count}</Cell>
+                  <Cell numeric className="font-semibold">{money(row.total)}</Cell>
+                  <Cell className="whitespace-nowrap text-muted">{timeAgo(row.last_updated_at)}</Cell>
+                </Row>
+              );
+            })}
+          </Table>
         )}
       </Card>
     </>

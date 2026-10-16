@@ -23,7 +23,7 @@ export function ReturnActions({ detail, me, onChanged, onStale }: {
   const [error, setError] = useState<ApiError>();
 
   if (me.staff_type !== "store") {
-    return <p className="text-sm text-neutral-500">Support staff can read returns; a store&apos;s staff handle them.</p>;
+    return <p className="text-sm text-muted">Support staff can read returns; a store&apos;s staff handle them.</p>;
   }
   const ours = detail.received_store_id === me.store_id;
   const canReceive = detail.status === "requested";
@@ -35,7 +35,7 @@ export function ReturnActions({ detail, me, onChanged, onStale }: {
     return (
       <div className="space-y-3">
         {errorBox}
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted">
           {detail.status === "received" ? `Received at ${detail.received_store_name}: that store finishes it.`
             : "Nothing left to do: this return is final."}
         </p>
@@ -84,7 +84,7 @@ export function ReturnActions({ detail, me, onChanged, onStale }: {
         )}
       </div>
       {canReceive && (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted">
           Receiving records your store and you. Nothing is restocked or refunded until you check the items.
         </p>
       )}
@@ -97,7 +97,7 @@ export function ReturnActions({ detail, me, onChanged, onStale }: {
               {sending ? "Refunding…" : `Restock and refund ${money(detail.value)}`}
             </Button>
           </>}>
-          <p className="text-sm text-neutral-700">
+          <p className="text-sm text-ink">
             One transaction (T2): {items} {items === 1 ? "item goes" : "items go"} back into {me.store_name}&apos;s
             stock, {Number(detail.value) > 0 ? <>{money(detail.value)} is refunded</> : "nothing is owed back"}, and the
             return is marked refunded — all of it, or none of it.
