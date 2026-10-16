@@ -262,7 +262,7 @@ export function StorePanel({ store, nearby, nearState, onChoose }: {
             <li key={s.store_id}>
               <button type="button" onClick={() => { onChoose(s.store_id); setOpen(false); }}
                 className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20">
-                {s.name} <span className="font-normal text-on-ink-muted">{s.suburb}</span>
+                {s.name}
               </button>
             </li>
           ))}

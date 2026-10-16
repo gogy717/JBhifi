@@ -4,6 +4,58 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/redesign-home`: the redesigned home page and product card
+
+The home page follows the homepage design section by section, on the foundation merged just before (PR #16). Every
+value is live from the API; the design's products, prices and stock were only examples.
+
+- **Hero**: the red panel with "Live deals · <my store>", the headline and two buttons ("Shop all deals" scrolls to
+  the deals, "Find a store"). Its paragraph is bold rather than the design's semibold: white on #E64626 is 4.0:1,
+  which AA allows only for large text.
+- **Deal of the week**: the live promotion with the biggest discount (`liveDealsByDiscount` in `web/src/lib/deals.ts`;
+  a retired product's promotion is left out, BR07), with its prices, its last day and its stock at my store. With
+  no live promotion it says so and offers the catalogue.
+- **Shop by category**: a card per top-level category, with the design's icon and its subcategories, so the
+  recursive tree shows; two columns on a phone.
+- **Current deals**: each card has the discount and "Ends <day month>" on the picture tile, the prices, "Save $…"
+  (worked out in whole cents), the stock at my store and **Add to cart**, which confirms like the catalogue does.
+  "Starting soon" keeps the upcoming promotions.
+- **Your store**: the store panel. "Change store" opens the other stores in the customer's state (or in my store's
+  state) to choose from, and "Find a store" goes to the Stores page.
+- **Account panel**:
+  - a guest gets "Make it yours" with Sign in and Create account;
+  - a customer gets "Hi, <first name>" and their delivery address (the walkthrough's first step);
+  - staff are told the storefront shows what a guest sees, with a link to the admin.
+
+  A customer also gets their newest orders and returns below, restyled (`recent-orders.tsx` is split out of the
+  page).
+- **Product card** (the catalogue's): the picture tile with its category icon, a sale badge or "retired", Sora
+  prices, "Save $…", and the stock line. "Out of stock at <store>" is in bold. **Add to cart** and **Details** are
+  kept; the walkthrough uses Details.
+- **The page's structure**: `page.tsx` keeps the data loading and lays the sections out. The sections live in
+  `components/shop/home-sections.tsx`, so each can be tested on its own.
+
+**Verification (actually run).**
+
+- `npm run test:unit` → **78 passed**. 19 are new:
+  - `deals.test.ts` (4): the order, retired products, none, and the saving in cents;
+  - `product-card.test.tsx` (7): the stock line's four states, the sale and saving, add to cart, the Details link,
+    and a retired product;
+  - `home-sections.test.tsx` (8): the deal of the week with live values, and with no deal; the category cards'
+    icons and subcategories; a deal card's end date, saving, stock and add; changing store among the nearby
+    stores; the account panel for a guest, a customer and staff.
+
+  The new tests failed before the code they cover existed.
+- `typecheck` and `lint` are clean; `build` passes. `pytest` → **675 passed** (only `web/` changed).
+- **Screenshots, before and after**: production builds of `main` (a3587fa) and this branch, at 1440px and 390px, of
+  the home page and the catalogue.
+- **In Chrome at 390px**: no sideways scroll on the home page or the catalogue, and "Change store" opens the other
+  NSW stores.
+- **Not done:** the signed-in customer and staff panels need a sign-in, so they are checked by the unit tests,
+  typecheck and build only.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/redesign-foundation`: the redesign's foundation (fonts, shared components, shop header and footer)
 
 The first part of the storefront and admin redesign: what every page shares. Each page then picks up the new look
