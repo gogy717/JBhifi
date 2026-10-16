@@ -4,6 +4,38 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/concurrency-evidence`: what goes wrong without each concurrency technique
+
+Design: `docs/superpowers/specs/2026-10-16-concurrency-evidence-design.md`; plan:
+`docs/superpowers/plans/2026-10-16-concurrency-evidence.md`. Report §4 material; tests and one document only (no
+product code, no `sql/`).
+
+**What's on the branch.**
+
+- **`docs/concurrency-evidence.md`**: for each anomaly, the faulty pattern, what PostgreSQL does, and ours, with the
+  results the tests printed, a summary table, and an answer to tutor question 4 (plan §12) listing the test that
+  pins each conditional `UPDATE` and parent-row lock — and the four locks that have no race test of their own.
+- **`tests/test_concurrency_evidence.py`** (8 tests): a lost update (read, compute in Python, write back: one unit
+  sold twice, BR03's `CHECK` silent) against the conditional `UPDATE` (one sale), plus the same statement under
+  `REPEATABLE READ` failing with 40001; a deadlock from opposite lock orders (40P01, one transaction rolled back)
+  against locking in `product_id` order (the second waits, both commit); write skew on BR15's rule — check then
+  insert lets two overlapping promotions in under `READ COMMITTED`, `SERIALIZABLE` aborts one (40001) and its retry
+  is refused, and the real trigger's product lock gives `br15_promotion_no_overlap` under `READ COMMITTED`.
+- **`tests/concurrency_support.py`**: each transaction on its own connection with a `lock_timeout`; a blocked
+  statement runs in a thread, and the test waits on `pg_stat_activity` (`wait_event_type = 'Lock'`) before its
+  next step, so no sleep decides the order. The write-skew demo uses a throwaway table (a random name, dropped
+  first and last), because `ALTER TABLE … DISABLE TRIGGER` would take an `ACCESS EXCLUSIVE` lock and serialise
+  the demonstration.
+
+**Open.** Whether the Week 9 lecture covered SQL isolation levels is unconfirmed; until it is, the
+`REPEATABLE READ` / `SERIALIZABLE` material is marked *optional — confirm against the Week 9 transactions lecture*.
+
+**Verification (actually run).** `pytest` → **607 passed** (8 new); `test_concurrency_evidence.py` five times in a
+row → 8/8 each; no demo table left in the test database afterwards. Dropping `AND quantity >= 1` from the
+conditional `UPDATE` makes its test fail (BR03 refuses B's write).
+
+---
+
 ## 2026-10-16 — Branch `gogy717/demo-startup`: one command for the demo, README, walkthrough
 
 - **`scripts/demo.py`**: one command starts the demo — the database (`docker compose up -d db`, main checkout
