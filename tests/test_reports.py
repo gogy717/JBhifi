@@ -363,3 +363,79 @@ def test_read_committed_would_let_a_sale_committed_mid_report_into_later_section
     assert sale["product_id"] in {row["product_id"] for row in result["return_rate_by_product"]}
     categories = sum(row["revenue"] for row in result["sales_by_category"])
     assert result["sales_total"]["revenue"] - categories == Decimal("100.00")   # the total saw the sale, they didn't
+
+
+# ---------------------------------------------------------------- stocked at every store of a state (plan §6 #5)
+
+NSW_STORES = [1, 2, 3, 4]                # the retail stores in NSW; the warehouse (13) is in NSW too
+WAREHOUSE = 13
+STORE_STAFF = Actor("staff", AIDEN, "Aiden Chen", store_id=1, staff_type="store")
+
+
+def stocked(cur, product_id: int, quantities: dict[int, int]) -> None:
+    for store_id, quantity in quantities.items():
+        cur.execute("INSERT INTO inventory (store_id, product_id, quantity) VALUES (%s, %s, %s)",
+                    (store_id, product_id, quantity))
+
+
+def everywhere(cur, state: str = "NSW") -> dict:
+    return reports.stocked_in_every_store(cur, STORE_STAFF, state)
+
+
+def listed(cur, state: str = "NSW") -> set[int]:
+    return {row["product_id"] for row in everywhere(cur, state)["products"]}
+
+
+def test_a_product_in_stock_at_every_retail_store_of_the_state_is_listed(cur):
+    product_id = a_product(cur, a_category(cur))
+    stocked(cur, product_id, {store_id: 1 for store_id in NSW_STORES})
+    result = everywhere(cur)
+    assert product_id in {row["product_id"] for row in result["products"]}
+    assert [store["store_id"] for store in result["stores"]] == NSW_STORES     # the divisor, shown with the answer
+
+
+def test_a_product_missing_from_one_store_or_sold_out_there_is_not_listed(cur):
+    category_id = a_category(cur)
+    missing, sold_out = a_product(cur, category_id), a_product(cur, category_id)
+    stocked(cur, missing, {1: 5, 2: 5, 3: 5})
+    stocked(cur, sold_out, {1: 5, 2: 5, 3: 5, 4: 0})
+    assert listed(cur).isdisjoint({missing, sold_out})
+
+
+def test_the_warehouse_is_not_one_of_the_stores(cur):
+    category_id = a_category(cur)
+    not_at_warehouse, only_three_and_warehouse = a_product(cur, category_id), a_product(cur, category_id)
+    stocked(cur, not_at_warehouse, {store_id: 1 for store_id in NSW_STORES})
+    stocked(cur, only_three_and_warehouse, {1: 1, 2: 1, 3: 1, WAREHOUSE: 50})
+    found = listed(cur)
+    assert not_at_warehouse in found and only_three_and_warehouse not in found
+
+
+def test_retired_products_are_not_listed(cur):
+    product_id = a_product(cur, a_category(cur), active=False)
+    stocked(cur, product_id, {store_id: 1 for store_id in NSW_STORES})
+    assert product_id not in listed(cur)
+
+
+def test_a_state_with_no_retail_stores_divides_to_every_product(cur):
+    """No store in NT lacks a product, because there is no store in NT: NOT EXISTS over an empty set is true."""
+    cur.execute("SELECT product_id FROM product WHERE is_active")
+    every_product = {row["product_id"] for row in cur.fetchall()}
+    result = everywhere(cur, "NT")
+    assert result["stores"] == []
+    assert {row["product_id"] for row in result["products"]} == every_product
+
+
+def test_a_misspelt_state_is_refused_rather_than_dividing_by_no_stores():
+    response = client.get(f"{API}/reports/stocked-in-every-store", params={"state": "XX"}, headers=as_staff(AIDEN))
+    assert error_of(response) == (409, "au_state_valid")
+
+
+def test_any_staff_member_may_ask_but_customers_may_not():
+    url = f"{API}/reports/stocked-in-every-store"
+    response = client.get(url, params={"state": "NSW"}, headers=as_staff(AIDEN))
+    assert response.status_code == 200, response.text
+    assert response.json()["state"] == "NSW"
+    assert error_of(client.get(url, params={"state": "NSW"}, headers=as_customer("report.reader@example.com"))) \
+        == (403, "staff_only")
+    assert error_of(client.get(url, params={"state": "NSW"})) == (401, "not_signed_in")

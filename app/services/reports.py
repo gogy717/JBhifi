@@ -208,3 +208,46 @@ def store_report(cur, actor, store_id: int, days: int) -> dict:
     cur.connection.commit()
     cur.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
     return build_store_report(cur, store_id, days)
+
+
+def stocked_in_every_store(cur, actor, state: str) -> dict:
+    """Plan §6 #5, relational division: the active products in stock (quantity > 0) at *every* retail store in
+    `state`. SQL has no "for all", so it is written as a double negation — products for which there is no store
+    in the state that does not have them in stock (two nested NOT EXISTS). The warehouse isn't a store anyone
+    shops at, so only retail stores are the divisor.
+
+    The state is cast to the au_state domain, so a misspelt one is refused (409 au_state_valid) instead of
+    matching no store at all. A real state with no retail stores (NT, say) is a different matter: "no store
+    lacks it" is then true of every product (vacuous truth), so every active product is listed. The divisor
+    comes back with the answer, so the reader can see which case it is. Any staff member may ask.
+    """
+    require_staff(actor)
+    cur.execute(
+        """
+        SELECT store_id, name FROM store
+        WHERE state = CAST(%s AS au_state) AND store_type = 'retail'
+        ORDER BY store_id
+        """,
+        (state,),
+    )
+    stores = cur.fetchall()
+    cur.execute(
+        """
+        SELECT p.product_id, p.sku, p.name
+        FROM product p
+        WHERE p.is_active
+          AND NOT EXISTS (
+                SELECT 1
+                FROM store s
+                WHERE s.state = CAST(%s AS au_state) AND s.store_type = 'retail'
+                  AND NOT EXISTS (
+                        SELECT 1
+                        FROM inventory i
+                        WHERE i.store_id = s.store_id
+                          AND i.product_id = p.product_id
+                          AND i.quantity > 0))
+        ORDER BY p.name, p.sku
+        """,
+        (state,),
+    )
+    return {"state": state, "stores": stores, "products": cur.fetchall()}

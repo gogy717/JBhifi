@@ -58,3 +58,22 @@ class StoreReport(BaseModel):
     sales_total: SalesTotal
     return_rate_by_category: list[CategoryReturnRate]
     return_rate_by_product: list[ProductReturnRate]
+
+
+class StoreRef(BaseModel):
+    store_id: int
+    name: str
+
+
+class ProductRef(BaseModel):
+    product_id: int
+    sku: str
+    name: str
+
+
+class StockedEverywhere(BaseModel):
+    """Plan §6 #5: the products in stock at every retail store of the state (`stores`, the divisor). With no
+    retail stores in the state, every active product qualifies."""
+    state: str
+    stores: list[StoreRef]
+    products: list[ProductRef]
