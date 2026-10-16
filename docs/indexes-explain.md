@@ -30,6 +30,13 @@ pick an index for a query, and why most candidate indexes were left out.
   - Three rounds of 7 runs each way; the fastest of the 21.
   - Measuring the two versions in separate sessions moved even queries that use neither index by up to ±0.2 ms,
     which is more than most of the differences below. Interleaving removes that drift.
+- **Reproduce:** `scripts/explain_hot_queries.py` (plans and timings, reading only) or with `--compare` (with and
+  without the indexes, as above; dropped and restored inside a rolled-back transaction). Run it on the seeded dev
+  database after `ANALYZE`.
+- **The timings are from one quiet run on 2026-10-16.** The database server here is shared with other databases,
+  and a later run while it was busy gave the same plans but different times: for example, Q1 at 1.56 ms without
+  the indexes and 2.29 ms with them, though Q1 uses neither. The plans are what stays the same; sub-millisecond
+  timings are only a rough guide.
 
 ## Results
 
@@ -162,13 +169,16 @@ subquery or `LATERAL`. That changes a view rather than adding an index, and at a
 
 - **The definition check.** Both indexes exist exactly as defined (`pg_indexes.indexdef`). This also pins the
   column order.
-- **The plan checks.** For the statement each service really sends (captured the same way), the test turns
-  sequential scans off for its own transaction (`SET LOCAL enable_seqscan = off`) and checks the JSON plan. The
-  index must be used with the query's filter column as an `Index Cond`, not as a filter applied afterwards.
-  Turning sequential scans off doesn't choose an index; it only removes one option. So an index on the wrong
-  column, or a service that stops filtering that way, fails.
-- **The plan checks use Robina, a store almost no other test orders from.** The test database's statistics
-  depend on what earlier tests committed. Run alone, a plain `EXPLAIN` already chose the index. In a full run,
-  where most committed orders are at Sydney CBD, the planner once read the whole primary-key index instead for
-  that store, which made an earlier version of the test fail intermittently. An index is for a selective filter,
-  and Robina's is one.
+- **The plan checks run on the generated seed.** They use the `seeded_db` fixture, which `tests/test_seed.py`
+  shares: 1,500 orders, loaded once per test run and `ANALYZE`d straight after.
+  - **The planner's choice is the same every run.** The data is deterministic, and every table is smaller than
+    `ANALYZE`'s default sample of 30,000 rows, so it is read whole and the statistics are identical each time.
+  - **No hints.** For the statement each service really sends, captured the same way as here, the check asserts
+    that the planner chooses the index by itself — the measurement above, made a test.
+  - **More than the name.** The query's filter column has to be the index's search condition (`Index Cond`), not
+    a filter applied afterwards. So an index on the wrong column fails, as does a missing index (tried: both), or a
+    service that stops filtering that way.
+- **Why not the ordinary test database.** It has no generated seed. For its tiny tables, what the planner picks
+  depends on whether autovacuum has refreshed the statistics yet, and on whatever rows earlier tests committed.
+  An earlier version of these checks ran there (with sequential scans switched off) and failed now and then: the
+  planner read the whole primary-key index instead.

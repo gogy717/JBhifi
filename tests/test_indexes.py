@@ -1,35 +1,31 @@
 """The indexes in sql/05_indexes.sql (optional, beyond Week 10 — Weeks 11–12, plan T-8; docs/indexes-explain.md):
-they exist as defined, and the planner can use each one for the SQL its service really sends.
+they exist as defined, and on realistic data the planner chooses each one, by itself, for the SQL its service
+really sends.
 
-How "can use" is tested. The test database doesn't load the generated seed, so its tables are tiny, and what the
-planner picks for them depends on statistics and on whatever rows earlier tests committed: a plain EXPLAIN chose
-the index when this file ran alone, but in one full run it read the whole primary key index instead. So each check
-turns sequential scans off for its own transaction (SET LOCAL enable_seqscan = off) and asks about a selective
-store (ROBINA, below), leaving the planner nothing cheaper to choose than the right index. That
-doesn't pick an index for the planner — it only removes the sequential-scan option — and the check then asks for
-more than the index's name: the query's filter column has to be one of the index's search conditions ("Index
-Cond"), not a filter applied afterwards. An index on the wrong column, or a service that stops filtering that way,
-fails. The column order is pinned by the definition check alone: tried with (placed_at, fulfilling_store_id), the
-planner searched that index on both columns too, so no plan check here can tell the two orders apart
-(docs/indexes-explain.md says why the store comes first). Whether the planner chooses the index by itself on
-realistic data is shown in
-docs/indexes-explain.md, on the seeded dev database. Rejected: loading thousands of rows here (slow, and dependent
-on their distribution), and reading pg_stat_user_indexes.idx_scan after the query (statistics are flushed
-asynchronously, so the count can lag).
+The plan checks run on the generated seed (the seeded_db fixture: 1,500 orders, loaded once per test run and
+ANALYZEd straight after). Its statistics are the same every run: the data is deterministic, and every table is
+smaller than ANALYZE's default sample (30,000 rows), so each one is read whole. So the planner's choice is the
+same every run too, and the checks need no hints. They ask for more than the index's name: the query's filter
+column has to be the index's search condition ("Index Cond"), not a filter applied afterwards, so an index on the
+wrong column, or a service that stops filtering that way, fails. The column order is pinned by the definition
+check alone: tried with (placed_at, fulfilling_store_id), the planner searched that index on both columns too
+(docs/indexes-explain.md says why the store comes first).
+
+Not on the ordinary test database: it has no generated seed, and what the planner picks for its tiny tables
+depends on statistics that autovacuum may or may not have refreshed by then, and on whatever rows earlier tests
+committed — the store checks, run there, failed now and then (the plan read the whole primary key index instead).
 
 The SQL is captured from the services themselves by a cursor that records what it executes.
 """
+import pytest
 from psycopg2.extras import RealDictCursor
 
 from app.auth import Actor
 from app.services import fulfilment, orders, reports
 
 SUPPORT = Actor("staff", 40, "Nora Fitzgerald", staff_type="support")
-SYDNEY_CBD = 1
-# The store checks ask about Robina, a retail store almost no other test orders from. An index is for a selective
-# filter: most of the orders other tests commit are at Sydney CBD, and for a store holding nearly every order the
-# planner is right to estimate a full read of the primary key index as cheaper (seen in a full run).
-ROBINA = 12
+STORE = 10              # a retail store, with 132 of the seed's orders: the store measured in docs/indexes-explain.md
+ORDER = 700             # a seeded order with payments, also the one measured there
 
 
 class Recording(RealDictCursor):
@@ -43,9 +39,9 @@ class Recording(RealDictCursor):
         return super().execute(query, params)
 
 
-def sent_by(db, work, marker: str) -> str:
+def sent_by(conn, work, marker: str) -> str:
     """The one statement that work(cur) sends containing marker (compared with runs of spaces made single)."""
-    with db.cursor(cursor_factory=Recording) as cur:
+    with conn.cursor(cursor_factory=Recording) as cur:
         work(cur)
         found = [statement for statement in cur.statements if marker in " ".join(statement.split())]
     assert len(found) == 1, found
@@ -53,9 +49,7 @@ def sent_by(db, work, marker: str) -> str:
 
 
 def index_conditions(cur, statement: str) -> dict[str, list[str]]:
-    """Every index the plan for statement uses, with its search conditions ("Index Cond"), with sequential scans
-    off for this transaction only."""
-    cur.execute("SET LOCAL enable_seqscan = off")
+    """Every index the plan for statement uses, with its search conditions ("Index Cond")."""
     cur.execute("EXPLAIN (FORMAT JSON) " + statement)
     found, nodes = {}, [cur.fetchone()["QUERY PLAN"][0]["Plan"]]
     while nodes:
@@ -74,17 +68,10 @@ def searches_by(cur, statement: str, index: str, column: str) -> bool:
     return True
 
 
-def an_order(cur) -> int:
-    """A Click & Collect order with one line, inside the test's transaction (rolled back afterwards)."""
-    cur.execute("INSERT INTO customer (email, full_name) VALUES ('index.test@example.com', 'Index Test') "
-                "RETURNING customer_id")
-    customer_id = cur.fetchone()["customer_id"]
-    cur.execute("""INSERT INTO customer_order (customer_id, idempotency_key, fulfilment_method, fulfilling_store_id)
-                   VALUES (%s, gen_random_uuid(), 'click_collect', %s) RETURNING order_id""", (customer_id, SYDNEY_CBD))
-    order_id = cur.fetchone()["order_id"]
-    cur.execute("""INSERT INTO order_line (order_id, line_no, product_id, quantity, unit_price)
-                   SELECT %s, 1, product_id, 1, base_price FROM product WHERE sku = 'APL-AP4'""", (order_id,))
-    return order_id
+@pytest.fixture
+def seed(seeded_db):
+    """A cursor on the seeded database (autocommit: these checks only read)."""
+    return seeded_db[0]
 
 
 def test_the_indexes_exist_as_defined(cur):
@@ -97,19 +84,18 @@ def test_the_indexes_exist_as_defined(cur):
     ]
 
 
-def test_the_store_queue_can_use_the_store_and_date_index(db, cur):
-    statement = sent_by(db, lambda c: fulfilment.list_store_orders(c, SUPPORT, ROBINA, ["paid", "picking", "ready"]),
+def test_the_planner_chooses_the_store_and_date_index_for_the_store_queue(seed):
+    statement = sent_by(seed.connection, lambda c: fulfilment.list_store_orders(c, SUPPORT, STORE, ["paid", "picking", "ready"]),
                         "FROM v_order_summary")
-    assert searches_by(cur, statement, "customer_order_store_placed_idx", "fulfilling_store_id")
+    assert searches_by(seed, statement, "customer_order_store_placed_idx", "fulfilling_store_id")
 
 
-def test_the_store_report_can_use_the_store_and_date_index(db, cur):
-    statement = sent_by(db, lambda c: reports.build_store_report(c, ROBINA, 30),
+def test_the_planner_chooses_the_store_and_date_index_for_the_store_report(seed):
+    statement = sent_by(seed.connection, lambda c: reports.build_store_report(c, STORE, 30),
                         "count(DISTINCT order_id) AS orders")             # the sales total section
-    assert searches_by(cur, statement, "customer_order_store_placed_idx", "fulfilling_store_id")
+    assert searches_by(seed, statement, "customer_order_store_placed_idx", "fulfilling_store_id")
 
 
-def test_an_orders_payments_can_use_the_payment_index(db, cur):
-    order_id = an_order(cur)
-    statement = sent_by(db, lambda c: orders.get_order(c, SUPPORT, order_id), "FROM v_order_payment")
-    assert searches_by(cur, statement, "payment_order_idx", "order_id")
+def test_the_planner_chooses_the_payment_index_for_an_orders_payments(seed):
+    statement = sent_by(seed.connection, lambda c: orders.get_order(c, SUPPORT, ORDER), "FROM v_order_payment")
+    assert searches_by(seed, statement, "payment_order_idx", "order_id")

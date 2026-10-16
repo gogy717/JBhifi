@@ -23,14 +23,22 @@ Optional, beyond Week 10 (Weeks 11–12), plan T-8: done after the seed, so the 
   - the cost of each index (an extra entry per checkout, refund and cancellation; status updates stay
     heap-only);
   - a follow-up: `v_order_summary` totals every order before filtering, which no index fixes.
-- **`tests/test_indexes.py`** (4 tests): the definitions, which also pin the column order; and, for the services'
-  own SQL with sequential scans off for the transaction, that each index is searched by the query's filter column.
-  The store checks use Robina: in one full run, the planner read the whole primary-key index for Sydney CBD, where
-  most test orders are.
+- **`tests/test_indexes.py`** (4 tests): the definitions, which also pin the column order; and, on the generated
+  seed, that the planner chooses each index by itself for the services' own SQL, searched by the query's filter
+  column. The seed is loaded once per run by a `seeded_db` fixture now shared with `tests/test_seed.py`
+  (`tests/seed_support.py`) and `ANALYZE`d. Its statistics are identical every run: deterministic data, every
+  table read whole by the sample. An earlier version ran on the ordinary test database, with sequential scans off,
+  and failed now and then: the planner's choice for its tiny tables depended on autovacuum's timing.
+- **`scripts/explain_hot_queries.py`** re-measures the document's numbers on the dev database: reading only, or
+  with `--compare` (indexes dropped and restored in a rolled-back transaction).
 
-**Verification (actually run).** `pytest` → **675 passed** (4 new), the full suite five times in a row after the
-store change; `test_seed` and `test_rule_traceability` pass. Mutation checks: an index without the store column,
-or on the wrong payment column, fails the plan checks; a reversed column order fails the definition check.
+**Verification (actually run).** `pytest` → **675 passed** (4 new), the full suite ten times in a row; `test_seed`
+and `test_rule_traceability` pass. Mutation checks:
+
+- an index without the store column, or no store index, fails both store plan checks;
+- no payment index fails its plan check;
+- a reversed column order fails the definition check (the planner searched the reversed index on both columns
+  too).
 
 ---
 
