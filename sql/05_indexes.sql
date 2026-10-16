@@ -15,7 +15,7 @@
 -- report, which reads a store's sales in a placed_at window (v_sale_line). fulfilling_store_id is a foreign key.
 CREATE INDEX customer_order_store_placed_idx ON customer_order (fulfilling_store_id, placed_at);
 
--- An order's payments: the BR14 refund triggers, BR20, BR21 (v_order_payment) and GET /orders/{id} sum one
--- order's payments. br20_one_charge_per_order covers only its charges (WHERE kind = 'charge'). order_id is a
--- foreign key.
+-- An order's payments: BR14's refund cap (br14_refunds_within_charged), BR21 (v_order_payment) and
+-- GET /orders/{id} read every payment of one order. BR20 reads only its charges, which br20_one_charge_per_order
+-- (WHERE kind = 'charge') already serves. order_id is a foreign key.
 CREATE INDEX payment_order_idx ON payment (order_id);

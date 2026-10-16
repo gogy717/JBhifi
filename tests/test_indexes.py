@@ -1,9 +1,11 @@
 """The indexes in sql/05_indexes.sql (optional, beyond Week 10 — Weeks 11–12, plan T-8; docs/indexes-explain.md):
 they exist as defined, and the planner can use each one for the SQL its service really sends.
 
-How "can use" is tested. The test database doesn't load the generated seed, so its tables are tiny and the
-planner rightly prefers sequential scans: asserting that a plain EXPLAIN uses an index would fail for the right
-reason. So each check turns sequential scans off for its own transaction (SET LOCAL enable_seqscan = off). That
+How "can use" is tested. The test database doesn't load the generated seed, so its tables are tiny, and what the
+planner picks for them depends on statistics and on whatever rows earlier tests committed: a plain EXPLAIN chose
+the index when this file ran alone, but in one full run it read the whole primary key index instead. So each check
+turns sequential scans off for its own transaction (SET LOCAL enable_seqscan = off) and asks about a selective
+store (ROBINA, below), leaving the planner nothing cheaper to choose than the right index. That
 doesn't pick an index for the planner — it only removes the sequential-scan option — and the check then asks for
 more than the index's name: the query's filter column has to be one of the index's search conditions ("Index
 Cond"), not a filter applied afterwards. An index on the wrong column, or a service that stops filtering that way,

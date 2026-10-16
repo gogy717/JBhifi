@@ -4,6 +4,36 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/indexes-explain`: two indexes chosen from measured plans (optional, T-8)
+
+Optional, beyond Week 10 (Weeks 11–12), plan T-8: done after the seed, so the plans are measured on 1,500 orders.
+
+- **Measured first** (`docs/indexes-explain.md`). The SQL the services really send, captured from them, ran
+  under `EXPLAIN (ANALYZE, BUFFERS)` on the seeded dev database, with and without the indexes interleaved on one
+  connection (dropped in a savepoint): three rounds of 7, the fastest of 21. Separate sessions drifted by up to
+  ±0.2 ms, more than most differences. Every hot query takes about a millisecond or less either way; the indexes
+  are for growth.
+- **`sql/05_indexes.sql`** (its own file, apart from the required schema):
+  - `customer_order_store_placed_idx (fulfilling_store_id, placed_at)`: the store queue and the five store-report
+    sections, 0.25–0.35 → 0.15–0.24 ms each;
+  - `payment_order_idx (order_id)`: BR14's refund cap, BR21 and the order page, 0.036 → 0.004 ms.
+- **Not added.** "This customer's orders" is already served by `br10_order_idempotency_unique`, whose first column
+  is `customer_id`: I first proposed an index for it, and the plans showed it wasn't needed. Several other foreign
+  keys and small tables are left out, each with a reason in the document. Its other sections:
+  - the cost of each index (an extra entry per checkout, refund and cancellation; status updates stay
+    heap-only);
+  - a follow-up: `v_order_summary` totals every order before filtering, which no index fixes.
+- **`tests/test_indexes.py`** (4 tests): the definitions, which also pin the column order; and, for the services'
+  own SQL with sequential scans off for the transaction, that each index is searched by the query's filter column.
+  The store checks use Robina: in one full run, the planner read the whole primary-key index for Sydney CBD, where
+  most test orders are.
+
+**Verification (actually run).** `pytest` → **675 passed** (4 new), the full suite five times in a row after the
+store change; `test_seed` and `test_rule_traceability` pass. Mutation checks: an index without the store column,
+or on the wrong payment column, fails the plan checks; a reversed column order fails the definition check.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/walkthrough-seed`: the walkthrough on the seeded data
 
 - `docs/demo-walkthrough.md` names the seeded orders, returns and stock instead of placeholders, each checked with
