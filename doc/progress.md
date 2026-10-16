@@ -4,6 +4,27 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/sp4-support-returns`: returns in the support lookup (R10, after SP3)
+
+The two items SP4's design left for after SP3 (`docs/superpowers/specs/2026-10-16-reports-support-design.md` §4).
+
+- **History** (`GET /customers/{id}/history`): a return being received, refunded or rejected now appears, with
+  who did it (`LEFT JOIN staff` on `processed_by_staff_id` / `resolved_by_staff_id`) and a rejection's reason in a
+  new `note` field. Same-instant events keep their real order with one rule: a payment sits just before the
+  event it enables — a charge before `paid`, a cancellation's refund before `cancelled`, a return's refund (T2
+  writes it with the same `now()` as the return's resolution) before `return_refunded`. That also fixes the
+  earlier review's deferred minor: a charge no longer slides past later status moves that share its moment.
+- **`/admin/support`**: a Returns section from SP3's `GET /customers/{id}/returns` — lines, value, refund,
+  status, receiving store and time, rejection reason — each linking to `/admin/returns/{id}`.
+
+**Verification (actually run).** `pytest` → **602 passed** (3 new: a refunded return reads requested →
+received → refund → refunded; a rejected one shows who and why; a charge sits just before `paid` when later moves
+share its instant), and moving a return's refund after its resolution fails the first. Web `typecheck`, `lint`,
+`build` clean; `test:unit` → **35 passed**. The dev database `jbhifi_sp4` was rebuilt from `main` and the personas
+re-linked. **Not done:** the in-browser walk-through (Clerk sign-in needs the personas' passwords).
+
+---
+
 ## 2026-10-16 — Branch `gogy717/fusilier-returns-t2`: return requests, receipt, refund (T2) and rejection
 
 Design: `docs/superpowers/specs/2026-10-16-returns-design.md`; plan: `docs/superpowers/plans/2026-10-16-returns.md`.
