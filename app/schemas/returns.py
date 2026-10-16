@@ -21,7 +21,7 @@ class ReturnLine(BaseModel):
 
 
 class ReturnSummary(BaseModel):
-    """One return as lists show it. quantity and value come from v_return_value."""
+    """One return as lists show it, with its lines. quantity and value come from v_return_value."""
     return_id: int
     order_id: int
     status: str
@@ -35,6 +35,7 @@ class ReturnSummary(BaseModel):
     received_at: datetime | None
     resolved_at: datetime | None    # when it was refunded or rejected
     rejection_reason: str | None
+    lines: list[ReturnLine]         # what comes back, in line order
 
 
 class ReturnDetail(ReturnSummary):
@@ -42,7 +43,6 @@ class ReturnDetail(ReturnSummary):
     fulfilling_store_id: int        # the store of the order being returned
     processed_by_name: str | None   # who received it
     resolved_by_name: str | None    # who refunded or rejected it
-    lines: list[ReturnLine]
 
 
 # ---------------------------------------------------------------- requests

@@ -147,6 +147,9 @@ def test_a_customers_returns_are_listed_newest_first_for_them_and_support():
     assert mine.status_code == 200, mine.text
     assert [(row["return_id"], row["value"], row["status"]) for row in mine.json()] == \
         [(second["return_id"], "149.95", "requested"), (first["return_id"], "189.00", "requested")]
+    # Each row lists its lines, so the order page can tell what is left to return, and My returns what came back.
+    assert [[(line["line_no"], line["quantity"], line["name"]) for line in row["lines"]] for row in mine.json()] == \
+        [[(2, 1, "Checkout test item")], [(1, 1, "Checkout test item")]]
     assert client.get(f"{API}/customers/{customer}/returns", headers=as_staff(SUPPORT)).json() == mine.json()
 
     _, stranger = a_customer()
@@ -328,6 +331,8 @@ def test_a_stores_desk_lists_its_orders_requested_returns_and_the_returns_it_rec
     desk = client.get(f"{API}/stores/1/returns", headers=as_staff(14))
     assert desk.status_code == 200, desk.text
     listed = [row["return_id"] for row in desk.json()]
+    mine = {row["return_id"]: row for row in desk.json() if row["return_id"] in (requested_here, received_here)}
+    assert [len(mine[return_id]["lines"]) for return_id in (requested_here, received_here)] == [1, 1]
     assert received_here in listed and requested_here in listed and requested_there not in listed
     assert listed.index(received_here) < listed.index(requested_here)          # newest first
     assert [row["return_id"] for row in client.get(f"{API}/stores/1/returns", headers=as_staff(SUPPORT)).json()] \

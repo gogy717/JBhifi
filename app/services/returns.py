@@ -72,8 +72,7 @@ def get_return(cur, actor, return_id: int) -> dict:
     _require_return_reader(cur, actor, detail)      # 403 before 404: the return may not even exist
     if detail is None:                              # only support gets here for a missing return
         raise NotFound("Return", return_id)
-    detail["lines"] = _lines(cur, return_id)
-    return detail
+    return _with_lines(cur, [detail])[0]
 
 
 def _require_return_reader(cur, actor, detail: dict | None) -> None:
@@ -95,21 +94,28 @@ def _require_return_reader(cur, actor, detail: dict | None) -> None:
     raise ApiError(403, "other_store", "That return is handled by another store.")
 
 
-def _lines(cur, return_id: int) -> list[dict]:
-    """The return's lines (ReturnLine) in line order, at the prices they were bought at."""
-    cur.execute(
-        """
-        SELECT rl.line_no, ol.product_id, p.sku, p.name, rl.quantity, ol.unit_price,
-               rl.quantity * ol.unit_price AS line_total
-        FROM return_line rl
-        JOIN order_line ol ON ol.order_id = rl.order_id AND ol.line_no = rl.line_no
-        JOIN product p     ON p.product_id = ol.product_id
-        WHERE rl.return_id = %s
-        ORDER BY rl.line_no
-        """,
-        (return_id,),
-    )
-    return cur.fetchall()
+def _with_lines(cur, returns: list[dict]) -> list[dict]:
+    """Give each return its lines (ReturnLine) in line order, at the prices they were bought at: one query for
+    the whole list, not one per return."""
+    by_id = {row["return_id"]: row for row in returns}
+    for row in returns:
+        row["lines"] = []
+    if by_id:
+        cur.execute(
+            """
+            SELECT rl.return_id, rl.line_no, ol.product_id, p.sku, p.name, rl.quantity, ol.unit_price,
+                   rl.quantity * ol.unit_price AS line_total
+            FROM return_line rl
+            JOIN order_line ol ON ol.order_id = rl.order_id AND ol.line_no = rl.line_no
+            JOIN product p     ON p.product_id = ol.product_id
+            WHERE rl.return_id = ANY(%s)
+            ORDER BY rl.return_id, rl.line_no
+            """,
+            (list(by_id),),
+        )
+        for line in cur.fetchall():
+            by_id[line.pop("return_id")]["lines"].append(line)
+    return returns
 
 
 def list_customer_returns(cur, actor, customer_id: int) -> list[dict]:
@@ -119,7 +125,7 @@ def list_customer_returns(cur, actor, customer_id: int) -> list[dict]:
     if cur.fetchone() is None:
         raise NotFound("Customer", customer_id)     # only support can ask about someone who doesn't exist
     cur.execute(SUMMARY_COLUMNS + SUMMARY_FROM + sql.SQL("WHERE o.customer_id = %s") + NEWEST_FIRST, (customer_id,))
-    return cur.fetchall()
+    return _with_lines(cur, cur.fetchall())
 
 
 def list_store_returns(cur, actor, store_id: int) -> list[dict]:
@@ -136,7 +142,7 @@ def list_store_returns(cur, actor, store_id: int) -> list[dict]:
         + NEWEST_FIRST,
         (store_id, store_id),
     )
-    return cur.fetchall()
+    return _with_lines(cur, cur.fetchall())
 
 
 # ---------------------------------------------------------------- asking for a return (R6)

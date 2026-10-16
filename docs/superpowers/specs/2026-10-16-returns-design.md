@@ -103,9 +103,10 @@ the order waits for it, or the request's FK check waits for T2 — waiting, neve
 | `GET /stores/{id}/returns` | that store's staff, support | `requested` returns of orders this store fulfilled, and every return received here |
 
 `ReturnSummary`: `return_id, order_id, status, reason, requested_at, quantity, value, refunded` (the refund
-amount or null), `received_store_id, received_store_name, received_at, resolved_at, rejection_reason`.
-`ReturnDetail` adds `customer_id, fulfilling_store_id, lines[{line_no, product_id, sku, name, quantity,
-unit_price, line_total}], processed_by_name, resolved_by_name`. `get_return` reads the header, the value and the
+amount or null), `received_store_id, received_store_name, received_at, resolved_at, rejection_reason, lines[{line_no,
+product_id, sku, name, quantity, unit_price, line_total}]` (a list's lines are read in one query; the order page
+needs them to tell what is left to return). `ReturnDetail` adds `customer_id, fulfilling_store_id,
+processed_by_name, resolved_by_name`. `get_return` reads the header, the value and the
 refund in one statement (one snapshot); lines don't change after the request, so it takes no row locks.
 Staff actions return `ReturnDetail`. Support reads but never acts (403 `store_staff_only`).
 
