@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
+import { CancelOrder } from "@/components/shop/cancel-order";
 import { SignedInGate } from "@/components/shop/customer-gate";
 import { NextStatuses, OrderTimeline, StatusBadge } from "@/components/shop/order-timeline";
 import { Button, Card, Empty, ErrorBox } from "@/components/ui";
@@ -65,6 +66,7 @@ function Order({ orderId, me }: { orderId: number; me: Me }) {
               : <>Click &amp; Collect from {detail.fulfilling_store_name}</>}
           </p>
           <NextStatuses statuses={detail.allowed_next_statuses} />
+          <CancelOrder order={detail} me={me} onDone={order.reload} />
         </div>
         <StatusBadge status={detail.status} />
       </div>

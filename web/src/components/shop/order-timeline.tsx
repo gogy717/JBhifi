@@ -39,7 +39,7 @@ export function OrderTimeline({ history }: { history: HistoryEntry[] }) {
           <StatusBadge status={change.to_status} />
           <span className="text-neutral-600">
             {change.from_status ? `from ${ORDER_STATUS_TEXT[change.from_status] ?? change.from_status}` : "order created"}
-            {/* No staff member recorded: the customer made the change (at checkout, in this sub-project). */}
+            {/* No staff member recorded: the customer made the change (at checkout, or cancelling). */}
             <span className="text-neutral-500"> · by {change.changed_by_name ?? "the customer"}</span>
           </span>
         </li>
@@ -50,8 +50,8 @@ export function OrderTimeline({ history }: { history: HistoryEntry[] }) {
 
 const either = new Intl.ListFormat("en-AU", { type: "disjunction" });
 
-/** The moves the transition table allows from the current status (BR09), as text only: nothing on the storefront
- *  changes an order's status. */
+/** The moves the transition table allows from the current status (BR09), as text: on the storefront only the
+ *  customer's cancel button (components/shop/cancel-order.tsx) changes a status. */
 export function NextStatuses({ statuses }: { statuses: string[] }) {
   const names = statuses.map((status) => (ORDER_STATUS_TEXT[status] ?? status).toLowerCase());
   return (

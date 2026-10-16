@@ -8,6 +8,7 @@ import { useStaff } from "@/components/admin/staff-gate";
 import { useLoad } from "@/lib/use-load";
 
 const LINKS = [
+  { href: "/admin/orders", label: "Orders", hint: "Pick, hand over, cancel" },
   { href: "/admin/inventory", label: "Inventory", hint: "Stock per store, ± adjustments" },
   { href: "/admin/products", label: "Products", hint: "Catalogue, prices, specs" },
   { href: "/admin/promotions", label: "Promotions", hint: "Sale prices over a period" },
