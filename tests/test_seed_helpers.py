@@ -154,3 +154,61 @@ def test_the_seed_cannot_break_a_rule(seed, violates):
     violates("br17_order_address_active",
              """SELECT pg_temp.seed_order(900009, %s, gen_random_uuid(), 'delivery', 13, 1,
                                           pg_temp.seed_at(8, 0))""", (email,))
+
+
+# ---------------------------------------------------------------- returns (SP3's actions)
+
+def collected(seed, order_id, email, *, days=5):
+    """A Click & Collect order at Sydney CBD — line 1 one AirPods 4, line 2 two speakers — collected `days` ago."""
+    checkout(seed, order_id, email, days=days + 2, lines=[("APL-AP4", 1), ("JBL-FLIP7-B", 2)])
+    seed.execute("SELECT pg_temp.seed_move(%s, 'picking', pg_temp.seed_at(%s, 700), %s)", (order_id, days + 2, AIDEN))
+    seed.execute("SELECT pg_temp.seed_move(%s, 'ready', pg_temp.seed_at(%s, 800), %s)", (order_id, days + 2, AIDEN))
+    seed.execute("SELECT pg_temp.seed_move(%s, 'collected', pg_temp.seed_at(%s, 600), %s)", (order_id, days, ZARA))
+
+
+def requested(seed, return_id, order_id, lines, *, days, minutes=600):
+    seed.execute("SELECT pg_temp.seed_request_return(%s, %s, gen_random_uuid(), 'Changed my mind', "
+                 "pg_temp.seed_at(%s, %s))", (return_id, order_id, days, minutes))
+    for line_no, quantity in lines:
+        seed.execute("SELECT pg_temp.seed_return_line(%s, %s, %s)", (return_id, line_no, quantity))
+
+
+def test_a_seeded_return_is_requested_received_and_refunded_like_t2(seed):
+    email = a_customer(seed)
+    collected(seed, 900010, email, days=5)
+    requested(seed, 900001, 900010, [(2, 1)], days=4)                 # one of the two speakers
+    seed.execute("SELECT pg_temp.seed_receive_return(900001, 1, %s, pg_temp.seed_at(3, 600))", (AIDEN,))
+    before = stock(seed, 1, "JBL-FLIP7-B")
+    seed.execute("SELECT pg_temp.seed_refund_return(900001, %s, pg_temp.seed_at(3, 700))", (ZARA,))
+
+    row = one(seed, """SELECT status, requested_at, received_store_id, processed_by_staff_id, received_at,
+                              resolved_by_staff_id, resolved_at FROM return_request WHERE return_id = 900001""")
+    assert tuple(row.values()) == ("refunded", at(seed, 4, 600), 1, AIDEN, at(seed, 3, 600), ZARA, at(seed, 3, 700))
+    price = one(seed, "SELECT unit_price FROM order_line WHERE order_id = 900010 AND line_no = 2")["unit_price"]
+    assert payments(seed, 900010)[-1] == ("refund", price, at(seed, 3, 700))    # what the return is worth
+    assert stock(seed, 1, "JBL-FLIP7-B") == before + 1                          # back at the receiving store
+
+
+def test_a_seeded_return_can_be_rejected(seed):
+    email = a_customer(seed)
+    collected(seed, 900011, email, days=5)
+    requested(seed, 900002, 900011, [(1, 1)], days=4)
+    seed.execute("SELECT pg_temp.seed_receive_return(900002, 1, %s, pg_temp.seed_at(3, 600))", (AIDEN,))
+    before = stock(seed, 1, "APL-AP4")
+    seed.execute("SELECT pg_temp.seed_reject_return(900002, %s, pg_temp.seed_at(2, 600), 'Opened and used')",
+                 (AIDEN,))
+    row = one(seed, "SELECT status, rejection_reason, resolved_at FROM return_request WHERE return_id = 900002")
+    assert tuple(row.values()) == ("rejected", "Opened and used", at(seed, 2, 600))
+    assert [kind for kind, _, _ in payments(seed, 900011)] == ["charge"]       # nothing refunded
+    assert stock(seed, 1, "APL-AP4") == before                                  # nothing restocked
+
+
+def test_the_seed_cannot_break_a_return_rule(seed, violates):
+    email = a_customer(seed, days=90)
+    collected(seed, 900012, email, days=40)
+    violates("br11_return_window", """SELECT pg_temp.seed_request_return(900003, 900012, gen_random_uuid(), 'Late',
+                                                                         pg_temp.seed_at(9, 600))""")
+    requested(seed, 900004, 900012, [], days=39)
+    violates("br12_return_qty_within_purchased", "SELECT pg_temp.seed_return_line(900004, 2, 3)")   # 2 were bought
+    violates("br22_return_received_at_retail_store",
+             "SELECT pg_temp.seed_receive_return(900004, 13, 38, pg_temp.seed_at(38, 600))")        # the warehouse

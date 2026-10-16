@@ -150,3 +150,81 @@ BEGIN
     INSERT INTO stock_adjustment (store_id, product_id, staff_id, delta, reason, note, quantity_after, adjusted_at)
     VALUES (p_store_id, v_product, p_staff_id, p_delta, 'received', 'Supplier delivery', v_after, p_at);
 END $$;
+
+-- ---------------------------------------------------------------- returns (app/services/returns.py)
+
+-- A customer asks to return part of a completed order, at p_at; then its lines. BR11 compares requested_at with
+-- the order's completion time in its history; BR12 (no more than bought, over non-rejected returns) and BR13
+-- (lines of this order) check each line, and lines are never changed afterwards (br14_return_line_immutable).
+CREATE FUNCTION pg_temp.seed_request_return(p_return_id int, p_order_id int, p_key uuid, p_reason text,
+                                            p_at timestamptz) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO return_request (return_id, order_id, idempotency_key, reason, requested_at)
+    VALUES (p_return_id, p_order_id, p_key, p_reason, p_at);
+END $$;
+
+CREATE FUNCTION pg_temp.seed_return_line(p_return_id int, p_line_no int, p_quantity int) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO return_line (return_id, line_no, order_id, quantity)
+    SELECT return_id, p_line_no, order_id, p_quantity FROM return_request WHERE return_id = p_return_id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'seed: no return %', p_return_id; END IF;
+END $$;
+
+-- The service's lock order for every staff action: the order FOR UPDATE, then the return FOR UPDATE.
+CREATE FUNCTION pg_temp.seed_lock_return(p_return_id int) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM customer_order o JOIN return_request r ON r.order_id = o.order_id
+    WHERE r.return_id = p_return_id
+    FOR UPDATE OF o;
+    PERFORM 1 FROM return_request WHERE return_id = p_return_id FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'seed: no return %', p_return_id; END IF;
+END $$;
+
+-- The item comes in at a store, taken in by one of its staff. BR22: a retail store.
+CREATE FUNCTION pg_temp.seed_receive_return(p_return_id int, p_store_id int, p_staff_id int, p_at timestamptz)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM pg_temp.seed_lock_return(p_return_id);
+    UPDATE return_request
+    SET status = 'received', received_store_id = p_store_id, processed_by_staff_id = p_staff_id, received_at = p_at
+    WHERE return_id = p_return_id;
+END $$;
+
+-- T2 at p_at: restock at the receiving store (ascending product_id; make sure of the row, then a relative
+-- UPDATE), one refund of what the return is worth (none if 0; BR14 checks it matches the return and stays within
+-- the charge), then refunded by a staff member of the receiving store.
+CREATE FUNCTION pg_temp.seed_refund_return(p_return_id int, p_staff_id int, p_at timestamptz) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_store int;
+    v_line record;
+BEGIN
+    PERFORM pg_temp.seed_lock_return(p_return_id);
+    SELECT received_store_id INTO v_store FROM return_request WHERE return_id = p_return_id;
+    FOR v_line IN
+        SELECT ol.product_id, rl.quantity
+        FROM return_line rl JOIN order_line ol ON ol.order_id = rl.order_id AND ol.line_no = rl.line_no
+        WHERE rl.return_id = p_return_id
+        ORDER BY ol.product_id
+    LOOP
+        INSERT INTO inventory (store_id, product_id, quantity) VALUES (v_store, v_line.product_id, 0)
+        ON CONFLICT ON CONSTRAINT inventory_pk DO NOTHING;
+        UPDATE inventory SET quantity = quantity + v_line.quantity
+        WHERE store_id = v_store AND product_id = v_line.product_id;
+    END LOOP;
+    INSERT INTO payment (order_id, kind, amount, return_id, created_at)
+    SELECT order_id, 'refund', value, return_id, p_at FROM v_return_value WHERE return_id = p_return_id AND value > 0;
+    UPDATE return_request SET status = 'refunded', resolved_by_staff_id = p_staff_id, resolved_at = p_at
+    WHERE return_id = p_return_id;
+END $$;
+
+-- Refused once received, with the reason: nothing restocked, nothing refunded.
+CREATE FUNCTION pg_temp.seed_reject_return(p_return_id int, p_staff_id int, p_at timestamptz, p_reason text)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM pg_temp.seed_lock_return(p_return_id);
+    UPDATE return_request
+    SET status = 'rejected', rejection_reason = p_reason, resolved_by_staff_id = p_staff_id, resolved_at = p_at
+    WHERE return_id = p_return_id;
+END $$;
