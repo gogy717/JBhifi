@@ -68,17 +68,34 @@ every action, request body, error path and confirmation step is the same as befo
 
 **Verification (actually run).**
 
-- `npm run test:unit` → **77 passed**, 18 of them new:
+- `npm run test:unit` → **123 passed** on `main` at `b4b9ea5`, 26 of them new:
   - `components/admin/filters.test.tsx` (4): pills say which choice is on; tiles show counts, a dash while loading,
     orange only when work is waiting, and filter when chosen;
   - `components/admin/fulfilment-path.test.tsx` (3): both paths and a cancelled order;
   - `components/admin/order-moves.test.ts` (3): every next move, and none for a finished order;
-  - `components/sidebar.test.tsx` (4): the current section, including an order's page, and the three roles;
-  - `app/admin/orders/page.test.tsx` (4): the counts, the "Next" links, tile filters sending no request, and
-    another queue sending exactly one more.
+  - `components/sidebar.test.tsx` (4): the current section, none at the admin root, and the three roles;
+  - `app/admin/orders/page.test.tsx` (7):
+    - the counts;
+    - "Next" links that name their order;
+    - the list's heading;
+    - "No orders at this step" for an empty tile;
+    - a failed to-do load shown on another queue;
+    - tile filters sending no request, and another queue sending exactly one more;
+  - `app/admin/returns/page.test.tsx` (2): the desk's heading, and no old counts while another store loads;
+  - `app/admin/inventory/page.test.tsx` (2): the adjust column for store staff, and none for support;
+  - `app/admin/support/page.test.tsx` (1): the chosen customer is `aria-current`, and order links say "Order #…".
 
   Three deliberate bugs were each caught by these tests: delivery orders shown as "ready"; counts taken from
   whichever list is shown; and a broken current-page check.
+- **Review**: a fresh whole-branch review for behaviour parity found nothing Critical or Important. It confirmed
+  every request, body, reload and confirmation is unchanged, and that the queue's one data-flow change is right.
+  Its minor findings were fixed test-first:
+  - the lists kept their headings;
+  - an empty step and a failed to-do load say so;
+  - the returns counts wait for their store;
+  - the "Next" links name their order;
+  - support staff get no empty column;
+  - focus uses `outline-hidden`, so it stays visible in forced-colours mode.
 - `typecheck`, `lint` and `build` are clean, run on a clean tree. `pytest` → **675 passed** (only `web/` changed).
 - **Screenshots** are from a local preview: the real page components and the seed data, but no Clerk sign-in. The
   real sign-in flow is for the user's walk-through. They cover every admin page, before and after, at 1440px and
