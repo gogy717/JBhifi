@@ -39,6 +39,10 @@ CONSTRAINT_MESSAGES = {
     "br17_order_address_is_customers": "That address isn't one of yours.",
     "br07_order_line_qty_positive": "Each quantity must be at least 1.",
     "br07_order_line_product_once": "Each product can appear only once in an order: change its quantity instead.",
+    # Return requests: their lines.
+    "return_line_order_line_fk": "That line isn't on this order.",
+    "return_line_pk": "Each line can appear only once in a return: change its quantity instead.",
+    "return_line_qty_positive": "Each quantity must be at least 1.",
 }
 
 
