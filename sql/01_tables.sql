@@ -290,7 +290,10 @@ CREATE TABLE payment (
     CONSTRAINT payment_order_fk FOREIGN KEY (order_id) REFERENCES customer_order (order_id),
     CONSTRAINT payment_kind_valid CHECK (kind IN ('charge', 'refund')),
     CONSTRAINT payment_amount_positive CHECK (amount > 0),
-    CONSTRAINT br14_refund_has_return CHECK ((kind = 'refund') = (return_id IS NOT NULL)),
+    -- BR14: only a refund can name a return. A refund without one is the order's cancellation refund (T4),
+    -- which br14_refund_without_return_is_cancellation (02_rules.sql) allows only while the order can still be
+    -- cancelled.
+    CONSTRAINT br14_charge_has_no_return CHECK (kind = 'refund' OR return_id IS NULL),
     CONSTRAINT br14_refund_once_per_return UNIQUE (return_id),
     -- A refund's return must belong to the order being refunded.
     CONSTRAINT payment_return_same_order FOREIGN KEY (return_id, order_id)

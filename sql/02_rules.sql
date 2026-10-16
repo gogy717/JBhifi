@@ -569,3 +569,61 @@ CREATE TRIGGER br18_adjustment_append_only_truncate
 CREATE TRIGGER br08_order_line_immutable_truncate
     BEFORE TRUNCATE ON order_line
     FOR EACH STATEMENT EXECUTE FUNCTION block_append_only_change('br08_order_line_immutable');
+
+-- ===== SP2: fulfilment & cancellation =====
+
+-- ---------------------------------------------------------------- BR14: cancellation refunds
+-- A refund without a return is the order's cancellation refund (T4, app/services/fulfilment.py). It is taken
+-- only while BR09's transition table still lets the order move to cancelled, so a completed or already
+-- cancelled order can't take one, and a second one can't follow the cancellation. The order row is locked
+-- first, as br14_refunds_within_charged does, so the status it reads can't change before COMMIT.
+CREATE FUNCTION br14_check_cancellation_refund() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    parent customer_order%ROWTYPE;
+BEGIN
+    IF NEW.kind = 'refund' AND NEW.return_id IS NULL THEN
+        SELECT * INTO parent FROM customer_order WHERE order_id = NEW.order_id
+        FOR UPDATE;
+        IF NOT FOUND THEN
+            RETURN NEW;                               -- no such order: payment_order_fk says so
+        END IF;
+        IF NOT EXISTS (SELECT 1
+                       FROM order_status_transition t
+                       WHERE t.fulfilment_method = parent.fulfilment_method
+                         AND t.from_status = parent.status
+                         AND t.to_status = 'cancelled') THEN
+            RAISE EXCEPTION 'Order % is %: a refund without a return is only for an order being cancelled',
+                            NEW.order_id, parent.status
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_refund_without_return_is_cancellation';
+        END IF;
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br14_refund_without_return_is_cancellation
+    BEFORE INSERT ON payment
+    FOR EACH ROW EXECUTE FUNCTION br14_check_cancellation_refund();
+
+-- ---------------------------------------------------------------- BR21
+-- A cancelled order keeps none of the customer's money: it moves to cancelled only when its refunds equal its
+-- charges — the mirror of BR20 (paid only when charged exactly the total). Named br21_…, so it fires after the
+-- br09_ triggers: an illegal move is reported as BR09 first. The UPDATE holds the order row, and every payment
+-- INSERT locks that row first (the BR14 and BR20 triggers), so no payment can slip in before COMMIT.
+CREATE FUNCTION br21_check_cancelled_refunded() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    held NUMERIC(10,2);
+BEGIN
+    IF NEW.status = 'cancelled' AND OLD.status IS DISTINCT FROM 'cancelled' THEN
+        SELECT balance INTO held FROM v_order_payment WHERE order_id = NEW.order_id;
+        IF held <> 0 THEN
+            RAISE EXCEPTION 'Order % can''t be cancelled while % of what was charged is still held',
+                            NEW.order_id, held
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br21_cancelled_order_refunded';
+        END IF;
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br21_cancelled_order_refunded
+    BEFORE UPDATE OF status ON customer_order
+    FOR EACH ROW EXECUTE FUNCTION br21_check_cancelled_refunded();

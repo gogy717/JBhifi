@@ -352,11 +352,12 @@ def test_br14_refunds(cur, customer, collected_order, product_id, violates):
     cur.execute("""UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14
                    WHERE return_id = %s""", (return_id,))
     payment = "INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, %s, %s, %s)"
-    violates("br14_refund_has_return", payment, (collected_order, "refund", "189.00", None))
+    # A refund without a return is a cancellation refund, and a collected order can't be cancelled.
+    violates("br14_refund_without_return_is_cancellation", payment, (collected_order, "refund", "189.00", None))
     # A charge that names a return. BR20 refuses any charge to the collected order first, so this is shown on
     # an order that is still placed; CHECKs run before foreign keys, so another order's return_id is fine here.
     placed = place_order(cur, customer, [(product_id("SONY-WH1000XM5-B"), 1, "399.00")])
-    violates("br14_refund_has_return", payment, (placed, "charge", "1.00", return_id))
+    violates("br14_charge_has_no_return", payment, (placed, "charge", "1.00", return_id))
     violates("br14_refunds_within_charged", payment, (collected_order, "refund", "600.00", return_id))
     cur.execute(payment, (collected_order, "refund", "189.00", return_id))
     violates("br14_refund_once_per_return", payment, (collected_order, "refund", "10.00", return_id))
@@ -512,6 +513,44 @@ def test_br20_at_most_one_charge_per_order(cur, customer, product_id, violates):
     order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
     cur.execute(CHARGE, (order_id, "189.00"))
     violates("br20_one_charge_per_order", CHARGE, (order_id, "189.00"))   # still placed: only the index stops it
+
+
+# ---------------------------------------------------------------- BR14 and BR21: cancelling an order (T4)
+
+REFUND = "INSERT INTO payment (order_id, kind, amount) VALUES (%s, 'refund', %s)"    # no return_id
+CANCEL = "UPDATE customer_order SET status = 'cancelled' WHERE order_id = %s"
+
+
+def test_br14_a_refund_without_a_return_is_only_for_cancelling(cur, customer, collected_order, product_id,
+                                                               violates):
+    paid = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
+    pay(cur, paid)
+    cur.execute(REFUND, (paid, "189.00"))           # paid can still move to cancelled, so this is its refund
+    cur.execute(CANCEL, (paid,))
+    violates("br14_refund_without_return_is_cancellation", REFUND, (paid, "1.00"))   # already cancelled
+    violates("br14_refund_without_return_is_cancellation", REFUND, (collected_order, "1.00"))   # completed
+    picking = place_order(cur, customer, [(product_id("JBL-FLIP7-B"), 1, "149.95")])
+    pay(cur, picking)
+    advance(cur, picking, "picking", staff_id=14)
+    violates("br14_refund_without_return_is_cancellation", REFUND, (picking, "1.00"))   # picking can't cancel
+
+
+def test_br21_an_order_is_cancelled_only_when_fully_refunded(cur, customer, product_id, violates):
+    order_id = place_order(cur, customer, [(product_id("APL-AP4"), 1, "189.00")])
+    pay(cur, order_id)
+    violates("br21_cancelled_order_refunded", CANCEL, (order_id,))          # 189.00 still held
+    cur.execute(REFUND, (order_id, "188.99"))
+    violates("br21_cancelled_order_refunded", CANCEL, (order_id,))          # 0.01 still held
+    cur.execute(REFUND, (order_id, "0.01"))
+    cur.execute(CANCEL, (order_id,))
+    cur.execute("SELECT status FROM customer_order WHERE order_id = %s", (order_id,))
+    assert cur.fetchone()["status"] == "cancelled"
+
+    free = place_order(cur, customer, [(product_id("JBL-FLIP7-B"), 1, "0.00")])
+    pay(cur, free)                                  # nothing charged, so nothing to give back
+    cur.execute(CANCEL, (free,))
+    cur.execute("SELECT status FROM customer_order WHERE order_id = %s", (free,))
+    assert cur.fetchone()["status"] == "cancelled"
 
 
 # ---------------------------------------------------------------- views
