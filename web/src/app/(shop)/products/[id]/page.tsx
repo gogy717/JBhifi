@@ -47,7 +47,7 @@ export default function ProductPage() {
 
   return (
     <div className="space-y-5">
-      <title>{`${detail?.name ?? "Product"} · JB Hi-Fi`}</title>
+      <title>{`${detail?.name ?? "Product"} · TechLight`}</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> /{" "}
         <Link href={SHOP_PAGES.catalogue.href} className="hover:underline">Shop all products</Link> /{" "}
@@ -147,7 +147,7 @@ export default function ProductPage() {
                 const isMine = row.store_id === store?.store_id;
                 return (
                   <li key={row.store_id}
-                    className={`flex items-center justify-between gap-3 px-4 py-2.5 text-sm ${isMine ? "bg-yellow-50" : ""}`}>
+                    className={`flex items-center justify-between gap-3 px-4 py-2.5 text-sm ${isMine ? "bg-cream" : ""}`}>
                     <div>
                       <div className="font-medium text-neutral-900">
                         {row.store_name}

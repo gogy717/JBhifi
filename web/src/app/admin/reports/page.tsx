@@ -34,7 +34,7 @@ export default function ReportsPage() {
 
   return (
     <>
-      <title>Reports · JB Admin</title>
+      <title>Reports · TechLight Admin</title>
       <PageHeader
         title="Reports"
         description={<>

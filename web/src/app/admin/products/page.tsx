@@ -32,7 +32,7 @@ export default function ProductsPage() {
 
   return (
     <>
-      <title>Products · JB Admin</title>
+      <title>Products · TechLight Admin</title>
       <PageHeader
         title="Products"
         description={<>

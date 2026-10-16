@@ -20,7 +20,7 @@ export default function OrderPage() {
 
   return (
     <div className="space-y-5">
-      <title>{valid ? `Order #${orderId} · JB Hi-Fi` : "Order · JB Hi-Fi"}</title>
+      <title>{valid ? `Order #${orderId} · TechLight` : "Order · TechLight"}</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> /{" "}
         <Link href={SHOP_PAGES.orders.href} className="hover:underline">My orders</Link> / {valid ? `#${orderId}` : "…"}

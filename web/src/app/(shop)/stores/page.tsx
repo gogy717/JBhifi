@@ -29,7 +29,7 @@ export default function StoresPage() {
 
   return (
     <div className="space-y-6">
-      <title>Stores · JB Hi-Fi</title>
+      <title>Stores · TechLight</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> / Stores
       </nav>

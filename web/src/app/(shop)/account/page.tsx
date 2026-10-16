@@ -13,7 +13,7 @@ import { formatDate } from "@/lib/format";
 export default function AccountPage() {
   return (
     <div className="space-y-5">
-      <title>My account · JB Hi-Fi</title>
+      <title>My account · TechLight</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> / My account
       </nav>

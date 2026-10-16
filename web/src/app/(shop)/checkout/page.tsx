@@ -49,7 +49,7 @@ async function loadProducts(ids: number[]): Promise<ProductDetail[]> {
 export default function CheckoutPage() {
   return (
     <div className="space-y-5">
-      <title>Checkout · JB Hi-Fi</title>
+      <title>Checkout · TechLight</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href={SHOP_PAGES.cart.href} className="hover:underline">Cart</Link> / Checkout
       </nav>
@@ -252,7 +252,7 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
                 <button key={option} type="button" aria-pressed={method === option}
                   onClick={() => change(() => setMethod(option))}
                   className={`rounded-lg border px-4 py-3 text-left text-sm ${
-                    method === option ? "border-neutral-900 bg-yellow-50" : "border-neutral-200 hover:bg-neutral-50"}`}>
+                    method === option ? "border-neutral-900 bg-cream" : "border-neutral-200 hover:bg-neutral-50"}`}>
                   <div className="font-semibold">{option === "click_collect" ? "Click & Collect" : "Delivery"}</div>
                   <div className="mt-0.5 text-xs text-neutral-600">
                     {option === "click_collect"

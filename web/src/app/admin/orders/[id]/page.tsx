@@ -99,7 +99,7 @@ function Order({ orderId }: { orderId: number }) {
 
   return (
     <>
-      <title>{`Order #${detail.order_id} · Store Admin`}</title>
+      <title>{`Order #${detail.order_id} · TechLight Admin`}</title>
       <nav aria-label="Breadcrumb" className="mb-2 text-sm text-neutral-500">
         <Link href="/admin/orders" className="hover:underline">Orders</Link> / #{detail.order_id}
       </nav>

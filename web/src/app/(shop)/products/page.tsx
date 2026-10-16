@@ -75,7 +75,7 @@ function Catalogue() {
 
   return (
     <div className="space-y-5">
-      <title>Shop all products · JB Hi-Fi</title>
+      <title>Shop all products · TechLight</title>
       <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> / Shop all products
       </nav>

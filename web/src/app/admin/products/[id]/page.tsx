@@ -44,7 +44,7 @@ export default function ProductPage() {
 
   return (
     <>
-      <title>{`${p.name} · JB Admin`}</title>
+      <title>{`${p.name} · TechLight Admin`}</title>
       <BackLink />
       <PageHeader
         title={`${p.brand} ${p.name}`}

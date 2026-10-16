@@ -40,7 +40,7 @@ export function StaffGate({ children }: { children: ReactNode }) {
   if (session.status === "guest" || session.me.kind !== "staff") {
     return (
       <div className="mx-auto max-w-md space-y-4 p-8 text-sm">
-        <title>Staff only · JB Admin</title>
+        <title>Staff only · TechLight Admin</title>
         <h1 className="text-xl font-bold">Staff only</h1>
         <p className="text-neutral-600">
           The store admin is for staff. Sign in with a staff account, or go back to the storefront.

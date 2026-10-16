@@ -15,7 +15,7 @@ export default function ShopLayout({ children }: { children: ReactNode }) {
           <footer className="border-t border-neutral-200 bg-white">
             <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs
               text-neutral-500">
-              <span>COMP9120 prototype modelled on JB Hi-Fi — not the real store. Payments are simulated.</span>
+              <span>TechLight is a fictional store — a COMP9120 prototype. Payments are simulated.</span>
               <Link href="/admin" className="font-medium text-neutral-700 hover:underline">Staff: store admin →</Link>
             </div>
           </footer>

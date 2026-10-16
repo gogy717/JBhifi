@@ -44,7 +44,7 @@ export default function PromotionsPage() {
   const rows = promotions.data ?? [];
   return (
     <>
-      <title>Promotions · JB Admin</title>
+      <title>Promotions · TechLight Admin</title>
       <PageHeader
         title="Promotions"
         description={<>

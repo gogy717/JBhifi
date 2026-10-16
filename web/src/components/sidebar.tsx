@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useStaff } from "@/components/admin/staff-gate";
+import { LogoMark, Wordmark } from "@/components/brand";
 import { useLoad } from "@/lib/use-load";
 
 const LINKS = [
@@ -20,14 +21,12 @@ const LINKS = [
 export function Sidebar() {
   const pathname = usePathname();
   return (
-    <aside className="flex w-full shrink-0 flex-col bg-neutral-900 text-neutral-300 md:min-h-screen md:w-60">
+    <aside className="flex w-full shrink-0 flex-col bg-ink text-neutral-300 md:min-h-screen md:w-60">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded bg-yellow-300 text-sm font-black text-neutral-900">
-          JB
-        </span>
+        <LogoMark className="h-9 w-9" />
         <div>
-          <div className="text-sm font-semibold text-white">Store Admin</div>
-          <div className="text-xs text-neutral-400">Phase 1 prototype</div>
+          <Wordmark className="text-base text-white" />
+          <div className="mt-0.5 text-xs text-neutral-400">Store Admin · Phase 1 prototype</div>
         </div>
       </div>
       <SignedInAs />
@@ -36,8 +35,10 @@ export function Sidebar() {
           const active = pathname.startsWith(link.href);
           return (
             <Link key={link.href} href={link.href}
-              className={`rounded-md px-3 py-2 transition-colors ${
-                active ? "bg-neutral-800 text-white" : "hover:bg-neutral-800/60 hover:text-white"}`}>
+              aria-current={active ? "page" : undefined}
+              className={`rounded-md border-l-2 px-3 py-2 transition-colors ${active
+                ? "border-brand bg-neutral-800 text-white"
+                : "border-transparent hover:bg-neutral-800/60 hover:text-white"}`}>
               <div className="text-sm font-medium">{link.label}</div>
               <div className="hidden text-xs text-neutral-400 md:block">{link.hint}</div>
             </Link>

@@ -10,7 +10,7 @@ export function ReservedPage({ id, children }: { id: ShopPageId; children?: Reac
   const transaction = "transaction" in page ? page.transaction : undefined;
   return (
     <div className="mx-auto max-w-4xl">
-      <title>{`${page.title} · JB Hi-Fi`}</title>
+      <title>{`${page.title} · TechLight`}</title>
       <nav aria-label="Breadcrumb" className="mb-3 text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link> / {page.title}
       </nav>
