@@ -97,9 +97,10 @@ function Account({ customer }: { customer: CustomerDetail }) {
 
         <div className="min-w-0 space-y-14">
           <section>
-            <SectionTitle aside={<Button size="sm" tone="primary" onClick={() => setAdding(true)}>Add address</Button>}>
-              Current delivery addresses
-            </SectionTitle>
+            <SectionTitle>Current delivery addresses</SectionTitle>
+            {current.length === 0 && (
+              <p className="mb-4 text-[15px] text-muted">No current address. Add one before ordering delivery.</p>
+            )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {current.map((address) => (
                 <AddressCard key={address.address_no} address={address}
@@ -110,7 +111,7 @@ function Account({ customer }: { customer: CustomerDetail }) {
                   border-line p-5 text-[15px] font-bold text-muted transition-colors hover:border-ink hover:text-ink
                   ${focusRing}`}>
                 <span aria-hidden="true" className="text-[24px] leading-none">+</span>
-                {current.length === 0 ? "No current address. Add one before ordering delivery." : "Add an address"}
+                Add an address
               </button>
             </div>
             <p className="mt-4 text-[13px] leading-relaxed text-muted">

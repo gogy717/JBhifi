@@ -14,6 +14,8 @@ const pillTones = {
   ink: "bg-ink text-white hover:bg-ink/85",
   outline: "border border-line bg-white text-ink hover:border-ink",
   sand: "bg-sand text-ink hover:bg-line",
+  /** An ink action that can't be taken yet (the link is aria-disabled and its click does nothing). */
+  off: "cursor-not-allowed bg-ink/35 text-white",
 };
 
 /** A link that looks like a button: 44px (md) or 32px (sm), the same heights as Button. */

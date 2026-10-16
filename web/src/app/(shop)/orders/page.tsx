@@ -90,7 +90,7 @@ function OrderCard({ order, highlight = false }: { order: OrderSummary; highligh
         <div className="min-w-0">
           {highlight && (
             <span className="mb-1 block text-[12px] font-bold tracking-[0.08em] text-ember uppercase">
-              Ready at {order.fulfilling_store_name}
+              Ready to collect
             </span>
           )}
           <div className="font-display text-[20px] font-bold tracking-[-0.01em]">Order #{order.order_id}</div>
@@ -111,11 +111,6 @@ function OrderCard({ order, highlight = false }: { order: OrderSummary; highligh
           View order <span aria-hidden="true">→</span>
         </span>
       </div>
-      {highlight && (
-        <p className="text-[14px] text-on-ink">
-          <b className="text-white">{order.fulfilling_store_name}</b> has it ready for you.
-        </p>
-      )}
     </Link>
   );
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { useShop } from "@/components/shop/context";
-import { Crumbs, PageIntro, SectionTitle, Skeleton } from "@/components/shop/page-parts";
+import { Crumbs, focusRing, PageIntro, SectionTitle, Skeleton } from "@/components/shop/page-parts";
 import { Badge, Button, Card, Empty, ErrorBox, inputClass, StockBadge } from "@/components/ui";
 import { api, call } from "@/lib/api/client";
 import { useLoad } from "@/lib/use-load";
@@ -58,7 +58,9 @@ export default function StoresPage() {
                     {store.name} <span className="font-semibold text-on-ink-muted">{store.state}</span>
                   </p>
                 )
-                : <div aria-hidden="true" className="h-9 w-48 animate-pulse rounded-full bg-white/10" />}
+                : stores.data
+                  ? <p className="font-display text-[24px] font-bold">No store to show yet</p>
+                  : <div aria-hidden="true" className="h-9 w-48 animate-pulse rounded-full bg-white/10" />}
               <p className="text-[16px] text-on-ink">
                 Click &amp; Collect and stock levels on this site are shown for this store.
               </p>
@@ -93,12 +95,15 @@ export default function StoresPage() {
                   ? <p className="text-[14px] text-muted">Nothing matches “{term}”.</p>
                   : (
                     <div className="flex flex-wrap gap-2">
+                      {/* Pills that wrap: a product's full name can be wider than a phone. */}
                       {(matches.data ?? []).slice(0, 8).map((match) => (
-                        <Button key={match.product_id} size="sm" aria-pressed={chosen === match.product_id}
-                          tone={chosen === match.product_id ? "primary" : "secondary"}
-                          onClick={() => setChosen(match.product_id)}>
+                        <button key={match.product_id} type="button" aria-pressed={chosen === match.product_id}
+                          onClick={() => setChosen(match.product_id)}
+                          className={`min-h-8 max-w-full rounded-full px-3.5 py-1.5 text-left text-[13px] leading-snug
+                            font-semibold transition-colors ${focusRing} ${chosen === match.product_id
+                              ? "bg-ink text-white" : "border border-line bg-white text-ink hover:bg-sand"}`}>
                           {match.brand} {match.name}
-                        </Button>
+                        </button>
                       ))}
                     </div>
                   ))}
@@ -114,7 +119,7 @@ export default function StoresPage() {
                         <div className="font-semibold">{product.brand} {product.name}</div>
                         <div className="font-mono text-[12px] text-muted">{product.sku}</div>
                       </div>
-                      <ul className="max-h-80 divide-y divide-line overflow-y-auto">
+                      <ul className="divide-y divide-line">
                         {product.stock.map((row) => (
                           <li key={row.store_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[14px]">
                             <span className="flex flex-wrap items-center gap-2">

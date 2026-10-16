@@ -7,7 +7,7 @@ import { useShop } from "@/components/shop/context";
 import {
   Callout, Crumbs, Eyebrow, PageIntro, pillLink, Price, QuantityStepper, Skeleton,
 } from "@/components/shop/page-parts";
-import { Button, Card, Empty, ErrorBox } from "@/components/ui";
+import { Button, Card, Dot, Empty, ErrorBox } from "@/components/ui";
 import { api, call, type ProductSummary } from "@/lib/api/client";
 import { fromCents, lineTotalCents, MAX_QUANTITY } from "@/lib/cart";
 import { useCart } from "@/lib/cart-context";
@@ -92,7 +92,7 @@ export default function CartPage() {
                           )}
                           {line.product.is_active && typeof stock === "number" && stock < line.quantity && (
                             <p className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold text-warn-ink">
-                              <span aria-hidden="true" className="h-[7px] w-[7px] shrink-0 rounded-full bg-warn" />
+                              <Dot className="bg-warn" />
                               Only {stock} at {store?.name ?? "your store"} right now. Checkout will tell you for
                               certain.
                             </p>
@@ -158,7 +158,7 @@ export default function CartPage() {
                   onClick={(event) => {
                     if (blocked) event.preventDefault();
                   }}
-                  className={`${pillLink("ink")} w-full ${blocked ? "cursor-not-allowed opacity-40 hover:bg-ink" : ""}`}>
+                  className={`${pillLink(blocked ? "off" : "ink")} w-full`}>
                   Checkout
                 </Link>
                 <Link href={SHOP_PAGES.catalogue.href} className={`${pillLink("sand")} w-full`}>

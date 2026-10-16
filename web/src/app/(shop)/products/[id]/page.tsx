@@ -12,8 +12,9 @@ import {
 import { StoreLine } from "@/components/shop/product-card";
 import { Badge, Button, Card, Empty, ErrorBox, inputClass, StockBadge } from "@/components/ui";
 import { api, call } from "@/lib/api/client";
-import { fromCents, MAX_QUANTITY, toCents } from "@/lib/cart";
+import { MAX_QUANTITY } from "@/lib/cart";
 import { useCart } from "@/lib/cart-context";
+import { saving } from "@/lib/deals";
 import { money, percentOff } from "@/lib/format";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 import { useLoad } from "@/lib/use-load";
@@ -63,7 +64,7 @@ export default function ProductPage() {
       {!product.error && !detail && <Skeleton className="h-[420px]" />}
 
       {detail && (
-        <>
+        <div className="space-y-14">
           <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-10">
             {/* The database has no product photos: the tile shows the category's icon and the brand. */}
             <ProductImage categoryId={detail.category_id} categories={categories} brand={detail.brand}
@@ -92,12 +93,12 @@ export default function ProductPage() {
                 <Price size="xl" value={detail.current_price} was={detail.on_sale ? detail.base_price : undefined} />
                 {detail.on_sale && (
                   <p className="text-[15px] font-bold text-brand-strong">
-                    Save {money(fromCents(toCents(detail.base_price) - toCents(detail.current_price)))}
+                    Save {money(saving({ base_price: detail.base_price, sale_price: detail.current_price }))}
                   </p>
                 )}
               </div>
 
-              {mine && <StoreLine quantity={mine.quantity} storeName={store?.name} />}
+              {mine && <StoreLine quantity={mine.quantity} storeName={store?.name} className="" />}
 
               {!detail.is_active && (
                 <Callout tone="warn">
@@ -174,7 +175,7 @@ export default function ProductPage() {
               </Card>
             </section>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

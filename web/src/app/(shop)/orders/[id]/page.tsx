@@ -74,7 +74,7 @@ function Order({ orderId, me }: { orderId: number; me: Me }) {
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-8">
+        <div className="min-w-0 space-y-14">
           <section>
             <SectionTitle aside={<span className="text-[13px] text-muted">prices as sold (BR08)</span>}>Items</SectionTitle>
             <Card>
@@ -90,7 +90,7 @@ function Order({ orderId, me }: { orderId: number; me: Me }) {
                     </div>
                     <div className="text-right">
                       <div className="text-[13px] text-muted tabular-nums">{money(line.unit_price)} × {line.quantity}</div>
-                      <div className="font-bold tabular-nums">{money(line.line_total)}</div>
+                      <div className="font-display font-bold tabular-nums">{money(line.line_total)}</div>
                     </div>
                   </li>
                 ))}

@@ -18,10 +18,10 @@ describe("a return's progress", () => {
     expect(current()).toBe("Refunded");
   });
 
-  it("ends_a_rejected_return_at_the_store", () => {
-    // A store rejects a return only after receiving it (return_request_status_transition).
+  it("ends_a_rejected_return_after_it_was_received_with_no_refund_to_come", () => {
+    // A store rejects a return only after receiving it (the return_status_transition trigger).
     render(<ReturnProgress status="rejected" />);
-    expect(steps()).toEqual(["Asked for", "Rejected", "Refunded"]);
+    expect(steps()).toEqual(["Asked for", "Received", "Rejected"]);
     expect(current()).toBe("Rejected");
   });
 });

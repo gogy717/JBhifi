@@ -121,20 +121,24 @@ function RequestForm({ order, customerId, deadline }: { order: OrderDetail; cust
               {order.lines.map((line) => {
                 const most = left.get(line.line_no) ?? 0;
                 return (
-                  <li key={line.line_no} className="flex items-center justify-between gap-3 rounded-tile bg-sand px-4 py-3">
+                  <li key={line.line_no}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-tile bg-sand px-4 py-3">
                     <span className="min-w-0">
                       <span className="font-semibold">{line.name}</span>
                       <span className="block text-[13px] text-muted">
                         {money(line.unit_price)} each · {most} of {line.quantity} left to return
                       </span>
                     </span>
-                    <input type="number" min={0} max={most} step={1} aria-label={`How many ${line.name} to return`}
-                      className={`${inputClass} w-20 shrink-0 text-center`} disabled={most === 0 || sending || unanswered}
-                      value={Math.min(quantities[line.line_no] ?? 0, most)}
-                      onChange={(event) => {
-                        const typed = Math.trunc(Number(event.target.value));
-                        setQuantities({ ...quantities, [line.line_no]: Number.isFinite(typed) ? Math.max(0, Math.min(typed, most)) : 0 });
-                      }} />
+                    {/* The width is on a wrapper: inputClass is w-full, which would win over a width on the input. */}
+                    <span className="w-20 shrink-0">
+                      <input type="number" min={0} max={most} step={1} aria-label={`How many ${line.name} to return`}
+                        className={`${inputClass} text-center`} disabled={most === 0 || sending || unanswered}
+                        value={Math.min(quantities[line.line_no] ?? 0, most)}
+                        onChange={(event) => {
+                          const typed = Math.trunc(Number(event.target.value));
+                          setQuantities({ ...quantities, [line.line_no]: Number.isFinite(typed) ? Math.max(0, Math.min(typed, most)) : 0 });
+                        }} />
+                    </span>
                   </li>
                 );
               })}

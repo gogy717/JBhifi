@@ -373,7 +373,7 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
                       {!line.product && loaded && " · no longer in the catalogue: remove it from your cart"}
                     </span>
                   </span>
-                  <span className="font-bold tabular-nums">
+                  <span className="font-display font-bold tabular-nums">
                     {line.product ? money(fromCents(lineTotalCents(line.product.current_price, line.quantity))) : "…"}
                   </span>
                 </li>

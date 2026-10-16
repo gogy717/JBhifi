@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { Crumbs, Price, QuantityStepper } from "./page-parts";
+import { Callout, Crumbs, Price, QuantityStepper } from "./page-parts";
 
 describe("the breadcrumb", () => {
   it("links_each_step_but_the_last_which_is_the_current_page", () => {
@@ -10,6 +10,22 @@ describe("the breadcrumb", () => {
     expect(screen.getByRole("link", { name: "My orders" })).toHaveAttribute("href", "/orders");
     expect(screen.queryByRole("link", { name: "#42" })).not.toBeInTheDocument();
     expect(screen.getByText("#42")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("never_links_the_current_page_even_when_it_has_an_address", () => {
+    render(<Crumbs trail={[["Home", "/"], ["Cart", "/cart"]]} />);
+    expect(screen.queryByRole("link", { name: "Cart" })).not.toBeInTheDocument();
+    expect(screen.getByText("Cart")).toHaveAttribute("aria-current", "page");
+  });
+});
+
+describe("a callout", () => {
+  it("is_announced_only_when_given_a_role", () => {
+    const { rerender } = render(<Callout tone="warn" role="alert" title="Not enough stock">Choose another store.</Callout>);
+    expect(screen.getByRole("alert")).toHaveTextContent("Not enough stockChoose another store.");
+    rerender(<Callout tone="quiet">A note.</Callout>);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
 

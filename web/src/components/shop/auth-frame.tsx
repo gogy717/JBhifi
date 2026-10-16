@@ -36,7 +36,8 @@ export function AuthFrame({ title, children }: { title: string; children: ReactN
           <span className="self-start rounded-full bg-ink px-3.5 py-2 text-[13px] font-bold tracking-[0.06em] uppercase">
             Your TechLight account
           </span>
-          {/* An h2: Clerk's box carries the page's h1. White on brand is 4.0:1, so the text here is large or bold. */}
+          {/* An h2: Clerk's box carries the page's h1. White on brand is 4.0:1, under 4.5:1, so all text here is
+              large text: at least 24px, or bold and at least 18.66px (the list is 19px bold). */}
           <h2 className="font-display text-[52px] leading-[1.02] font-extrabold tracking-[-0.035em]">{title}</h2>
           <ul className="max-w-md space-y-3 text-[19px] leading-snug font-bold">
             <li>Follow your orders, from paid to ready to collect.</li>
