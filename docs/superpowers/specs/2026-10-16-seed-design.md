@@ -22,8 +22,12 @@ hidden in a loop).
 
 - **Anchor.** The file runs in one transaction with `SET LOCAL timezone = 'Australia/Sydney'`, as
   `10_seed_reference.sql` does. The anchor is `date_trunc('day', now())`: Sydney midnight on the day the file is
-  loaded. Every event is `pg_temp.seed_at(days, minutes)` = anchor − `days` days + `minutes` minutes, with
-  `days ≥ 1`, so the whole timeline lies before the anchor. The generator decides what has already happened by
+  loaded. Every event is `pg_temp.seed_at(days, minutes)`: the local date `days` days before the anchor, at
+  `minutes` past midnight on the local clock, read as Sydney time, with `days ≥ 1`, so the whole timeline lies
+  before the anchor. The arithmetic is on the local date and clock: counting elapsed minutes from midnight would put
+  times an hour out on the days daylight saving starts or ends. Every event falls between 07:00 and midnight (staff
+  work 09:00–20:59), so none lands in the hour that doesn't exist when daylight saving starts. The setting
+  `seed.anchor`, if present, stands in for the load date, so a test can replay the file as of other days. The generator decides what has already happened by
   comparing against the anchor, not against "now". Loading at any hour gives the same rows with every time in
   the past, and the local clock times are right. Times are relative to the load date: like the seeded
   promotions, the data is "the last 182 days" whenever it is built, so the demo database is rebuilt on demo day.
@@ -57,13 +61,13 @@ hidden in a loop).
 - **Moves:** C&C goes picking after 0.5–4 h, ready after 1–24 h more, collected within 0–5 days. Delivery goes
   picking after 1–12 h, shipped after 0.5–2 days, delivered after 1–5 days. A random staff member of the
   fulfilling store makes each move. Any step that would fall after the anchor doesn't happen, so recent orders
-  wait in the queues.
-- **Cancellations (T4 order: restock → refund → cancelled):** about 3% are cancelled by the customer 0–6 h after
-  placing, drawn first, with picking scheduled after the cancel time. About 1% are C&C orders still uncollected
+  wait in the queues. Staff steps that would fall outside 09:00–20:59 move to just after the store next opens.
+- **Cancellations (T4 order: restock → refund → cancelled):** about 3% are cancelled by the customer 5–90 minutes
+  after placing (these orders are never picked). About 1% are C&C orders still uncollected
   7 days after `ready`, cancelled by the store.
 - **Stock:** the generator tracks every (store, product) in time order. When a sale would need more than is left,
-  a `received` adjustment by a staff member of that store comes 1–2 days earlier: +6–12 units at retail, +30–60 at
-  the warehouse. It is written as T3 writes one (`UPDATE … RETURNING quantity` → `quantity_after`). Stock is
+  a `received` adjustment by a staff member of that store comes 1–2 days earlier, in store hours: +6–12 units at
+  retail, +30–60 at the warehouse. It is written as T3 writes one (`UPDATE … RETURNING quantity` → `quantity_after`). Stock is
   received only when needed, so low and zero stock remain for the demo.
 - **Scripted scenarios:**
   - Alice: one order delivered 40 days ago (BR11 will refuse a return); one collected 5 days ago at Sydney CBD
@@ -101,6 +105,8 @@ hidden in a loop).
   - The history checks (`history_breaks`) find nothing.
   - Every order at `paid` or later was charged exactly its total, and every cancelled order holds 0.
   - Every order's history is chronological, its first row is at `placed_at`, and its charge is at `placed_at`.
+  - The same holds when the file is replayed (rolled back) as of other load dates, including the days after
+    daylight saving starts and ends: orders 08:00–21:59, staff 09:00–20:59, everything before that anchor.
   - No time is later than `now()`.
   - Stock = snapshot + Σ received − Σ lines of orders not cancelled.
   - The scripted scenarios exist, and the volumes are in range.

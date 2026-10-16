@@ -268,13 +268,14 @@ class _Planner:
         return shoppers
 
     def sign_up(self, generated: list[_Shopper], orders: list[_Order]) -> None:
-        """Each generated customer signs up 1–60 days before their first order (or some time in the window)."""
+        """Each generated customer signs up 1–60 days before their first order (or some day in the window), between
+        07:00 and 22:59."""
         first = {}
         for order in orders:
             first[order.email] = min(order.t, first.get(order.email, 0))
         for shopper in generated:
-            start = first.get(shopper.email, when(self.rng.randint(1, WINDOW_DAYS), 12))
-            t = start - self.rng.randint(1, 60) * DAY - self.rng.randint(1, 10 * HOUR)
+            days = at(first[shopper.email])[0] if shopper.email in first else self.rng.randint(1, WINDOW_DAYS)
+            t = when(days + self.rng.randint(1, 60), self.rng.randint(7, 22), self.rng.randint(0, 59))
             shopper.customer = Customer(t, *[getattr(shopper.customer, f) for f in
                                              ("email", "full_name", "phone", "line1", "suburb", "state", "postcode")])
 
@@ -320,6 +321,16 @@ class _Planner:
     def staff(self, store_id: int) -> int:
         return self.rng.choice(self.ref.staff_by_store[store_id])
 
+    def open_hours(self, t: int) -> int:
+        """t, or if a store isn't staffed then (09:00–20:59), a little after it next opens: staff don't work
+        through the night. It only ever moves a step later, so an order's steps stay in order."""
+        minutes = t % DAY                                    # the anchor is a midnight, so this is the clock time
+        if minutes < 9 * HOUR:
+            return t - minutes + 9 * HOUR + self.rng.randint(0, 90)
+        if minutes >= 21 * HOUR:
+            return t - minutes + DAY + 9 * HOUR + self.rng.randint(0, 90)
+        return t
+
     def random_order(self, shopper: _Shopper) -> _Order:
         t = when(self.rng.randint(1, WINDOW_DAYS), self.rng.randint(8, 21), self.rng.randint(0, 59))
         if self.rng.random() < 0.55:
@@ -331,24 +342,25 @@ class _Planner:
         return order
 
     def schedule(self, order: _Order) -> None:
-        """The order's later steps, at realistic delays. A step that would come after the anchor hasn't happened
-        yet, and neither has anything after it."""
-        rng, store = self.rng, order.store_id
+        """The order's later steps, at realistic delays, each made while the store is staffed. A step that would come
+        after the anchor hasn't happened yet, and neither has anything after it."""
+        rng, store, open_ = self.rng, order.store_id, self.open_hours
         steps = []
-        if rng.random() < 0.03:                                 # the customer changes their mind, before picking
-            steps.append((order.t + rng.randint(5, 6 * HOUR), "cancel", None, "paid"))
+        if rng.random() < 0.03:                     # the customer changes their mind, before picking (by 23:30)
+            steps.append((order.t + rng.randint(5, 90), "cancel", None, "paid"))
         elif order.method == "click_collect":
-            picking = order.t + rng.randint(30, 4 * HOUR)
-            ready = picking + rng.randint(HOUR, DAY)
+            picking = open_(order.t + rng.randint(30, 4 * HOUR))
+            ready = open_(picking + rng.randint(HOUR, DAY))
             steps += [(picking, "move", "picking", self.staff(store)), (ready, "move", "ready", self.staff(store))]
             if rng.random() < 0.02:                             # never collected: the store cancels a week later
-                steps.append((ready + 7 * DAY + rng.randint(HOUR, 8 * HOUR), "cancel", self.staff(store), "ready"))
+                steps.append((open_(ready + 7 * DAY + rng.randint(HOUR, 8 * HOUR)), "cancel", self.staff(store),
+                              "ready"))
             else:
-                steps.append((ready + rng.randint(10, 5 * DAY), "move", "collected", self.staff(store)))
+                steps.append((open_(ready + rng.randint(10, 5 * DAY)), "move", "collected", self.staff(store)))
         else:
-            picking = order.t + rng.randint(HOUR, 12 * HOUR)
-            shipped = picking + rng.randint(12 * HOUR, 2 * DAY)
-            delivered = shipped + rng.randint(DAY, 5 * DAY)
+            picking = open_(order.t + rng.randint(HOUR, 12 * HOUR))
+            shipped = open_(picking + rng.randint(12 * HOUR, 2 * DAY))
+            delivered = open_(shipped + rng.randint(DAY, 5 * DAY))
             steps += [(picking, "move", "picking", self.staff(store)), (shipped, "move", "shipped", self.staff(store)),
                       (delivered, "move", "delivered", self.staff(store))]
         for step in steps:
@@ -438,8 +450,10 @@ class _Planner:
                         retail = self.stores[event.store_id].store_type == "retail"
                         delta = max(self.rng.randint(6, 12) if retail else self.rng.randint(30, 60),
                                     line.quantity - have)
-                        out.append(Receive(event.t - self.rng.randint(DAY, 2 * DAY), event.store_id, line.sku,
-                                           line.product_id, delta, self.staff(event.store_id)))
+                        arrives = when(at(event.t)[0] + self.rng.randint(1, 2), self.rng.randint(9, 16),
+                                       self.rng.randint(0, 59))         # a day or two before, in store hours
+                        out.append(Receive(arrives, event.store_id, line.sku, line.product_id, delta,
+                                           self.staff(event.store_id)))
                         stock[(event.store_id, line.product_id)] += delta
                     stock[(event.store_id, line.product_id)] -= line.quantity
             elif isinstance(event, Cancel) and event.from_status in ("paid", "ready"):
@@ -472,7 +486,7 @@ def render(events: list) -> str:
         "BEGIN;",
         "SET LOCAL timezone = 'Australia/Sydney';",
         "",
-        HELPERS_FILE.read_text().rstrip(),
+        HELPERS_FILE.read_text(encoding="utf-8").rstrip(),
         "",
         "-- ---------------------------------------------------------------- the timeline",
     ]
@@ -559,7 +573,7 @@ def build_reference_database(dbname: str) -> None:
     with conn.cursor() as cur:
         for path in sorted(SQL_DIR.glob("*.sql")):
             if path.name < "20":
-                cur.execute(path.read_text())
+                cur.execute(path.read_text(encoding="utf-8"))
     conn.close()
 
 
@@ -581,6 +595,12 @@ def read_reference(cur) -> Reference:
     return Reference(products, stores, dict(staff), stock, personas)
 
 
+def write(text: str, path: Path = SEED_FILE) -> None:
+    """UTF-8 with LF line ends on every platform: the file is compared byte for byte (tests/test_seed.py), and a
+    Windows default (cp1252, CRLF) would change it."""
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
 def main() -> int:
     load_dotenv(ROOT / ".env")
     dbname = seed_database()
@@ -596,7 +616,7 @@ def main() -> int:
             cur.execute(text)                       # every rule runs: a failure stops here, before writing
     finally:
         conn.close()
-    SEED_FILE.write_text(text)
+    write(text)
     print(f"wrote {SEED_FILE.relative_to(ROOT)}: {text.splitlines()[2][3:]}")
     return 0
 

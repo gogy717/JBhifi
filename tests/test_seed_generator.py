@@ -176,3 +176,29 @@ def test_the_scripted_scenarios_are_in_the_plan(events):
     queue = [last_status(order.order_id) for order in of(events, gen.Checkout)
              if order.store_id == NSW_RETAIL and gen.at(order.t)[0] <= 2]
     assert queue.count("paid") >= 4 and queue.count("picking") >= 3
+
+
+def test_staff_work_store_hours_and_customers_waking_hours(events):
+    """Staff move orders and take deliveries 09:00–20:59; customers sign up, order and cancel 07:00–23:59. So no
+    event falls in the night, where the hour that doesn't exist when daylight saving starts (02:00–03:00) is."""
+    for event in events:
+        minutes = gen.at(event.t)[1]
+        staff = isinstance(event, (gen.Move, gen.Receive)) or (isinstance(event, gen.Cancel) and event.staff_id)
+        if staff:
+            assert 9 * 60 <= minutes < 21 * 60, event
+        elif not isinstance(event, (gen.AddressAdded, gen.AddressRetired)):    # address rows carry no time
+            assert 7 * 60 <= minutes < 24 * 60, event
+
+
+def test_the_generator_reads_and_writes_utf8_whatever_the_locale(tmp_path):
+    """The helpers and the file contain → ≥ —: on a machine whose default encoding isn't UTF-8 (Windows' cp1252,
+    or here an ASCII C locale), reading or writing them without saying UTF-8 breaks the file."""
+    import os
+    import subprocess
+    import sys
+    target = tmp_path / "seed.sql"
+    script = ("from pathlib import Path; from scripts import generate_seed as g; text = g.render([]); "
+              f"g.write(text, Path({str(target)!r})); assert Path({str(target)!r}).read_bytes().decode('utf-8') == text")
+    env = {**os.environ, "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0", "LC_ALL": "C", "LANG": "C"}
+    result = subprocess.run([sys.executable, "-c", script], cwd=gen.ROOT, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

@@ -10,10 +10,15 @@
 -- the time zone). BR09's log reads who and when from app.staff_id and app.changed_at, set here for this
 -- transaction only (set_config(…, true)), exactly as the services set app.staff_id.
 
--- `days` days before the anchor, `minutes` minutes after that day's midnight. With days ≥ 1 it is in the past
--- whenever the file is loaded.
+-- `days` days before the anchor, at `minutes` minutes past midnight on the local clock. With days ≥ 1 it is in the
+-- past whenever the file is loaded. The arithmetic is done on the local date and clock (a date plus an interval is
+-- a timestamp without time zone), then read as Sydney time: on the days daylight saving starts or ends, counting
+-- elapsed minutes from midnight instead would put every later time an hour out. The plan keeps every event between
+-- 07:00 and midnight, so none falls in the hour that doesn't exist when daylight saving starts.
+-- seed.anchor, if set, stands in for the load date: tests replay the file as of other days with it.
 CREATE FUNCTION pg_temp.seed_at(days int, minutes int) RETURNS timestamptz LANGUAGE sql STABLE AS $$
-    SELECT date_trunc('day', now()) - days * interval '1 day' + minutes * interval '1 minute'
+    SELECT (COALESCE(NULLIF(current_setting('seed.anchor', true), '')::date, current_date) - days
+            + minutes * interval '1 minute')::timestamptz
 $$;
 
 -- A customer signs up (as a first sign-in does, app/auth.py) with their first address.

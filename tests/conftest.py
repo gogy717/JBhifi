@@ -36,7 +36,7 @@ def test_database():
         for path in sorted(SQL_DIR.glob("*.sql")):
             if path.name >= "20":                 # generated data (20_seed_generated.sql): tests/test_seed.py
                 continue
-            cur.execute(path.read_text())
+            cur.execute(path.read_text(encoding="utf-8"))
     conn.close()
 
 

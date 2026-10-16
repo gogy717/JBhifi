@@ -16,23 +16,63 @@ from scripts import generate_seed as gen
 from tests.test_business_rules import HISTORY_CHECKS, history_breaks
 
 
+# Load dates the timeline must survive: the days after daylight saving starts (4 Oct 2026) and ends (4 Apr 2027),
+# the submission weekend, and a day that once put a collection before its ready.
+ANCHORS = ["2026-10-05", "2026-10-25", "2026-11-09", "2027-04-05"]
+
+# What must hold whatever day the file is loaded: each a query returning the rows that break it.
+TIMELINE_CHECKS = {
+    "history runs forward": """
+        SELECT h.order_id FROM order_status_history h
+        JOIN order_status_history next ON next.order_id = h.order_id AND next.seq = h.seq + 1
+        WHERE next.changed_at < h.changed_at""",
+    "orders are placed 08:00-21:59": """
+        SELECT order_id FROM customer_order WHERE extract(hour FROM placed_at) NOT BETWEEN 8 AND 21""",
+    "staff move orders 09:00-20:59": """
+        SELECT order_id FROM order_status_history
+        WHERE changed_by_staff_id IS NOT NULL AND extract(hour FROM changed_at) NOT BETWEEN 9 AND 20""",
+    "everything is before the anchor": """
+        SELECT order_id FROM order_status_history WHERE changed_at >= current_setting('seed.anchor')::date""",
+}
+
+
+def timeline_breaks(cur, text: str, anchor: str) -> dict:
+    """Load the seed as if on `anchor`, inside a transaction that is rolled back (the file's own BEGIN and COMMIT
+    are left out, so the deferred BR07 check doesn't run; the real load covers it), and run TIMELINE_CHECKS."""
+    cur.execute("BEGIN")
+    try:
+        cur.execute("SET LOCAL timezone = 'Australia/Sydney'")
+        cur.execute("SELECT set_config('seed.anchor', %s, true)", (anchor,))
+        cur.execute(text.replace("\nBEGIN;\n", "\n", 1).replace("\nCOMMIT;\n", "\n", 1))
+        found = {}
+        for check, query in TIMELINE_CHECKS.items():
+            cur.execute(query)
+            found[check] = [row["order_id"] for row in cur.fetchall()][:5]
+        return found
+    finally:
+        cur.execute("ROLLBACK")
+
+
 @pytest.fixture(scope="module")
 def seeded():
-    """Build the database from the hand-written files, note the stock and what the generator would write now,
-    then load the committed seed file. Yields (cursor, opening stock, regenerated text, seconds to load)."""
+    """Build the database from the hand-written files; note the stock and what the generator would write now; replay
+    the committed file as of each of ANCHORS (rolled back); then load it for real. Yields (cursor, opening stock,
+    regenerated text, seconds to load, {anchor: timeline breaks})."""
     dbname = gen.seed_database()
     gen.build_reference_database(dbname)
     conn = gen.connect(dbname)
     conn.autocommit = True                              # the file has its own BEGIN … COMMIT
+    text = gen.SEED_FILE.read_text(encoding="utf-8")
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT store_id, product_id, quantity FROM inventory")
             opening = {(row["store_id"], row["product_id"]): row["quantity"] for row in cur.fetchall()}
             regenerated = gen.render(gen.plan(gen.read_reference(cur)))
+            anchored = {anchor: timeline_breaks(cur, text, anchor) for anchor in ANCHORS}
             started = time.monotonic()
-            cur.execute(gen.SEED_FILE.read_text())
+            cur.execute(text)
             loaded_in = time.monotonic() - started
-            yield cur, opening, regenerated, loaded_in
+            yield cur, opening, regenerated, loaded_in, anchored
     finally:
         conn.close()
 
@@ -43,9 +83,9 @@ def rows(cur, query, params=()):
 
 
 def test_the_committed_file_is_what_the_generator_writes(seeded):
-    _, _, regenerated, loaded_in = seeded
+    _, _, regenerated, loaded_in, _ = seeded
     print(f"\nseed loaded in {loaded_in:.1f} s")
-    assert gen.SEED_FILE.read_text() == regenerated, "run: python scripts/generate_seed.py"
+    assert gen.SEED_FILE.read_text(encoding="utf-8") == regenerated, "run: python scripts/generate_seed.py"
 
 
 def test_the_history_checks_find_nothing(seeded):
@@ -129,3 +169,9 @@ def test_the_seed_has_the_planned_size(seeded):
     assert counts["retired"] > 10
     # The API's next order and customer don't collide with seeded ids.
     assert rows(cur, "SELECT last_value FROM customer_order_order_id_seq") == [{"last_value": gen.ORDERS}]
+
+
+
+@pytest.mark.parametrize("anchor", ANCHORS)
+def test_the_timeline_holds_on_whatever_day_it_is_loaded(seeded, anchor):
+    assert seeded[4][anchor] == {check: [] for check in TIMELINE_CHECKS}

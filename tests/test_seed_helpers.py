@@ -17,7 +17,7 @@ AIDEN, ZARA, ISLA = 14, 15, 16          # Aiden and Zara work at Sydney CBD (sto
 def seed(cur):
     """The test's cursor with the helpers loaded, in the seed's time zone (the anchor is Sydney midnight)."""
     cur.execute("SET LOCAL timezone = 'Australia/Sydney'")
-    cur.execute(HELPERS.read_text())
+    cur.execute(HELPERS.read_text(encoding="utf-8"))
     return cur
 
 
@@ -70,6 +70,17 @@ def test_seed_at_is_local_time_before_the_anchor(seed):
     row = one(seed, """SELECT %s::timestamptz < date_trunc('day', now()) AS before_anchor,
                               to_char(%s::timestamptz, 'HH24:MI') AS clock""", (t, t))
     assert (row["before_anchor"], row["clock"]) == (True, "10:15")      # 20 days before Sydney midnight, 10:15
+
+
+@pytest.mark.parametrize("anchor, day", [("2026-10-05", "2026-10-04"),      # daylight saving began on the 4th
+                                         ("2026-04-06", "2026-04-05"),      # and ended on 5 April
+                                         ("2026-10-25", "2026-10-24")])
+def test_seed_at_keeps_local_clock_times_across_daylight_saving(seed, anchor, day):
+    # seed.anchor stands in for the load date, as tests/test_seed.py does to replay the file on other days.
+    seed.execute("SELECT set_config('seed.anchor', %s, true)", (anchor,))
+    row = one(seed, "SELECT to_char(pg_temp.seed_at(1, 615), 'YYYY-MM-DD HH24:MI') AS local, "
+                    "to_char(pg_temp.seed_at(1, 23 * 60 + 30), 'YYYY-MM-DD HH24:MI') AS late")
+    assert (row["local"], row["late"]) == (f"{day} 10:15", f"{day} 23:30")
 
 
 def test_a_seeded_checkout_is_paid_at_its_time_through_the_rules(seed):
