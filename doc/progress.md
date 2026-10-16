@@ -4,6 +4,31 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/rule-traceability`: the rule traceability table, checked against the database
+
+Report appendix material (plan §3: requirement → ER element → `brNN_…` mechanism → test → report). Tests and one
+document only.
+
+- **`docs/rule-traceability.md`**: BR01–BR22, each with its plan §3 text, its tables, every mechanism by name and
+  kind (CHECK, UNIQUE, FK, domain CHECK, trigger with its timing, statement trigger, deferred constraint trigger,
+  partial unique index), the tests that violate it (`test_business_rules.py` first) and its Week 10 label (T-8);
+  R1–R14 → endpoints → pages → test files; T1–T4 → service → concurrency and rollback tests.
+- **`tests/test_rule_traceability.py`** (6 tests) reads the catalog — `pg_constraint` (including domain constraints
+  and the constraint trigger), indexes that back no constraint, `pg_trigger`, and the names each trigger raises (its
+  function's `CONSTRAINT = '…'` literals and its arguments, so `_truncate` triggers share their row trigger's
+  name) — with `~ '^br[0-9]{2}_'` (`LIKE 'br%'` would also take `brand_*`). It checks: every name is in the
+  document; every name an error can carry is asserted by a test (a string literal inside `assert` or `violates(...)`,
+  found by parsing the test files); every BR has an assertion in `test_business_rules.py` (CLAUDE.md's convention);
+  every BR has its own row; the document names nothing the database doesn't have; every test it cites exists.
+  `EXEMPT` is empty, and an exemption must say why.
+
+**Verification (actually run).** `pytest` → **624 passed** (6 new). Measured on the catalog: 22 `brNN_` constraints,
+1 partial unique index, 28 `brNN_` triggers and 25 raised names; all 49 names an error can carry are asserted, and
+all 22 rules have an assertion in `test_business_rules.py`. Mutation checks: dropping a name from the document,
+naming one the database doesn't have, or citing a test that doesn't exist each fails its check.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/concurrency-evidence`: what goes wrong without each concurrency technique
 
 Design: `docs/superpowers/specs/2026-10-16-concurrency-evidence-design.md`; plan:
