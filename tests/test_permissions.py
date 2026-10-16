@@ -38,6 +38,7 @@ CHECKOUT = {"fulfilment_method": "click_collect", "fulfilling_store_id": 1, "exp
             "items": [{"product_id": 999999, "quantity": 1}]}
 # Alice's order is paid, so a move from picking is stale (409 status_changed) for everyone allowed to try it.
 STALE_MOVE = {"from_status": "picking", "to_status": "ready"}
+STALE_CANCEL = {"from_status": "picking"}
 # POST /orders needs an Idempotency-Key: without one it is a 422 for everyone, before anyone is asked who they
 # are. Every request carries this one; the other endpoints ignore it.
 RETRY_KEY = "5d6c3b9e-8f1a-4e2b-9c7d-0a1b2c3d4e5f"
@@ -72,6 +73,8 @@ ENDPOINTS = [
     ("GET", "/stores/99/orders", None, {"nora"}),                           # no such store: 404 for support only
     ("POST", "/orders/{alice_order}/status", STALE_MOVE, {"aiden", "olivia", "nora"}),   # 409: it is paid
     ("POST", "/orders/999999/status", STALE_MOVE, {"nora"}),
+    ("POST", "/orders/{alice_order}/cancel", STALE_CANCEL, {"alice", "aiden", "olivia"}),   # 409: it is paid
+    ("POST", "/orders/999999/cancel", STALE_CANCEL, set()),                 # support never cancels
 ]
 
 

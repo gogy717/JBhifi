@@ -41,20 +41,25 @@ not its `order_cancellation` table, deferred BR14 triggers or `flush_deferred`.
 2. Who: customer (own order) / store staff (fulfilling store) / support (refused). 403 comes before any 404.
 3. `from_status` ≠ current status → 409 `status_changed`, detail `{status}`.
 4. A customer may cancel only a `placed` or `paid` order, else 403 `customer_cancel_before_picking`.
-5. Restock (status `paid` or `ready`), in ascending `product_id`, as T3 does: `INSERT INTO inventory (store_id,
+5. The transition table must allow `(method, status, 'cancelled')`, else 409 `br09_order_status_transition`.
+   Asked here because the refund comes before the status change, and BR14 would otherwise refuse a `picking`
+   order's refund under its own name; BR09's trigger still checks the move itself in step 8.
+6. Restock (status `paid` or `ready`), in ascending `product_id`, as T3 does: `INSERT INTO inventory (store_id,
    product_id, quantity) VALUES (%s, %s, 0) ON CONFLICT DO NOTHING`, then the relative `UPDATE inventory SET
    quantity = quantity + %s …`. No rule keeps an inventory row from being deleted, so the row is made sure of
    first rather than assumed (otherwise the UPDATE would match 0 rows and the stock would silently vanish).
-6. Refund (`_refund`, its own function so a test can make it fail): `INSERT INTO payment (order_id, kind, amount)
+7. Refund (`_refund`, its own function so a test can make it fail): `INSERT INTO payment (order_id, kind, amount)
    SELECT order_id, 'refund', balance FROM v_order_payment WHERE order_id = %s AND balance > 0`.
-7. `set_config('app.staff_id', <staff id, or '' for the customer>, true)`, then `UPDATE … SET status =
+8. `set_config('app.staff_id', <staff id, or '' for the customer>, true)`, then `UPDATE … SET status =
    'cancelled'`. BR09 checks the move and logs who made it; BR21 checks the refund.
-8. `get_order`. Any failure → ROLLBACK: no status change, stock change, refund or history.
+9. `get_order`. Any failure → ROLLBACK: no status change, stock change, refund or history.
 
 **Lock order and deadlocks.** T4 locks: order `FOR UPDATE` → inventory rows by ascending `product_id` → the order
 again in the payment triggers (already held) → `get_order`'s `FOR SHARE` (already held). T1 also locks inventory
 by ascending `product_id`, and the only order it locks is its own new, uncommitted row, which no other
-transaction can wait for. So T1 never waits for a lock T4 holds. Two T4s lock shared products in the same order.
+transaction can wait for. So the two can wait for each other only on inventory rows, and both take those in
+ascending `product_id`: a cycle would need one of them to wait for a `product_id` below one it already holds. Two
+T4s lock shared products in the same order.
 T4 and a status move on the same order both lock the order row first, so one waits for the other.
 
 **Advance an order**: lock `FOR UPDATE` → who (fulfilling store's staff, or support) → `from_status` check →

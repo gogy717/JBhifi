@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query
 from app.auth import CurrentActor
 from app.db import DbCursor
 from app.errors import ERROR_RESPONSES
-from app.schemas.fulfilment import OrderStatus, StatusMove
+from app.schemas.fulfilment import CancelRequest, OrderStatus, StatusMove
 from app.schemas.orders import OrderDetail, OrderSummary
 from app.services import fulfilment
 
@@ -24,3 +24,12 @@ def move_order(order_id: int, body: StatusMove, cur: DbCursor, actor: CurrentAct
     """Move an order one step along its path, as the fulfilling store's staff or support. 409 status_changed
     (detail: the current status) when the order is no longer at `from_status`."""
     return fulfilment.advance_order(cur, actor, order_id, body)
+
+
+@router.post("/orders/{order_id}/cancel", response_model=OrderDetail)
+def cancel_order(order_id: int, body: CancelRequest, cur: DbCursor, actor: CurrentActor):
+    """Cancel an order (T4): its stock goes back to the fulfilling store and what was charged is refunded, in
+    one transaction. The customer may cancel before picking starts; the fulfilling store's staff whenever the
+    transition table allows. 409 status_changed (detail: the current status) when it is no longer at
+    `from_status`."""
+    return fulfilment.cancel_order(cur, actor, order_id, body)
