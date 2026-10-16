@@ -24,7 +24,7 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 Clerk keys in images, the demo runs the code the tests run. The demo needs the internet (Clerk), so plan §10's
 "works offline" no longer holds.
 
-**Verification (actually run).** `pytest` → **608 passed** (6 new, for the scripts' safety checks).
+**Verification (actually run).** `pytest` → **610 passed** (8 new, for the scripts' safety checks).
 `reset_db.py` against `jbhifi_sp4`: rebuilt and linked (exit 0); with Clerk unreachable it reports the database
 rebuilt but not linked (exit 1); `POSTGRES_DB=postgres` is refused. `demo.py --api-port 8004 --web-port 3004`:
 built, both health checks answered, the storefront answered 200; Ctrl-C stopped the API and the web app within
