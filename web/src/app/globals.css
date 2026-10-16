@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
-/* The TechLight brand sheet. `brand` marks the logo, sale badges, focus rings and the current page; `brand-strong`
-   is for small text and for white text on a brand fill (#E64626 on white is 4.0:1, under AA's 4.5:1 for small
-   text; #C8381A is 5.2:1). Buttons stay ink, and errors keep Tailwind's red, so a red fill always means the brand.
-   Sora (the wordmark and headings) is bundled in app/fonts, so nothing is downloaded when the app builds or runs;
-   body text keeps the system fonts. */
+/* The TechLight brand sheet and the homepage redesign. `brand` (#E64626) is for large fills and the logo;
+   `brand-strong` (#C8381A) is for small text, small buttons and white text on a red fill (#E64626 behind small
+   white text is 4.0:1, under AA's 4.5:1; #C8381A is 5.2:1). Primary buttons are ink pills, and errors keep
+   Tailwind's red. Both typefaces are bundled in app/fonts, so nothing is downloaded when the app builds or runs:
+   Sora (600–800) for the wordmark, headings and prices, Figtree (400–700) for everything else. */
 @theme {
   --color-brand: #E64626;
   --color-brand-strong: #C8381A;
@@ -27,7 +27,7 @@
   --radius-card: 20px;           /* cards */
   --radius-panel: 24px;          /* large panels */
   --radius-hero: 28px;           /* the hero */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }

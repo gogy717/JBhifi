@@ -4,6 +4,65 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/redesign-foundation`: the redesign's foundation (fonts, shared components, shop header and footer)
+
+The first part of the storefront and admin redesign: what every page shares. Each page then picks up the new look
+through the components it already uses; the home page and the product card follow in their own PR.
+
+- **Fonts** (`web/src/app/fonts/`, `layout.tsx`, `globals.css`): Figtree (one variable Latin file, 400–700, SIL Open
+  Font License) is bundled with `next/font/local` and becomes `--font-sans`, the body font. Sora is now declared
+  600–800, for the design's 800 headline and prices; the bundled file already covered 800. `body` is `bg-canvas
+  text-ink`, so the admin gets the warm canvas too.
+- **Shared components** (`web/src/components/ui.tsx`). Every export and prop is unchanged, so every page that uses
+  them changes with them.
+  - **Controls**: buttons and inputs are pills, 44px high (`size="sm"` is 32px, for admin table rows). Buttons are
+    ink for primary, outlined white for secondary, red for danger. A new optional `tone="brand"` uses
+    `brand-strong`, because white text on #E64626 is under AA's 4.5:1. A textarea that takes `inputClass` keeps
+    rounded corners rather than becoming a pill.
+  - **Surfaces**: `Card` is white with a `line` border and 20px corners; `Badge` is a pill; `Field` labels are small
+    tracked capitals.
+  - **`StockBadge`**: a green dot and the count; an amber dot for 3 or fewer; a grey dot and "Out of stock" in words
+    for none. Every state has screen-reader text, so colour is never the only signal.
+  - **`ErrorBox`** stands out: a red edge, an icon, and the constraint name in a pill. It is the demo's evidence of
+    which database rule refused a request.
+  - **`Modal`** is now named by its title (`aria-labelledby`); before, the dialog had no accessible name.
+- **Product pictures** (`web/src/components/product-image.tsx`, new). The database has no product photos, so a
+  product's picture slot is a sand tile with its category's line icon (the design's five, one per top-level
+  category, else a generic box) and its brand. `topLevelCategory(categoryId, categories)` walks up the tree from a
+  product's leaf category; an unknown id or a cycle gives `undefined`. `CategoryIcon` and `ProductImage` take a
+  `categoryId` and the tree; badges laid over the tile stay readable while the drawing is hidden from screen
+  readers.
+- **Shop header** (`components/shop/header.tsx`):
+  - an ink utility bar: "Click & Collect from <my store>", Stores, My orders, Returns;
+  - the logo and a sand pill search with a `brand-strong` Search button, still a GET form to `/products?q=`;
+  - "My store" as a pill around the native select (keyboard and screen readers unchanged);
+  - Sign in / Create account, or the signed-in name;
+  - a round cart button whose label still says the count;
+  - a bar with Deals and the top-level categories.
+- **Shop footer** (`components/shop/footer.tsx`, new): the logo, the top-level categories, the help pages, the
+  fictional-store line and the "Staff: store admin" link. `(shop)/layout.tsx` uses it, with the canvas and the
+  1280px content width.
+
+**Verification (actually run).**
+
+- `npm run test:unit` → **59 passed**. 21 are new:
+  - `ui.test.tsx` (8): StockBadge's three states and their words; ErrorBox's rule name, other failures and
+    dismissing; a Button never submits by accident; the Modal is named by its title and Escape closes it;
+  - `product-image.test.tsx` (6): the tree walk, the fallback icon, the drawing hidden but its badges read;
+  - `shop/header.test.tsx` (7): the utility bar's store, search to the catalogue, the labelled store picker,
+    categories and Deals, sign-in and the cart count, and the footer's links, line and admin link.
+- `typecheck` and `lint` are clean; `build` passes.
+- `pytest` → **675 passed** (only `web/` changed).
+- **Before and after screenshots**: production builds of `main` and of this branch, at 1440px and 390px, for the
+  home page, the catalogue, a product page, the stores page and the cart. Phone width is shot through a 390px
+  iframe, because headless Chrome lays a window out at about 500px at least.
+- **No sideways scrolling at 390px**: `scrollWidth` equals `clientWidth` on the home page, catalogue, product,
+  stores, cart, orders, returns and account pages.
+- **Not done:** the admin pages and the signed-in states need a sign-in, so they are checked by typecheck and build
+  only.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/techlight-brand`: the web app becomes TechLight
 
 The storefront and the store admin now carry a fictional brand, TechLight, from its brand sheet: the logo (a

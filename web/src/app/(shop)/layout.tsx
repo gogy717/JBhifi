@@ -1,24 +1,19 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { ShopProvider } from "@/components/shop/context";
+import { ShopFooter } from "@/components/shop/footer";
 import { ShopHeader } from "@/components/shop/header";
 import { CartProvider } from "@/lib/cart-context";
 
+// Every storefront page: the header, the page on the warm canvas (1280px wide, 24px gutters), the footer.
 export default function ShopLayout({ children }: { children: ReactNode }) {
   return (
     <ShopProvider>
       <CartProvider>
-        <div className="flex min-h-screen flex-col">
+        <div className="flex min-h-screen flex-col bg-canvas">
           <ShopHeader />
-          <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 md:py-8">{children}</main>
-          <footer className="border-t border-neutral-200 bg-white">
-            <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 text-xs
-              text-neutral-500">
-              <span>TechLight is a fictional store — a COMP9120 prototype. Payments are simulated.</span>
-              <Link href="/admin" className="font-medium text-neutral-700 hover:underline">Staff: store admin →</Link>
-            </div>
-          </footer>
+          <main className="mx-auto w-full max-w-[1280px] flex-1 px-6 pb-[72px] pt-8">{children}</main>
+          <ShopFooter />
         </div>
       </CartProvider>
     </ShopProvider>
