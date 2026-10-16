@@ -113,9 +113,9 @@ function Order({ orderId }: { orderId: number }) {
           <FulfilmentPath method={detail.fulfilment_method} status={detail.status}
             reached={detail.history.map((change) => change.to_status)} />
           <div className="space-y-3 lg:border-l lg:border-line lg:pl-6">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+            <h2 className="flex items-center gap-2 font-sans text-xs font-semibold uppercase tracking-[0.08em] text-muted">
               Next step <RuleTag>BR09</RuleTag>
-            </div>
+            </h2>
             <div className="flex flex-wrap items-center gap-2">
               {moves.map((to) => (
                 <Button key={to} tone="primary" disabled={busy} onClick={() => move(detail, to)}>{MOVES[to]}</Button>

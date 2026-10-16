@@ -139,7 +139,7 @@ export default function InventoryPage() {
         <Card className="self-start">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-              <span className="font-display text-base font-bold">{store?.name ?? "Stock"}</span>
+              <h2 className="text-base font-bold">{store?.name ?? "Stock"}</h2>
               {store?.store_type === "warehouse" && <Badge tone="blue">warehouse</Badge>}
               <span className="text-muted"><span className="tabular-nums">{rows.length}</span> products</span>
               <span className="flex items-center gap-1.5 font-semibold text-ink">
@@ -165,7 +165,7 @@ export default function InventoryPage() {
           {rows.length > 0 && (
             <Table label={`Stock at ${store?.name ?? "this store"}`} loading={inventory.loading}
               columns={["Product", { label: "Price", align: "right" }, { label: "On hand", align: "center" },
-                { label: canAdjust ? "Adjust" : "", align: "right", srOnly: !canAdjust }]}>
+                ...(canAdjust ? [{ label: "Adjust", align: "right" } as const] : [])]}>
               {rows.map((row) => (
                 <Row key={row.product_id}>
                   <Cell>
@@ -178,8 +178,8 @@ export default function InventoryPage() {
                     {money(row.current_price)}
                   </Cell>
                   <Cell align="center"><StockBadge quantity={row.quantity} /></Cell>
-                  <Cell>
-                    {canAdjust && (
+                  {canAdjust && (
+                    <Cell>
                       <div className="flex justify-end gap-1.5">
                         <Button size="sm" aria-label={`Remove one ${row.name}`}
                           disabled={busyId === row.product_id} onClick={() => quickAdjust(row, -1)}>−1</Button>
@@ -189,8 +189,8 @@ export default function InventoryPage() {
                           Adjust…
                         </Button>
                       </div>
-                    )}
-                  </Cell>
+                    </Cell>
+                  )}
                 </Row>
               ))}
             </Table>
@@ -300,7 +300,7 @@ function AdjustDialog({ row, initialDirection, storeName, actorName, onClose, on
       <div role="group" aria-label="Direction" className="grid grid-cols-2 gap-1 rounded-full bg-sand p-1">
         {(["add", "remove"] as const).map((d) => (
           <button key={d} type="button" aria-pressed={direction === d} onClick={() => changeDirection(d)}
-            className={`h-9 rounded-full text-sm font-semibold transition-colors focus-visible:outline-none
+            className={`h-9 rounded-full text-sm font-semibold transition-colors focus-visible:outline-hidden
               focus-visible:ring-2 focus-visible:ring-brand ${
               direction === d ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink"}`}>
             {d === "add" ? "Add stock" : "Remove stock"}

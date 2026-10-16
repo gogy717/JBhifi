@@ -59,7 +59,7 @@ export default function ReturnsDeskPage() {
           onSelect={(key) => setStatus(status === key ? "" : key)}
           tiles={TILES.map((tile) => ({
             ...tile, label: RETURN_STATUS_TEXT[tile.key],
-            count: desk.data?.filter((row) => row.status === tile.key).length,
+            count: desk.loading ? undefined : desk.data?.filter((row) => row.status === tile.key).length,
           }))} />
       </div>
 
@@ -87,14 +87,14 @@ export default function ReturnsDeskPage() {
             </p>
           </form>
           <div className="text-right text-sm text-muted">
-            <div>
-              {status ? <>{RETURN_STATUS_TEXT[status]} · </> : null}
+            <h2 className="inline font-sans font-normal">
+              Desk at {store?.name ?? "…"} · {status ? <>{RETURN_STATUS_TEXT[status]} · </> : null}
               <span className="tabular-nums">{rows.length}</span> {rows.length === 1 ? "return" : "returns"}
-              {status && (
-                <button type="button" onClick={() => setStatus("")}
-                  className="ml-2 font-semibold text-brand-strong hover:underline">Show all</button>
-              )}
-            </div>
+            </h2>
+            {status && (
+              <button type="button" onClick={() => setStatus("")}
+                className="ml-2 font-semibold text-brand-strong hover:underline">Show all</button>
+            )}
             <div className="text-xs">Requested returns of this store&apos;s orders, and every return received here</div>
           </div>
         </div>

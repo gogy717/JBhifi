@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StaffProvider } from "@/components/admin/staff-gate";
-import type { Me, OrderSummary } from "@/lib/api/client";
+import { ApiError, type Me, type OrderSummary } from "@/lib/api/client";
 
 import OrdersPage from "./page";
 
@@ -39,23 +39,51 @@ beforeEach(() => {
 });
 
 const tile = (name: RegExp) => within(screen.getByRole("group", { name: /Orders waiting/ })).getByRole("button", { name });
+/** The big figure on a tile, exactly (so 12 can't pass for 2). */
+const count = (name: RegExp) => tile(name).querySelector(".font-display")?.textContent;
 
 describe("the store's order queue", () => {
   it("counts_what_waits_at_each_step_from_the_to_do_list", async () => {
     render(<StaffProvider me={aiden}><OrdersPage /></StaffProvider>);
     expect(await screen.findByRole("link", { name: "#1" })).toBeInTheDocument();
-    expect(tile(/To pick/)).toHaveTextContent("2");
-    expect(tile(/Picking/)).toHaveTextContent("1");
-    expect(tile(/Ready to collect/)).toHaveTextContent("1");
-    expect(tile(/Shipped/)).toHaveTextContent("0");
+    expect(count(/To pick/)).toBe("2");
+    expect(count(/Picking/)).toBe("1");
+    expect(count(/Ready to collect/)).toBe("1");
+    expect(count(/Shipped/)).toBe("0");
     expect(orderRequests()).toEqual([["paid", "picking", "ready", "shipped"]]);
   });
 
   it("each_row_says_the_next_move", async () => {
     render(<StaffProvider me={aiden}><OrdersPage /></StaffProvider>);
-    expect(await screen.findAllByRole("link", { name: "Start picking →" })).toHaveLength(2);
-    expect(screen.getByRole("link", { name: "Mark shipped →" })).toHaveAttribute("href", "/admin/orders/3");
-    expect(screen.getByRole("link", { name: "Mark collected →" })).toHaveAttribute("href", "/admin/orders/4");
+    expect(await screen.findAllByRole("link", { name: /^Start picking →/ })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /^Mark shipped →/ })).toHaveAttribute("href", "/admin/orders/3");
+    expect(screen.getByRole("link", { name: /^Mark collected →/ })).toHaveAttribute("href", "/admin/orders/4");
+  });
+
+  it("the_list_is_a_named_section_and_each_next_link_names_its_order", async () => {
+    render(<StaffProvider me={aiden}><OrdersPage /></StaffProvider>);
+    await screen.findByRole("link", { name: "#1" });
+    expect(screen.getByRole("heading", { name: /Sydney CBD · To do/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mark shipped →, order #3" })).toHaveAttribute("href", "/admin/orders/3");
+  });
+
+  it("an_empty_step_says_so_rather_than_that_nothing_is_waiting", async () => {
+    render(<StaffProvider me={aiden}><OrdersPage /></StaffProvider>);
+    await screen.findByRole("link", { name: "#1" });
+    fireEvent.click(tile(/Shipped/));
+    expect(screen.getByText("No orders at this step right now.")).toBeInTheDocument();
+  });
+
+  it("a_failed_to_do_load_is_shown_even_on_another_queue", async () => {
+    api.GET.mockImplementation(async (path: string, options?: { params: { query: { status?: string[] } } }) => {
+      if (path === "/api/v1/stores") return [];
+      if (options?.params.query.status?.includes("paid")) throw new ApiError(500, "internal_error", "The API failed.");
+      return [order(9, "cancelled")];
+    });
+    render(<StaffProvider me={aiden}><OrdersPage /></StaffProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelled" }));
+    expect(await screen.findByRole("link", { name: "#9" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("The API failed.");
   });
 
   it("a_tile_filters_the_list_it_already_has", async () => {
@@ -73,7 +101,7 @@ describe("the store's order queue", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancelled" }));
     expect(await screen.findByRole("link", { name: "#9" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "#1" })).not.toBeInTheDocument();
-    expect(tile(/To pick/)).toHaveTextContent("2");
+    expect(count(/To pick/)).toBe("2");
     expect(orderRequests()).toEqual([["paid", "picking", "ready", "shipped"], ["cancelled"]]);
   });
 });

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { Dot } from "@/components/ui";
 
-const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 " +
+const focusRing = "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 " +
   "focus-visible:ring-offset-canvas";
 
 /** A short list of choices as pills, all in view at once (a status filter, a period, a state). One is always

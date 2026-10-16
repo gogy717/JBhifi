@@ -10,7 +10,7 @@ import { useStaff } from "@/components/admin/staff-gate";
 import { StorePicker } from "@/components/admin/store-select";
 import { Cell, Row, Table } from "@/components/admin/table";
 import { StatusBadge } from "@/components/shop/order-timeline";
-import { Card, Empty, ErrorBox, PageHeader } from "@/components/ui";
+import { Button, Card, Empty, ErrorBox, PageHeader } from "@/components/ui";
 import { api, call, type OrderStatus } from "@/lib/api/client";
 import { formatDateTime, money, timeAgo } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
@@ -49,6 +49,8 @@ export default function OrdersPage() {
   const shown = queue === "todo" ? todo : other;
   const rows = (shown.data ?? []).filter((row) => !step || row.status === step);
   const store = stores.data?.find((s) => s.store_id === storeId);
+  // The staff member's own store is named before the store list arrives.
+  const storeName = store?.name ?? (storeId === me.store_id ? me.store_name ?? undefined : undefined);
 
   function chooseQueue(next: Queue) {
     setQueue(next);
@@ -71,28 +73,37 @@ export default function OrdersPage() {
           stores={stores.data ?? []} value={storeId} onChange={setStoreId} />}
       />
 
-      <div className="mb-5">
-        <CountTiles label={`Orders waiting at ${store?.name ?? "this store"}`} selected={step} onSelect={chooseStep}
+      <div className="mb-5 space-y-3">
+        <CountTiles label={`Orders waiting at ${storeName ?? "this store"}`} selected={step} onSelect={chooseStep}
           tiles={WAITING.map((w) => ({
             key: w.status, label: w.label, hint: w.hint, attention: w.attention,
             count: todo.loading ? undefined : todo.data?.filter((row) => row.status === w.status).length,
           }))} />
+        {/* On the to-do queue the list below shows this error; on another queue, only the counts depend on it. */}
+        {todo.error && queue !== "todo" && (
+          <div className="flex flex-wrap items-center gap-3">
+            <ErrorBox error={todo.error} />
+            <Button onClick={todo.reload}>Try again</Button>
+          </div>
+        )}
       </div>
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
           <FilterPills label="Show" value={queue} onChange={chooseQueue}
             options={(Object.keys(QUEUES) as Queue[]).map((key) => ({ value: key, label: QUEUES[key].label }))} />
-          <span className="text-sm text-muted">
-            {store?.name} · <span className="tabular-nums">{rows.length}</span> {rows.length === 1 ? "order" : "orders"}
-          </span>
+          <h2 className="font-sans text-sm font-normal text-muted">
+            {storeName} · {QUEUES[queue].label}{step && ` · ${WAITING.find((w) => w.status === step)?.label}`}
+            {" "}· <span className="tabular-nums">{rows.length}</span> {rows.length === 1 ? "order" : "orders"}
+          </h2>
         </div>
         {shown.error && <ErrorBox error={shown.error} className="m-5" />}
         {!shown.error && rows.length === 0 && (
-          <Empty>{shown.loading ? "Loading…" : queue === "todo" ? "Nothing waiting: every order is handed over." : "No orders here."}</Empty>
+          <Empty>{shown.loading ? "Loading…" : step ? "No orders at this step right now."
+            : queue === "todo" ? "Nothing waiting: every order is handed over." : "No orders here."}</Empty>
         )}
         {rows.length > 0 && (
-          <Table label={`Orders at ${store?.name ?? "this store"}`} loading={shown.loading}
+          <Table label={`Orders at ${storeName ?? "this store"}`} loading={shown.loading}
             columns={["Order", "Placed", "How", "Status", "Next", { label: "Items", align: "right" },
               { label: "Total", align: "right" }, "Last change"]}>
             {rows.map((row) => {
@@ -116,7 +127,7 @@ export default function OrdersPage() {
                   <Cell><StatusBadge status={row.status} /></Cell>
                   <Cell className="whitespace-nowrap">
                     {next ? (
-                      <Link href={`/admin/orders/${row.order_id}`}
+                      <Link href={`/admin/orders/${row.order_id}`} aria-label={`${MOVES[next]} →, order #${row.order_id}`}
                         className="font-semibold text-brand-strong hover:underline">
                         {MOVES[next]} →
                       </Link>

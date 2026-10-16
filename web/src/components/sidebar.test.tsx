@@ -30,10 +30,10 @@ describe("the admin sidebar", () => {
     expect(screen.getByRole("link", { name: /Orders/ })).not.toHaveAttribute("aria-current");
   });
 
-  it("an_order_page_still_marks_orders", () => {
-    segment.current = "orders";   // /admin/orders/42: the segment below the admin layout is still "orders"
+  it("the_admin_root_marks_no_section", () => {
+    segment.current = null;   // /admin itself: no segment below the layout
     show(aiden);
-    expect(screen.getByRole("link", { name: /Orders/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryAllByRole("link").filter((link) => link.getAttribute("aria-current"))).toEqual([]);
   });
 
   it("says_who_is_signed_in_and_for_which_store", () => {

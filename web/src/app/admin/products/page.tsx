@@ -76,7 +76,7 @@ export default function ProductsPage() {
 
       <Card>
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <span className="font-display text-base font-bold">Catalogue</span>
+          <h2 className="text-base font-bold">Catalogue</h2>
           <span className="text-sm text-muted"><span className="tabular-nums">{rows.length}</span> products</span>
         </div>
         {products.error && <ErrorBox error={products.error} className="m-5" />}

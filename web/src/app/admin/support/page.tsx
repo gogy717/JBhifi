@@ -79,8 +79,8 @@ function SearchResults({ q, selected, onSelect }: {
         const chosen = c.customer_id === selected;
         return (
           <li key={c.customer_id}>
-            <button type="button" onClick={() => onSelect(c.customer_id)} aria-pressed={chosen}
-              className={`relative w-full px-5 py-3 text-left text-sm transition-colors focus-visible:outline-none
+            <button type="button" onClick={() => onSelect(c.customer_id)} aria-current={chosen ? "true" : undefined}
+              className={`relative w-full px-5 py-3 text-left text-sm transition-colors focus-visible:outline-hidden
                 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${
                 chosen ? "bg-brand-soft" : "hover:bg-canvas"}`}>
               {chosen && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-full bg-brand-strong" />}
@@ -144,7 +144,7 @@ function CustomerFile({ customerId }: { customerId: number }) {
                 <Cell>
                   <Link href={`/orders/${o.order_id}`}
                     className="font-semibold tabular-nums text-ink hover:text-brand-strong hover:underline">
-                    #{o.order_id}
+                    <span className="sr-only">Order </span>#{o.order_id}
                   </Link>
                 </Cell>
                 <Cell className="whitespace-nowrap tabular-nums text-muted">{formatDateTime(o.placed_at)}</Cell>
