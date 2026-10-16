@@ -36,9 +36,11 @@ Sub-project 3 of 4 (orders → fulfilment & cancellation → **returns** → rep
 **Decisions.** The decision table in spec §1 (retry key, refund = purchase price enforced by the database, any
 retail store receives, rejection only after receipt with a reason, receiver and resolver both recorded, 409 for
 a second click). Deviations from the plan: a list of returns carries each return's lines (one query), so the
-form can tell what is left; `_refund(cur, return_id)` inserts from the view, as T1's `_charge` does.
+form can tell what is left; `_refund(cur, return_id)` inserts from the view, as T1's `_charge` does. SP4's test
+builders (`tests/reports_support.py` `a_return`, `tests/test_support.py`) now give a request its key, record a
+receipt and reject only after it, as the new rules require.
 
-**Verification (actually run).** `pytest` → **507 passed** (111 new); `test_return_transactions.py` five times in a
+**Verification (actually run).** `pytest` → **599 passed** (111 new); `test_return_transactions.py` five times in a
 row, all passing; removing the order/return `FOR UPDATE` or the `ON CONFLICT` makes those tests fail. Web
 `typecheck`, `lint` and `build` clean; `test:unit` → **35 passed** (15 new). A final whole-branch review found
 nothing critical; its fixes (a return's lines are fixed in the database, the form keeps its key after a sign-in
