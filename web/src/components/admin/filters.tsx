@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Dot } from "@/components/ui";
+
 const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 " +
   "focus-visible:ring-offset-canvas";
 
@@ -58,7 +60,7 @@ export function CountTiles({ label, tiles, selected, onSelect }: {
             className={`flex min-w-0 flex-col items-start gap-1 rounded-card border bg-white px-4 py-3.5 text-left
               transition-colors ${focusRing} ${chosen ? "border-ink ring-1 ring-ink" : "border-line hover:border-ink/30"}`}>
             <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-              {waiting && <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-warn" />}
+              {waiting && <Dot className="bg-warn" />}
               {tile.label}
             </span>
             <span className={`font-display text-3xl font-bold leading-tight tabular-nums

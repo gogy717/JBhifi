@@ -143,10 +143,10 @@ function Order({ orderId }: { orderId: number }) {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card title={<>Items to pick <span className="font-normal text-muted">· {units} {units === 1 ? "unit" : "units"}</span></>}>
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Card title={<>Items to pick <span className="font-sans font-normal text-muted">· {units} {units === 1 ? "unit" : "units"}</span></>}>
           <Table label={`Items in order #${detail.order_id}`}
-            columns={[{ label: "Qty", align: "right" }, "Product", { label: "Line total", align: "right" }]}>
+            columns={[{ label: "Qty", align: "right" }, "Product", { label: "Total", align: "right" }]}>
             {detail.lines.map((line) => (
               <Row key={line.line_no}>
                 <Cell numeric className="w-16 font-display text-lg font-bold">× {line.quantity}</Cell>

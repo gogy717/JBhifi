@@ -9,7 +9,7 @@ import { StorePicker } from "@/components/admin/store-select";
 import { Cell, ProductName, Row, Table } from "@/components/admin/table";
 import { CategorySelect } from "@/components/category-select";
 import {
-  Badge, Button, Card, Empty, ErrorBox, Field, inputClass, LOW_STOCK, Modal, NoticeBanner, PageHeader,
+  Badge, Button, Card, Dot, Empty, ErrorBox, Field, inputClass, LOW_STOCK, Modal, NoticeBanner, PageHeader,
   selectClass, StockBadge, useNotice,
 } from "@/components/ui";
 import {
@@ -135,19 +135,19 @@ export default function InventoryPage() {
 
       <NoticeBanner notice={notice} onClose={clear} />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Card className="self-start">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
               <span className="font-display text-base font-bold">{store?.name ?? "Stock"}</span>
               {store?.store_type === "warehouse" && <Badge tone="blue">warehouse</Badge>}
               <span className="text-muted"><span className="tabular-nums">{rows.length}</span> products</span>
-              <span className="flex items-center gap-1.5 font-semibold text-red-700">
-                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-red-600" />
+              <span className="flex items-center gap-1.5 font-semibold text-ink">
+                <Dot className="bg-muted" />
                 <span className="tabular-nums">{outOfStock}</span> out of stock
               </span>
               <span className="flex items-center gap-1.5 font-semibold text-warn-ink">
-                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-warn" />
+                <Dot className="bg-warn" />
                 <span className="tabular-nums">{low}</span> low (≤ {LOW_STOCK})
               </span>
             </div>
@@ -286,7 +286,7 @@ function AdjustDialog({ row, initialDirection, storeName, actorName, onClose, on
 
   return (
     <Modal
-      title={<>Adjust stock · <span className="font-normal text-muted">{storeName}</span></>}
+      title={<>Adjust stock · <span className="font-sans font-normal text-muted">{storeName}</span></>}
       onClose={onClose}
       footer={<>
         <Button onClick={onClose}>Cancel</Button>

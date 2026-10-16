@@ -6,7 +6,7 @@ import { FilterPills, RuleTag } from "@/components/admin/filters";
 import { useStaff } from "@/components/admin/staff-gate";
 import { StorePicker } from "@/components/admin/store-select";
 import { Cell, ProductName, Row, Table } from "@/components/admin/table";
-import { Card, Empty, ErrorBox, PageHeader, StockBadge } from "@/components/ui";
+import { Card, Dot, Empty, ErrorBox, PageHeader, StockBadge } from "@/components/ui";
 import { api, call, type StockedEverywhere, type StoreReport } from "@/lib/api/client";
 import { formatDateTime, money } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
@@ -96,9 +96,9 @@ function ReportSections({ report, loading }: { report: StoreReport; loading: boo
       </div>
 
       <Card title={<span className="flex flex-wrap items-center gap-2">
-        {lowCount > 0 && <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-warn" />}
+        {lowCount > 0 && <Dot className="bg-warn" />}
         Low stock
-        <span className="font-normal text-muted">
+        <span className="font-sans font-normal text-muted">
           · 3 or fewer left, or under {SHORT_COVER_DAYS} days at the last 30 days&apos; rate
         </span>
       </span>}>
@@ -241,7 +241,7 @@ function Division({ result }: { result: StockedEverywhere }) {
         <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
           {result.products.map((p) => (
             <li key={p.product_id} className="flex min-w-0 items-baseline gap-2">
-              <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 translate-y-[-2px] rounded-full bg-ok" />
+              <Dot className="-translate-y-px bg-ok" />
               <span className="truncate">
                 {p.name} <span className="font-mono text-xs text-faint">{p.sku}</span>
               </span>
@@ -257,7 +257,7 @@ function Tile({ label, value, hint, warn = false }: { label: string; value: stri
   return (
     <div className="rounded-card border border-line bg-white px-4 py-3.5">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-        {warn && <span aria-hidden="true" className="h-2 w-2 rounded-full bg-warn" />}
+        {warn && <Dot className="bg-warn" />}
         {label}
       </div>
       <div className={`mt-1 font-display text-3xl font-bold leading-tight tabular-nums ${warn ? "text-warn-ink" : "text-ink"}`}>

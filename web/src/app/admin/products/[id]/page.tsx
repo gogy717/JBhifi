@@ -65,7 +65,7 @@ export default function ProductPage() {
         <SpecsEditor key={JSON.stringify(p.specs)} productId={p.product_id} specs={p.specs} readOnly={!canEdit}
           onSaved={(specs) => saved({ ...p, specs }, "Specifications")} />
 
-        <Card title={<>Stock by location <span className="font-normal text-muted">· {p.total_stock} in total</span></>}
+        <Card title={<>Stock by location <span className="font-sans font-normal text-muted">· {p.total_stock} in total</span></>}
           actions={<Link href="/admin/inventory" className="text-sm font-semibold text-brand-strong hover:underline">Adjust in Inventory →</Link>}>
           <Table label={`Stock of ${p.name} by location`}
             columns={["Location", "State", { label: "On hand", align: "right" }]}>
