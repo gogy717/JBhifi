@@ -4,6 +4,51 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/fusilier-returns-t2`: return requests, receipt, refund (T2) and rejection
+
+Design: `docs/superpowers/specs/2026-10-16-returns-design.md`; plan: `docs/superpowers/plans/2026-10-16-returns.md`.
+Sub-project 3 of 4 (orders → fulfilment & cancellation → **returns** → reports). R6, R8.
+
+**What's on the branch.**
+
+- **Return rules in the database** (spec §1). `return_request` gains a retry key (BR10 widened:
+  `UNIQUE (order_id, idempotency_key)`), when and by whom it was received and resolved, and a rejection reason,
+  held together by named `CHECK`s and a composite FK (the resolver works at the receiving store). A return is
+  rejected only after it is received: `requested → rejected` is gone from the transition trigger, and the receipt
+  `CHECK` now covers rejected returns too, so the resolver FK is always checked. BR14 widened: a refund for a
+  return equals what its items were bought for (`v_return_value`, a view, so the amount is worked out in one
+  place), and a return's lines never change after the request. BR22 (new): returns are received at a retail
+  store — a fact about one moment, so unlike BR06 it needs no store-side guard.
+- **Asking for a return**, `POST /api/v1/orders/{id}/returns` with an `Idempotency-Key`: T1's shape — look the key
+  up, claim it with `ON CONFLICT DO NOTHING`, then insert the lines in `line_no` order. A retry that arrives after
+  the 30-day window closed, or after BR12's total filled up, still gets its return back.
+- **Staff actions** `receive`, `refund` (T2) and `reject`: each locks the order, then the return, `FOR UPDATE`;
+  T2 then restocks the receiving store in ascending `product_id`, pays the refund and marks the return refunded,
+  all or nothing. Each action needs exactly one status, so whoever comes second gets 409
+  `return_status_transition` with the status it found; `UNIQUE (return_id)` on payment is the backstop. The spec
+  explains why this lock order can't deadlock with cancelling (SP2) or checkout.
+- **Reads**: `GET /returns/{id}`, `GET /customers/{id}/returns` (the contract SP4 uses), `GET /stores/{id}/returns`
+  (the store's desk). 403 before 404, as for orders.
+- **Web**: the order page's "Return items" form (what is left per line, the 30-day deadline, a key kept across an
+  unanswered try), My returns, the home page's Returns card, and the admin returns desk and return page (receive,
+  refund, reject with a reason).
+
+**Decisions.** The decision table in spec §1 (retry key, refund = purchase price enforced by the database, any
+retail store receives, rejection only after receipt with a reason, receiver and resolver both recorded, 409 for
+a second click). Deviations from the plan: a list of returns carries each return's lines (one query), so the
+form can tell what is left; `_refund(cur, return_id)` inserts from the view, as T1's `_charge` does.
+
+**Verification (actually run).** `pytest` → **507 passed** (111 new); `test_return_transactions.py` five times in a
+row, all passing; removing the order/return `FOR UPDATE` or the `ON CONFLICT` makes those tests fail. Web
+`typecheck`, `lint` and `build` clean; `test:unit` → **35 passed** (15 new). A final whole-branch review found
+nothing critical; its fixes (a return's lines are fixed in the database, the form keeps its key after a sign-in
+failure, the warehouse desk lists no requested returns, the desk keeps a refused click's message, and a test that
+T2 restocks the receiving store) were made test-first. The dev database was rebuilt from `sql/`, the personas
+re-linked, and T2 run on it in a rolled-back transaction. **Not yet run:** the in-browser walk-through (it needs a
+Clerk sign-in), left for after the merge.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/sp4-reports-support-queries`: manager reports and support lookup (R9, R10)
 
 Design: `docs/superpowers/specs/2026-10-16-reports-support-design.md`; plan: `docs/superpowers/plans/2026-10-16-reports-support.md`.

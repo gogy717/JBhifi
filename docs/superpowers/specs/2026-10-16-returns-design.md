@@ -28,6 +28,7 @@ return-rate report and the support lookup are SP4's.
 | `return_request_resolver_at_store` | composite FK `(received_store_id, resolved_by_staff_id) → staff (store_id, staff_id)` | the resolver works at the receiving store. Because every resolved return now has a receiving store, the FK is always checked (`MATCH SIMPLE` skips a row whose store is `NULL`) |
 | `return_status_transition` (changed) | main's trigger | `requested → rejected` removed: `requested → received → refunded / rejected` (plan §4) |
 | `br14_refund_matches_return` | trigger fn `br14_check_refund_matches_return()`, `BEFORE INSERT` on `payment` | BR14 widened: a refund **for a return** (`return_id IS NOT NULL`) equals that return's value. Refunds without a return are SP2's cancellation refunds and are left alone; a missing return is left to the FK |
+| `br14_return_line_immutable` | row trigger `BEFORE UPDATE OR DELETE` + `BEFORE TRUNCATE` on `return_line` (the shared `block_append_only_change`) | BR14 widened: a return's lines never change after the request, so a refund keeps equalling the value it was checked against. A return with lines can't be deleted (its cascade can't fire), as for orders |
 | `br22_return_received_at_retail_store` | trigger fn `br22_check_receiving_store()`, `BEFORE INSERT OR UPDATE OF received_store_id` on `return_request` | BR22 (new): when a return is received, the store is retail. It reads the store `FOR SHARE`, so a concurrent store-type change waits |
 
 BR22 has no store-side guard, unlike BR06. BR06 is a standing state: while a store has Click & Collect orders it
@@ -100,7 +101,7 @@ the order waits for it, or the request's FK check waits for T2 — waiting, neve
 |---|---|---|
 | `GET /returns/{id}` | its customer; retail staff (any `requested` return, since any retail store may receive it; otherwise only returns received at their store); support | `ReturnDetail`. Customers get 403 `not_your_return`, staff 403 `other_store`, for missing ids too; support 404 |
 | `GET /customers/{id}/returns` | that customer, support (as `/customers/{id}/orders`) — the contract SP4 uses | `ReturnSummary[]` newest first |
-| `GET /stores/{id}/returns` | that store's staff, support | `requested` returns of orders this store fulfilled, and every return received here |
+| `GET /stores/{id}/returns` | that store's staff, support | `requested` returns of orders this store fulfilled (a retail store only: the warehouse ships deliveries but can't receive returns), and every return received here |
 
 `ReturnSummary`: `return_id, order_id, status, reason, requested_at, quantity, value, refunded` (the refund
 amount or null), `received_store_id, received_store_name, received_at, resolved_at, rejection_reason, lines[{line_no,
