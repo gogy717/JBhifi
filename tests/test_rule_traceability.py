@@ -97,7 +97,8 @@ def test_every_name_an_error_can_carry_is_asserted_by_a_test(catalog):
 
 
 def test_every_rule_has_an_assertion_in_test_business_rules(catalog):
-    # CLAUDE.md: every BR gets a test in tests/test_business_rules.py that violates it and asserts the brNN_… name.
+    # Project convention: every BR gets a test in tests/test_business_rules.py that violates it and asserts
+    # the brNN_… name.
     rules = {RULE_NAME.fullmatch(name).group(1) for name in every_name(catalog)}
     covered = {RULE_NAME.fullmatch(name).group(1)
                for name, files in asserted().items() if "test_business_rules.py" in files}

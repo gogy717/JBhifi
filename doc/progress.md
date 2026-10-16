@@ -18,7 +18,7 @@ document only.
   function's `CONSTRAINT = '…'` literals and its arguments, so `_truncate` triggers share their row trigger's
   name) — with `~ '^br[0-9]{2}_'` (`LIKE 'br%'` would also take `brand_*`). It checks: every name is in the
   document; every name an error can carry is asserted by a test (a string literal inside `assert` or `violates(...)`,
-  found by parsing the test files); every BR has an assertion in `test_business_rules.py` (CLAUDE.md's convention);
+  found by parsing the test files); every BR has an assertion in `test_business_rules.py` (the project's convention);
   every BR has its own row; the document names nothing the database doesn't have; every test it cites exists.
   `EXEMPT` is empty, and an exemption must say why.
 
