@@ -4,6 +4,77 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/redesign-storefront`: the other shop pages in the redesign's language
+
+The storefront pages other than the home page now follow the homepage design, on the foundation (PR #16) and the
+home page's product card (PR #17). Only `web/` changed. Routes, data flow, form fields, API calls, error handling,
+the checkout and return idempotency keys, and the localStorage keys are as before. The "Rejected by the database"
+box still names the rule wherever it did.
+
+- **Shop all products**:
+  - the categories are pills, two rows when a top-level category is chosen (its subcategories below);
+  - search, brand and price are in a sidebar, behind a "Search and filters" button on a phone;
+  - the filters in force are chips that each clear only their own filter;
+  - the results are a grid of the home page's product card.
+
+  The filter logic lives in `components/shop/catalogue-filters.tsx`. The filters stay in the URL, and each pill is a
+  link that keeps the other filters.
+- **Product page**:
+  - the large picture tile (`ProductImage`: the category's icon and the brand) with the discount badge;
+  - the name, the price in Sora with the old price struck through, and "Save $…" (`saving()` from `lib/deals.ts`);
+  - the stock line at my store, and quantity with Add to cart;
+  - below: the specifications and the stock at every store.
+- **Cart**: one row per item, with a small picture tile, a − n + pill, and the line total in Sora. The summary card
+  stays in view on a desktop. Checkout looks disabled while something blocks it.
+- **Checkout**:
+  - three numbered steps: how you'd like it (Click & Collect or Delivery as two selectable cards); where (a store,
+    or an address chosen from address cards and the store it ships from); and what you're buying;
+  - "Pay (simulated)" on the right.
+
+  The logic between the customer's choices and the `POST` is byte-for-byte the same as before; the page only also
+  reads the category tree, for the pictures.
+- **My orders**: a card per order with its status badge; an order ready to collect is the dark card.
+- **Order page**:
+  - the items and the timeline;
+  - where it is going, the payment, and the return form.
+
+  The timeline (`order-timeline.tsx`, which the admin uses too) is a rail of dots, the newest in the brand colour,
+  with the same props and words.
+- **My returns**: a card per return, with a three-step progress bar: asked for, received, then refunded or
+  rejected. A rejected return shows no refund to come.
+- **Stores**: my store as the dark panel; "Who has it?" with product matches as pills that wrap on a phone; a card
+  per store, grouped by state.
+- **My account**: the details with initials; each address a card; "Add an address" as a dashed card.
+- **Sign in and sign up**: the brand panel beside Clerk's box on a desktop, with Clerk's colours and shapes set to
+  match. White on #E64626 is 4.0:1, so the panel's text is large text only. The guest prompt on the account pages
+  is the soft panel with Sign in and Create account.
+- **Shared parts** (`components/shop/page-parts.tsx`): the breadcrumb (the current page is never a link), the page
+  heading, callouts, pill links the same heights as `Button`, the price in Sora, and the quantity stepper.
+
+**Verification (actually run).**
+
+- `npm run test:unit` → **97 passed**. 19 are new, in 5 new files:
+  - `catalogue-filters.test.tsx` (7): pill links keep the other filters; a chip clears only its own; no id shows
+    while names load; prices as money; the chosen pill and the subcategory row;
+  - `page-parts.test.tsx` (6), `order-timeline.test.tsx` (2), `return-progress.test.tsx` (2) and
+    `auth-frame.test.tsx` (2).
+
+  Each was also checked against a deliberately broken version of its code, which it failed: an "All products" pill
+  marked while a category is chosen, a price chip clearing one bound, the timeline unsorted, a rejected return's
+  steps, the stepper's bound, a linked current crumb, and an h1 in the sign-in frame.
+- `typecheck` and `lint` are clean; `build` passes. `pytest` → **675 passed**.
+- **Screenshots, before and after**: production builds of `main` (622210e) and this branch on ports 3003 and 8003
+  with the seeded `jbhifi_sp3`, at 1440px and 390px. Pages: the catalogue (all, and Audio), two product pages, the
+  cart with items and empty, the guest view of checkout, orders, returns and account, stores (and a search for a
+  long product name on a phone), sign-in and sign-up.
+- **At 390px**: the page's `scrollWidth` equals the window's on every page above, and each page has exactly one
+  h1. On sign-in that is Clerk's own heading.
+- **Not done**: the signed-in pages — checkout's steps, My orders, the order page, My returns, My account's
+  addresses — need a sign-in, so they are checked by the unit tests, typecheck and build only. Clerk's box still
+  says "Sign in to JBhifi": that is the application's name in the Clerk dashboard, not in the code.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/redesign-home`: the redesigned home page and product card
 
 The home page follows the homepage design section by section, on the foundation merged just before (PR #16). Every

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ReturnStatusBadge } from "@/components/return-status";
+import { Callout, Price } from "@/components/shop/page-parts";
 import { Button, Card, ErrorBox, Field, inputClass } from "@/components/ui";
 import { api, type ApiError, call, type Me, type OrderDetail, type ReturnSummary, toApiError } from "@/lib/api/client";
 import { fromCents, lineTotalCents } from "@/lib/cart";
@@ -78,19 +79,19 @@ function RequestForm({ order, customerId, deadline }: { order: OrderDetail; cust
   }
 
   return (
-    <Card title="Return items" actions={<span className="text-xs text-neutral-500">R6 · BR11 · BR12</span>}>
-      <div className="space-y-4 px-4 py-3 text-sm">
+    <Card title="Return items" actions={<span className="text-[13px] text-muted">R6 · BR11 · BR12</span>}>
+      <div className="space-y-4 px-5 py-4 text-[15px]">
         {asked && (
-          <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800 ring-1 ring-emerald-200">
+          <Callout tone="ok" role="status">
             Return #{asked.return_id} requested. Bring the items to any TechLight store; you&apos;re refunded{" "}
             {money(asked.value)} once they are checked. Follow it on{" "}
-            <Link href={SHOP_PAGES.returns.href} className="font-medium underline">My returns</Link>.
-          </p>
+            <Link href={SHOP_PAGES.returns.href} className="font-bold text-brand-strong underline">My returns</Link>.
+          </Callout>
         )}
         {ofThisOrder.length > 0 && (
-          <ul className="divide-y divide-neutral-100 rounded-lg ring-1 ring-neutral-200">
+          <ul className="divide-y divide-line rounded-tile border border-line">
             {ofThisOrder.map((row) => (
-              <li key={row.return_id} className="flex items-center justify-between gap-3 px-3 py-2">
+              <li key={row.return_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[14px]">
                 <span>Return #{row.return_id} · {row.quantity} {row.quantity === 1 ? "item" : "items"} · {money(row.value)}</span>
                 <ReturnStatusBadge status={row.status} />
               </li>
@@ -105,52 +106,57 @@ function RequestForm({ order, customerId, deadline }: { order: OrderDetail; cust
         )}
 
         {!open ? (
-          <p className="text-neutral-600">The 30-day return window closed on {formatDate(deadline.toISOString())}.</p>
+          <p className="text-muted">The 30-day return window closed on {formatDate(deadline.toISOString())}.</p>
         ) : !returns.data ? (
-          !returns.error && <div className="h-16 animate-pulse rounded bg-neutral-100" />
+          !returns.error && <div aria-hidden="true" className="h-16 animate-pulse rounded-tile bg-sand" />
         ) : !anythingLeft ? (
-          <p className="text-neutral-600">Every item of this order has been asked for already.</p>
+          <p className="text-muted">Every item of this order has been asked for already.</p>
         ) : (
           <>
-            <p className="text-neutral-600">
-              Returns are accepted until {formatDate(deadline.toISOString())}, at the price you paid.
+            <p className="text-muted">
+              Returns are accepted until <b className="text-ink">{formatDate(deadline.toISOString())}</b>, at the price
+              you paid.
             </p>
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {order.lines.map((line) => {
                 const most = left.get(line.line_no) ?? 0;
                 return (
-                  <li key={line.line_no} className="flex flex-wrap items-center justify-between gap-3">
-                    <span>
-                      <span className="font-medium">{line.name}</span>
-                      <span className="block text-xs text-neutral-500">
+                  <li key={line.line_no}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-tile bg-sand px-4 py-3">
+                    <span className="min-w-0">
+                      <span className="font-semibold">{line.name}</span>
+                      <span className="block text-[13px] text-muted">
                         {money(line.unit_price)} each · {most} of {line.quantity} left to return
                       </span>
                     </span>
-                    <input type="number" min={0} max={most} step={1} aria-label={`How many ${line.name} to return`}
-                      className={`${inputClass} w-20`} disabled={most === 0 || sending || unanswered}
-                      value={Math.min(quantities[line.line_no] ?? 0, most)}
-                      onChange={(event) => {
-                        const typed = Math.trunc(Number(event.target.value));
-                        setQuantities({ ...quantities, [line.line_no]: Number.isFinite(typed) ? Math.max(0, Math.min(typed, most)) : 0 });
-                      }} />
+                    {/* The width is on a wrapper: inputClass is w-full, which would win over a width on the input. */}
+                    <span className="w-20 shrink-0">
+                      <input type="number" min={0} max={most} step={1} aria-label={`How many ${line.name} to return`}
+                        className={`${inputClass} text-center`} disabled={most === 0 || sending || unanswered}
+                        value={Math.min(quantities[line.line_no] ?? 0, most)}
+                        onChange={(event) => {
+                          const typed = Math.trunc(Number(event.target.value));
+                          setQuantities({ ...quantities, [line.line_no]: Number.isFinite(typed) ? Math.max(0, Math.min(typed, most)) : 0 });
+                        }} />
+                    </span>
                   </li>
                 );
               })}
             </ul>
             <Field label="Why are you returning them?">
-              <textarea className={`${inputClass} h-20 py-2`} maxLength={500} value={reason}
+              <textarea className={`${inputClass} h-24 py-3`} maxLength={500} value={reason}
                 disabled={sending || unanswered} onChange={(event) => setReason(event.target.value)} />
             </Field>
             {error && <ErrorBox error={error} onClose={unanswered ? undefined : () => setError(undefined)} />}
             {unanswered && (
-              <p className="text-amber-800">
+              <Callout tone="warn">
                 We couldn&apos;t confirm the request. Try again: it is sent exactly as before, so it can&apos;t be
                 asked for twice.
-              </p>
+              </Callout>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="text-neutral-600">
-                Refund on approval: <b className="tabular-nums">{money(fromCents(valueCents))}</b>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+              <span className="flex items-baseline gap-2 text-muted">
+                Refund on approval: <Price size="md" value={fromCents(valueCents)} />
               </span>
               <Button tone="primary" onClick={send} disabled={sending || chosen.length === 0 || reason.trim() === ""}>
                 {sending ? "Sending…" : unanswered ? "Try again" : "Request return"}

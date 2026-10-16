@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 
+import { ProductImage } from "@/components/product-image";
 import { useShop } from "@/components/shop/context";
-import { Badge, Button, Card, Empty, ErrorBox } from "@/components/ui";
+import {
+  Callout, Crumbs, Eyebrow, PageIntro, pillLink, Price, QuantityStepper, Skeleton,
+} from "@/components/shop/page-parts";
+import { Button, Card, Dot, Empty, ErrorBox } from "@/components/ui";
 import { api, call, type ProductSummary } from "@/lib/api/client";
 import { fromCents, lineTotalCents, MAX_QUANTITY } from "@/lib/cart";
 import { useCart } from "@/lib/cart-context";
@@ -12,7 +16,7 @@ import { SHOP_PAGES } from "@/lib/shop-pages";
 import { useLoad } from "@/lib/use-load";
 
 export default function CartPage() {
-  const { store } = useShop();
+  const { store, categories } = useShop();
   const { items, ready, count, setQuantity, removeItem } = useCart();
   const storeId = store?.store_id;
 
@@ -33,13 +37,14 @@ export default function CartPage() {
   const blocked = !ready || items.length === 0 || !products.data || unknown.length > 0 || retired.length > 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <title>Cart · TechLight</title>
-      <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
-        <Link href="/" className="hover:underline">Home</Link> /{" "}
-        <Link href={SHOP_PAGES.catalogue.href} className="hover:underline">Shop all products</Link> / Cart
-      </nav>
-      <h1 className="text-2xl font-semibold tracking-tight">Your cart</h1>
+      <div className="space-y-4">
+        <Crumbs trail={[["Home", "/"], ["Shop all products", SHOP_PAGES.catalogue.href], ["Cart"]]} />
+        <PageIntro title="Your cart">
+          {items.length > 0 && <>Current prices; stock at <b className="text-ink">{store?.name ?? "your store"}</b>.</>}
+        </PageIntro>
+      </div>
 
       {products.error && (
         <div className="flex flex-wrap items-center gap-3">
@@ -48,43 +53,46 @@ export default function CartPage() {
         </div>
       )}
 
+      {!ready && <Skeleton className="h-48" />}
+
       {ready && items.length === 0 && (
         <Card><Empty>
           Your cart is empty.{" "}
-          <Link href={SHOP_PAGES.catalogue.href} className="font-medium underline">Find something to buy →</Link>
+          <Link href={SHOP_PAGES.catalogue.href} className="font-bold text-brand-strong underline">Find something to buy →</Link>
         </Empty></Card>
       )}
 
       {items.length > 0 && (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <Card title={`${count} ${count === 1 ? "item" : "items"}`}
-            actions={(
-              <span className="text-xs text-neutral-500">Current prices; stock at {store?.name ?? "your store"}</span>
-            )}>
-            <ul className="divide-y divide-neutral-100">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-8">
+          <Card>
+            <h2 className="sr-only">{count} {count === 1 ? "item" : "items"}</h2>
+            <ul className="divide-y divide-line">
               {lines.map((line) => {
                 const price = line.product?.current_price;
                 const stock = line.product?.store_quantity;
+                const name = line.product?.name ?? `Product #${line.product_id}`;
                 return (
-                  <li key={line.product_id} className="flex flex-wrap items-start gap-4 px-4 py-4">
-                    <div className="min-w-[12rem] flex-1">
+                  <li key={line.product_id} className="flex flex-wrap items-center gap-4 p-4 sm:flex-nowrap sm:p-5">
+                    <ProductImage categoryId={line.product?.category_id} categories={categories}
+                      className="h-20 w-20 shrink-0 rounded-tile" iconClassName="h-9 w-9" />
+
+                    <div className="min-w-0 flex-1 basis-48">
                       {line.product ? (
                         <>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                            {line.product.brand}
-                          </div>
+                          <Eyebrow>{line.product.brand}</Eyebrow>
                           <Link href={`${SHOP_PAGES.catalogue.href}/${line.product_id}`}
-                            className="font-medium hover:underline">
+                            className="font-semibold leading-snug hover:text-brand-strong">
                             {line.product.name}
                           </Link>
-                          <div className="font-mono text-xs text-neutral-500">{line.product.sku}</div>
+                          <div className="font-mono text-[12px] text-muted">{line.product.sku}</div>
                           {!line.product.is_active && (
-                            <p className="mt-1 text-xs text-amber-700">
+                            <p className="mt-1 text-[13px] font-semibold text-warn-ink">
                               Retired, so it can&apos;t be bought — remove it to continue.
                             </p>
                           )}
                           {line.product.is_active && typeof stock === "number" && stock < line.quantity && (
-                            <p className="mt-1 text-xs text-amber-700">
+                            <p className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold text-warn-ink">
+                              <Dot className="bg-warn" />
                               Only {stock} at {store?.name ?? "your store"} right now. Checkout will tell you for
                               certain.
                             </p>
@@ -92,38 +100,34 @@ export default function CartPage() {
                         </>
                       ) : (
                         <>
-                          <div className="font-medium text-neutral-900">Product #{line.product_id}</div>
-                          <p className="mt-1 text-xs text-red-700">
+                          <div className="font-semibold">{name}</div>
+                          <p className="mt-1 text-[13px] text-red-700">
                             {products.data ? "No longer in the catalogue — remove it to continue." : "Loading…"}
                           </p>
                         </>
                       )}
                     </div>
 
-                    {/* Steps of one, never below 1: only "Remove" takes a line out (an emptied number box would
-                        have read as 0 and removed it). */}
-                    <div className="flex items-center gap-1">
-                      <Button size="sm" aria-label="One fewer" disabled={line.quantity <= 1}
-                        onClick={() => setQuantity(line.product_id, line.quantity - 1)}>−</Button>
-                      <span className="w-8 text-center text-sm tabular-nums">{line.quantity}</span>
-                      <Button size="sm" aria-label="One more" disabled={line.quantity >= MAX_QUANTITY}
-                        onClick={() => setQuantity(line.product_id, line.quantity + 1)}>+</Button>
-                    </div>
+                    <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
+                      {/* Steps of one, never below 1: only "Remove" takes a line out (an emptied number box would
+                          have read as 0 and removed it). */}
+                      <QuantityStepper value={line.quantity} max={MAX_QUANTITY} label={`Quantity of ${name}`}
+                        onChange={(quantity) => setQuantity(line.product_id, quantity)} />
 
-                    <div className="w-24 text-right">
-                      {price && (
-                        <>
-                          <div className="font-semibold tabular-nums">
-                            {money(fromCents(lineTotalCents(price, line.quantity)))}
-                          </div>
-                          <div className="text-xs text-neutral-500">{money(price)} each</div>
-                        </>
-                      )}
+                      <div className="w-28 text-right">
+                        {price && (
+                          <>
+                            <Price size="md" value={fromCents(lineTotalCents(price, line.quantity))} />
+                            <div className="text-[13px] text-muted">{money(price)} each</div>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     <button type="button" onClick={() => removeItem(line.product_id)}
-                      className="text-sm text-neutral-500 underline hover:text-neutral-800">
-                      Remove
+                      className="text-[13px] font-semibold text-muted underline underline-offset-2 hover:text-brand-strong
+                        sm:ml-1">
+                      Remove<span className="sr-only"> {name}</span>
                     </button>
                   </li>
                 );
@@ -131,41 +135,42 @@ export default function CartPage() {
             </ul>
           </Card>
 
-          <Card title="Summary">
-            <div className="space-y-3 p-4">
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm text-neutral-600">Subtotal ({count} {count === 1 ? "item" : "items"})</span>
-                <span className="text-xl font-bold tabular-nums">{money(fromCents(subtotal))}</span>
-              </div>
-              <p className="text-xs text-neutral-500">
-                Prices include any running promotion. Nothing is reserved until checkout commits, and the amount
-                charged is worked out by the database, not this page.
-              </p>
-              {short.length > 0 && (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  {short.length === 1 ? "One item is" : `${short.length} items are`} short at{" "}
-                  {store?.name ?? "your store"}. You can still try: checkout re-checks the stock at the store that
-                  fulfils the order, in the same transaction.
+          <aside className="lg:sticky lg:top-6 lg:self-start">
+            <Card>
+              <div className="space-y-4 p-5">
+                <h2 className="font-display text-[20px] font-bold tracking-[-0.01em]">Summary</h2>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[15px] text-muted">Subtotal ({count} {count === 1 ? "item" : "items"})</span>
+                  <Price size="lg" value={fromCents(subtotal)} />
+                </div>
+                <p className="text-[13px] leading-relaxed text-muted">
+                  Prices include any running promotion. Nothing is reserved until checkout commits, and the amount
+                  charged is worked out by the database, not this page.
                 </p>
-              )}
-              <Link href={SHOP_PAGES.checkout.href} aria-disabled={blocked}
-                onClick={(event) => {
-                  if (blocked) event.preventDefault();
-                }}
-                className={`inline-flex h-9 w-full items-center justify-center rounded-md text-sm font-medium text-white
-                  ${blocked ? "cursor-not-allowed bg-neutral-400" : "bg-neutral-900 hover:bg-neutral-700"}`}>
-                Checkout
-              </Link>
-              <Link href={SHOP_PAGES.catalogue.href}
-                className="block text-center text-sm font-medium text-neutral-700 hover:underline">
-                Continue shopping
-              </Link>
-              {unknown.length + retired.length > 0 && (
-                <p className="text-xs text-red-700">Remove the items marked above before checking out.</p>
-              )}
-              {!products.data && !products.error && <Badge>Checking prices…</Badge>}
-            </div>
-          </Card>
+                {short.length > 0 && (
+                  <Callout tone="warn">
+                    {short.length === 1 ? "One item is" : `${short.length} items are`} short at{" "}
+                    {store?.name ?? "your store"}. You can still try: checkout re-checks the stock at the store that
+                    fulfils the order, in the same transaction.
+                  </Callout>
+                )}
+                <Link href={SHOP_PAGES.checkout.href} aria-disabled={blocked}
+                  onClick={(event) => {
+                    if (blocked) event.preventDefault();
+                  }}
+                  className={`${pillLink(blocked ? "off" : "ink")} w-full`}>
+                  Checkout
+                </Link>
+                <Link href={SHOP_PAGES.catalogue.href} className={`${pillLink("sand")} w-full`}>
+                  Continue shopping
+                </Link>
+                {unknown.length + retired.length > 0 && (
+                  <p className="text-[13px] text-red-700">Remove the items marked above before checking out.</p>
+                )}
+                {!products.data && !products.error && <p className="text-[13px] text-muted">Checking prices…</p>}
+              </div>
+            </Card>
+          </aside>
         </div>
       )}
     </div>

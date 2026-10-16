@@ -4,6 +4,8 @@ import Link from "next/link";
 
 import { ReturnStatusBadge } from "@/components/return-status";
 import { CustomerGate } from "@/components/shop/customer-gate";
+import { Crumbs, focusRing, PageIntro, pillLink, Price, Skeleton } from "@/components/shop/page-parts";
+import { ReturnProgress } from "@/components/shop/return-progress";
 import { Button, Card, Empty, ErrorBox } from "@/components/ui";
 import { api, call, type CustomerDetail, type ReturnSummary } from "@/lib/api/client";
 import { formatDateTime, money } from "@/lib/format";
@@ -12,20 +14,15 @@ import { useLoad } from "@/lib/use-load";
 
 export default function ReturnsPage() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <title>My returns · TechLight</title>
-      <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
-        <Link href="/" className="hover:underline">Home</Link> / My returns
-      </nav>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">My returns</h1>
-          <p className="mt-1 text-sm text-neutral-600">
-            Ask for a return from a delivered or collected order, within 30 days. Bring the items to any TechLight
-            store: once they are checked you&apos;re refunded what you paid.
-          </p>
-        </div>
-        <Link href={SHOP_PAGES.orders.href} className="text-sm font-medium hover:underline">My orders →</Link>
+      <div className="space-y-4">
+        <Crumbs trail={[["Home", "/"], ["My returns"]]} />
+        <PageIntro title="My returns"
+          actions={<Link href={SHOP_PAGES.orders.href} className={pillLink("outline")}>My orders</Link>}>
+          Ask for a return from a delivered or collected order, within 30 days. Bring the items to any TechLight
+          store: once they are checked you&apos;re refunded what you paid.
+        </PageIntro>
       </div>
       <CustomerGate what="see your returns">{(customer) => <Returns customer={customer} />}</CustomerGate>
     </div>
@@ -45,18 +42,18 @@ function Returns({ customer }: { customer: CustomerDetail }) {
       </div>
     );
   }
-  if (!returns.data) return <div className="h-32 animate-pulse rounded-xl bg-neutral-200" />;
+  if (!returns.data) return <Skeleton className="h-48" />;
   if (returns.data.length === 0) {
     return (
       <Card><Empty>
         No returns yet. To return something, open the order in{" "}
-        <Link href={SHOP_PAGES.orders.href} className="font-medium underline">My orders</Link>.
+        <Link href={SHOP_PAGES.orders.href} className="font-bold text-brand-strong underline">My orders</Link>.
       </Empty></Card>
     );
   }
   // Newest first, as the API lists them.
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {returns.data.map((row) => <ReturnCard key={row.return_id} row={row} />)}
     </div>
   );
@@ -64,32 +61,49 @@ function Returns({ customer }: { customer: CustomerDetail }) {
 
 function ReturnCard({ row }: { row: ReturnSummary }) {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-neutral-200">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="font-semibold">Return #{row.return_id}</div>
-          <div className="text-xs text-neutral-500">
+    <article className="flex flex-col gap-4 rounded-card border border-line bg-white p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-display text-[20px] font-bold tracking-[-0.01em]">Return #{row.return_id}</h2>
+          <div className="text-[13px] text-muted">
             Asked for {formatDateTime(row.requested_at)} · from{" "}
-            <Link href={`${SHOP_PAGES.orders.href}/${row.order_id}`} className="underline">order #{row.order_id}</Link>
+            <Link href={`${SHOP_PAGES.orders.href}/${row.order_id}`}
+              className={`rounded font-semibold text-brand-strong underline-offset-2 hover:underline ${focusRing}`}>
+              order #{row.order_id}
+            </Link>
           </div>
         </div>
         <ReturnStatusBadge status={row.status} />
       </div>
-      <ul className="mt-3 space-y-0.5 text-sm text-neutral-700">
+
+      <ReturnProgress status={row.status} />
+
+      <ul className="space-y-1 text-[15px]">
         {row.lines.map((line) => (
-          <li key={line.line_no}>{line.quantity} × {line.name} <span className="text-neutral-500">at {money(line.unit_price)}</span></li>
+          <li key={line.line_no}>
+            {line.quantity} × {line.name} <span className="text-muted">at {money(line.unit_price)}</span>
+          </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-neutral-500">Your reason: {row.reason}</p>
-      <div className="mt-3 text-sm">
-        {row.status === "requested" && <>Bring the items to any TechLight store. Worth <b>{money(row.value)}</b>.</>}
+      <p className="rounded-tile bg-sand px-4 py-2.5 text-[14px] text-muted">
+        <span className="font-semibold text-ink">Your reason:</span> {row.reason}
+      </p>
+      <div className="mt-auto border-t border-line pt-4 text-[15px]">
+        {row.status === "requested" && (
+          <span className="flex flex-wrap items-baseline justify-between gap-2">
+            <span>Bring the items to any TechLight store.</span>
+            <span className="flex items-baseline gap-2 text-muted">Worth <Price size="md" value={row.value} /></span>
+          </span>
+        )}
         {row.status === "received" && (
           <>Received at {row.received_store_name} on {row.received_at && formatDateTime(row.received_at)}: being checked.</>
         )}
         {row.status === "refunded" && (
           // A return worth nothing is refunded without a payment (there is nothing to pay back).
-          <>Refunded <b className="tabular-nums">{money(row.refunded ?? "0")}</b>
-            {row.resolved_at && <> on {formatDateTime(row.resolved_at)}</>}.</>
+          <span className="flex flex-wrap items-baseline justify-between gap-2">
+            <span>Refunded{row.resolved_at && <> on {formatDateTime(row.resolved_at)}</>}.</span>
+            <Price size="md" value={row.refunded ?? "0"} />
+          </span>
         )}
         {row.status === "rejected" && (
           <span className="text-red-700">
@@ -97,6 +111,6 @@ function ReturnCard({ row }: { row: ReturnSummary }) {
           </span>
         )}
       </div>
-    </div>
+    </article>
   );
 }

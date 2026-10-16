@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { useShop } from "@/components/shop/context";
+import { Crumbs, focusRing, PageIntro, SectionTitle, Skeleton } from "@/components/shop/page-parts";
 import { Badge, Button, Card, Empty, ErrorBox, inputClass, StockBadge } from "@/components/ui";
 import { api, call } from "@/lib/api/client";
 import { useLoad } from "@/lib/use-load";
@@ -28,129 +28,178 @@ export default function StoresPage() {
   const states = [...new Set((stores.data ?? []).map((row) => row.state))].sort();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-14">
       <title>Stores · TechLight</title>
-      <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
-        <Link href="/" className="hover:underline">Home</Link> / Stores
-      </nav>
-
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Stores</h1>
-        <p className="mt-1 text-sm text-neutral-600">
-          Click &amp; Collect is offered by the retail stores only — never the warehouse (BR06). Your store is where
-          stock is quoted and where you would pick an order up.
-        </p>
-      </div>
-
-      {stores.error && (
-        <div className="flex flex-wrap items-center gap-3">
-          <ErrorBox error={stores.error} />
-          <Button onClick={stores.reload}>Try again</Button>
+      <div className="space-y-8">
+        <div className="space-y-4">
+          <Crumbs trail={[["Home", "/"], ["Stores"]]} />
+          <PageIntro title="Stores">
+            Click &amp; Collect is offered by the retail stores only — never the warehouse (BR06). Your store is where
+            stock is quoted and where you would pick an order up.
+          </PageIntro>
         </div>
-      )}
 
-      <Card title="Who has it?" actions={<span className="text-xs text-neutral-500">R3</span>}>
-        <div className="space-y-3 p-4">
-          <label className="block max-w-md">
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-              Search the catalogue by name, brand or SKU
-            </span>
-            <input className={inputClass} value={search} placeholder="e.g. Sony or SONY-WH1000XM5-B"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setChosen(undefined);
-              }} />
-          </label>
+        {stores.error && (
+          <div className="flex flex-wrap items-center gap-3">
+            <ErrorBox error={stores.error} />
+            <Button onClick={stores.reload}>Try again</Button>
+          </div>
+        )}
 
-          {term.length >= 2 && (matches.loading && !matches.data
-            ? <p className="text-sm text-neutral-500">Searching…</p>
-            : (matches.data ?? []).length === 0
-              ? <p className="text-sm text-neutral-500">Nothing matches “{term}”.</p>
-              : (
-                <div className="flex flex-wrap gap-2">
-                  {(matches.data ?? []).slice(0, 8).map((match) => (
-                    <Button key={match.product_id} size="sm"
-                      tone={chosen === match.product_id ? "primary" : "secondary"}
-                      onClick={() => setChosen(match.product_id)}>
-                      {match.brand} {match.name}
-                    </Button>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          {/* My store, as the homepage's dark store panel. */}
+          <section aria-label="Your store" className="flex flex-col justify-between gap-6 rounded-panel bg-ink p-7 text-white
+            sm:p-9">
+            <div className="space-y-2">
+              <span className="block text-[13px] font-bold tracking-[0.08em] text-ember uppercase">Your store</span>
+              {store
+                ? (
+                  <p className="font-display text-[30px] leading-tight font-bold tracking-[-0.02em]">
+                    {store.name} <span className="font-semibold text-on-ink-muted">{store.state}</span>
+                  </p>
+                )
+                : stores.data
+                  ? <p className="font-display text-[24px] font-bold">No store to show yet</p>
+                  : <div aria-hidden="true" className="h-9 w-48 animate-pulse rounded-full bg-white/10" />}
+              <p className="text-[16px] text-on-ink">
+                Click &amp; Collect and stock levels on this site are shown for this store.
+              </p>
+            </div>
+            {store && (
+              <p className="text-[14px] text-on-ink-muted">
+                {store.suburb} {store.state} · Manager {store.manager_name}
+              </p>
+            )}
+          </section>
+
+          <Card>
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="font-display text-[20px] font-bold tracking-[-0.01em]">Who has it?</h2>
+                <span className="text-[13px] text-muted">R3</span>
+              </div>
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] font-bold tracking-[0.08em] text-muted uppercase">
+                  Search the catalogue by name, brand or SKU
+                </span>
+                <input className={inputClass} value={search} placeholder="e.g. Sony or SONY-WH1000XM5-B"
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setChosen(undefined);
+                  }} />
+              </label>
+
+              {term.length >= 2 && (matches.loading && !matches.data
+                ? <p className="text-[14px] text-muted">Searching…</p>
+                : (matches.data ?? []).length === 0
+                  ? <p className="text-[14px] text-muted">Nothing matches “{term}”.</p>
+                  : (
+                    <div className="flex flex-wrap gap-2">
+                      {/* Pills that wrap: a product's full name can be wider than a phone. */}
+                      {(matches.data ?? []).slice(0, 8).map((match) => (
+                        <button key={match.product_id} type="button" aria-pressed={chosen === match.product_id}
+                          onClick={() => setChosen(match.product_id)}
+                          className={`min-h-8 max-w-full rounded-full px-3.5 py-1.5 text-left text-[13px] leading-snug
+                            font-semibold transition-colors ${focusRing} ${chosen === match.product_id
+                              ? "bg-ink text-white" : "border border-line bg-white text-ink hover:bg-sand"}`}>
+                          {match.brand} {match.name}
+                        </button>
+                      ))}
+                    </div>
                   ))}
-                </div>
-              ))}
-          {matches.error && <ErrorBox error={matches.error} />}
+              {matches.error && <ErrorBox error={matches.error} />}
 
-          {chosen !== undefined && (
-            <div className="rounded-lg border border-neutral-200">
-              {detail.error && <ErrorBox error={detail.error} className="m-3" />}
-              {!detail.error && !product && <p className="p-4 text-sm text-neutral-500">Loading stock…</p>}
-              {product && (
-                <>
-                  <div className="border-b border-neutral-200 px-4 py-3">
-                    <div className="font-medium">{product.brand} {product.name}</div>
-                    <div className="font-mono text-xs text-neutral-500">{product.sku}</div>
-                  </div>
-                  <ul className="divide-y divide-neutral-100">
-                    {product.stock.map((row) => (
-                      <li key={row.store_id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                        <span>
-                          {row.store_name}
-                          {row.store_type === "warehouse" && (
-                            <span className="ml-2"><Badge tone="blue">warehouse</Badge></span>
-                          )}
-                        </span>
-                        <span className="flex items-center gap-3">
-                          <span className="text-xs text-neutral-500">{row.state}</span>
-                          <StockBadge quantity={row.quantity} />
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
+              {chosen !== undefined && (
+                <div className="overflow-hidden rounded-tile border border-line">
+                  {detail.error && <ErrorBox error={detail.error} className="m-3" />}
+                  {!detail.error && !product && <p className="p-4 text-[14px] text-muted">Loading stock…</p>}
+                  {product && (
+                    <>
+                      <div className="border-b border-line bg-sand px-4 py-3">
+                        <div className="font-semibold">{product.brand} {product.name}</div>
+                        <div className="font-mono text-[12px] text-muted">{product.sku}</div>
+                      </div>
+                      <ul className="divide-y divide-line">
+                        {product.stock.map((row) => (
+                          <li key={row.store_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[14px]">
+                            <span className="flex flex-wrap items-center gap-2">
+                              {row.store_name}
+                              {row.store_type === "warehouse" && <Badge tone="blue">warehouse</Badge>}
+                            </span>
+                            <span className="flex items-center gap-3">
+                              <span className="text-[13px] text-muted">{row.state}</span>
+                              <StockBadge quantity={row.quantity} />
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </Card>
         </div>
-      </Card>
+      </div>
 
-      {!stores.data && !stores.error && <div className="h-40 animate-pulse rounded-xl bg-neutral-200" />}
+      {!stores.data && !stores.error && <Skeleton className="h-48" />}
       {stores.data?.length === 0 && <Card><Empty>No stores to show.</Empty></Card>}
 
       {states.map((state) => (
         <section key={state}>
-          <h2 className="mb-3 text-lg font-semibold tracking-tight">{state}</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <SectionTitle>{state}</SectionTitle>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {(stores.data ?? []).filter((row) => row.state === state).map((row) => {
               const isMine = row.store_id === store?.store_id;
               const retail = row.store_type === "retail";
               return (
-                <div key={row.store_id}
-                  className={`rounded-xl bg-white p-4 shadow-sm ring-1 ${isMine ? "ring-2 ring-neutral-900" : "ring-neutral-200"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-semibold">{row.name}</div>
-                      <div className="text-xs text-neutral-500">{row.suburb} {row.state}</div>
+                <article key={row.store_id}
+                  className={`flex flex-col gap-4 rounded-card p-5 ${retail ? "bg-white" : "bg-sand"} ${
+                    isMine ? "border-2 border-ink" : "border border-line"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]
+                        bg-brand-soft">
+                        <PinIcon />
+                      </span>
+                      <div className="min-w-0">
+                        <h3 className="text-[17px] font-bold">{row.name}</h3>
+                        <div className="text-[14px] text-muted">{row.suburb} {row.state}</div>
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       {isMine && <Badge tone="sale">your store</Badge>}
                       {!retail && <Badge tone="blue">warehouse</Badge>}
                     </div>
                   </div>
-                  <div className="mt-2 text-xs text-neutral-500">Manager: {row.manager_name}</div>
+                  <div className="text-[13px] text-muted">Manager: {row.manager_name}</div>
                   {retail && !isMine && (
-                    <button type="button" onClick={() => setStoreId(row.store_id)}
-                      className="mt-3 text-sm font-medium text-neutral-800 hover:underline">
-                      Make this my store
-                    </button>
+                    <div className="mt-auto">
+                      <Button size="sm" onClick={() => setStoreId(row.store_id)}>Make this my store</Button>
+                    </div>
+                  )}
+                  {retail && isMine && (
+                    <p className="mt-auto text-[13px] font-semibold">Stock and Click &amp; Collect are shown for this store.</p>
                   )}
                   {!retail && (
-                    <p className="mt-3 text-xs text-neutral-500">Ships online orders; not a collection point.</p>
+                    <p className="mt-auto text-[13px] text-muted">Ships online orders; not a collection point.</p>
                   )}
-                </div>
+                </article>
               );
             })}
           </div>
         </section>
       ))}
     </div>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+      strokeLinecap="round" strokeLinejoin="round" className="text-brand-strong">
+      <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.5" />
+    </svg>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Button, ErrorBox, inputClass, Modal, selectClass } from "@/components/ui";
+import { Button, ErrorBox, Field, inputClass, Modal, selectClass } from "@/components/ui";
 import {
   type Address, type AddressCreate, type ApiError, api, call, type CustomerDetail, toApiError,
 } from "@/lib/api/client";
@@ -61,39 +61,35 @@ export function AddressForm({ customer, onAdded, onCancel }: {
         {pending ? "Saving…" : "Save address"}
       </Button>
     </>}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block sm:col-span-2">
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Street address
-          </span>
-          <input className={inputClass} value={values.line1} placeholder="12/40 Collins Street"
-            onChange={(event) => setValues({ ...values, line1: event.target.value })} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Suburb</span>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <Field label="Street address">
+            <input className={inputClass} value={values.line1} placeholder="12/40 Collins Street"
+              onChange={(event) => setValues({ ...values, line1: event.target.value })} />
+          </Field>
+        </div>
+        <Field label="Suburb">
           <input className={inputClass} value={values.suburb} placeholder="Melbourne"
             onChange={(event) => setValues({ ...values, suburb: event.target.value })} />
-        </label>
+        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">State</span>
+          <Field label="State">
             <select className={selectClass} value={values.state}
               onChange={(event) => setValues({ ...values, state: event.target.value })}>
               {STATES.map((state) => <option key={state} value={state}>{state}</option>)}
             </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">Postcode</span>
+          </Field>
+          <Field label="Postcode">
             <input className={inputClass} value={values.postcode} inputMode="numeric" maxLength={4}
               placeholder="3000"
               onChange={(event) => setValues({ ...values, postcode: event.target.value.replace(/\D/g, "") })} />
-          </label>
+          </Field>
         </div>
       </div>
-      <p className={`text-xs ${postcodeOk ? "text-neutral-500" : "text-amber-700"}`}>
+      <p className={`text-[13px] ${postcodeOk ? "text-muted" : "font-semibold text-warn-ink"}`}>
         Four digits. {postcodeOk ? "" : "Use the four-digit postcode, e.g. 3000."}
       </p>
-      <p className="text-xs text-neutral-500">
+      <p className="text-[13px] text-muted">
         The address is added, never edited: if this replaces an old one, retire the old one afterwards.
       </p>
       {error && <ErrorBox error={error} />}

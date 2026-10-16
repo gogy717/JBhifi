@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { ProductImage } from "@/components/product-image";
 import { useShop } from "@/components/shop/context";
 import { CustomerGate } from "@/components/shop/customer-gate";
+import { Callout, Crumbs, focusRing, PageIntro, pillLink, Price, Skeleton } from "@/components/shop/page-parts";
 import { Button, Card, Empty, ErrorBox, Field, selectClass } from "@/components/ui";
 import {
   type ApiError, api, call, type CustomerDetail, type OrderDetail, type ProductDetail, toApiError,
@@ -48,12 +50,14 @@ async function loadProducts(ids: number[]): Promise<ProductDetail[]> {
 
 export default function CheckoutPage() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <title>Checkout · TechLight</title>
-      <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
-        <Link href={SHOP_PAGES.cart.href} className="hover:underline">Cart</Link> / Checkout
-      </nav>
-      <h1 className="text-2xl font-semibold tracking-tight">Checkout</h1>
+      <div className="space-y-4">
+        <Crumbs trail={[["Cart", SHOP_PAGES.cart.href], ["Checkout"]]} />
+        <PageIntro title="Checkout">
+          Choose how you get it, check what you are buying, then place the order. Payment is simulated.
+        </PageIntro>
+      </div>
       <CustomerGate what="check out">{(customer) => <Checkout customer={customer} />}</CustomerGate>
     </div>
   );
@@ -61,7 +65,7 @@ export default function CheckoutPage() {
 
 function Checkout({ customer }: { customer: CustomerDetail }) {
   const router = useRouter();
-  const { stores, retailStores, store: myStore, loadError, reload, reloadCustomer } = useShop();
+  const { stores, retailStores, store: myStore, loadError, reload, reloadCustomer, categories } = useShop();
   const { items, ready, removeSubmitted } = useCart();
   // The earlier try in this browser that got no answer, if any (kept across tabs and reloads by
   // lib/checkout-attempt.ts). The page starts from its choices, so placing the same order again reuses its key.
@@ -219,14 +223,14 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
   }
 
   if (placedId !== undefined) {
-    return <p role="status" className="text-sm text-neutral-600">Order #{placedId} is placed. Opening it…</p>;
+    return <p role="status" className="text-[15px] text-muted">Order #{placedId} is placed. Opening it…</p>;
   }
-  if (!ready) return <div className="h-40 animate-pulse rounded-xl bg-neutral-200" />;
+  if (!ready) return <Skeleton className="h-48" />;
   if (items.length === 0) {
     return (
       <Card><Empty>
         Your cart is empty.{" "}
-        <Link href={SHOP_PAGES.catalogue.href} className="font-medium underline">Shop all products →</Link>
+        <Link href={SHOP_PAGES.catalogue.href} className="font-bold text-brand-strong underline">Shop all products →</Link>
       </Empty></Card>
     );
   }
@@ -243,72 +247,91 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8">
         {/* The review can't change while an order is being placed. */}
         <fieldset disabled={sending} className="min-w-0 space-y-5">
-          <Card title="How would you like it?">
-            <div className="grid gap-2 p-4 sm:grid-cols-2">
-              {(["click_collect", "delivery"] as const).map((option) => (
-                <button key={option} type="button" aria-pressed={method === option}
-                  onClick={() => change(() => setMethod(option))}
-                  className={`rounded-lg border px-4 py-3 text-left text-sm ${
-                    method === option ? "border-neutral-900 bg-cream" : "border-neutral-200 hover:bg-neutral-50"}`}>
-                  <div className="font-semibold">{option === "click_collect" ? "Click & Collect" : "Delivery"}</div>
-                  <div className="mt-0.5 text-xs text-neutral-600">
-                    {option === "click_collect"
-                      ? "Collect from a retail store (never the warehouse)."
-                      : "To one of your addresses, from the warehouse or a store with stock."}
-                  </div>
-                </button>
-              ))}
+          <Step n={1} title="How would you like it?">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(["click_collect", "delivery"] as const).map((option) => {
+                const chosen = method === option;
+                return (
+                  <button key={option} type="button" aria-pressed={chosen}
+                    onClick={() => change(() => setMethod(option))}
+                    className={`flex items-start gap-4 rounded-card border bg-white p-4 text-left transition-colors
+                      ${focusRing} ${chosen ? "border-ink ring-1 ring-ink" : "border-line hover:border-ink"}`}>
+                    <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]
+                      bg-brand-soft">
+                      {option === "click_collect" ? <StoreIcon /> : <TruckIcon />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[17px] font-bold">
+                        {option === "click_collect" ? "Click & Collect" : "Delivery"}
+                      </span>
+                      <span className="mt-0.5 block text-[14px] leading-snug text-muted">
+                        {option === "click_collect"
+                          ? "Collect from a retail store (never the warehouse)."
+                          : "To one of your addresses, from the warehouse or a store with stock."}
+                      </span>
+                    </span>
+                    <span aria-hidden="true" className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full
+                      border-2 ${chosen ? "border-ink bg-ink" : "border-line"}`}>
+                      {chosen && <span className="h-2 w-2 rounded-full bg-white" />}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </Card>
+          </Step>
 
           {method === "click_collect" && (
-            <Card title="Collect from">
-              <div className="p-4">
-                <Field label="Retail store" hint="Stores marked “not everything in stock” can't fill the whole order now.">
-                  <select className={selectClass} value={collectAt?.store_id ?? ""}
-                    onChange={(event) => change(() => setCollectStoreId(Number(event.target.value)))}>
-                    {!collectAt && <option value="">Loading stores…</option>}
-                    {retailStores.map((s) => (
-                      <option key={s.store_id} value={s.store_id}>
-                        {`${s.name} — ${s.suburb} ${s.state}${stockNote(s.store_id)}`}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-            </Card>
+            <Step n={2} title="Collect from">
+              <Field label="Retail store" hint="Stores marked “not everything in stock” can't fill the whole order now.">
+                <select className={selectClass} value={collectAt?.store_id ?? ""}
+                  onChange={(event) => change(() => setCollectStoreId(Number(event.target.value)))}>
+                  {!collectAt && <option value="">Loading stores…</option>}
+                  {retailStores.map((s) => (
+                    <option key={s.store_id} value={s.store_id}>
+                      {`${s.name} — ${s.suburb} ${s.state}${stockNote(s.store_id)}`}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </Step>
           )}
 
           {method === "delivery" && (
-            <Card title="Deliver to" actions={
-              <Link href={SHOP_PAGES.account.href} className="text-xs font-medium hover:underline">Manage addresses →</Link>}>
-              <div className="space-y-4 p-4">
+            <Step n={2} title="Deliver to" actions={
+              <Link href={SHOP_PAGES.account.href} className="text-[13px] font-bold text-brand-strong hover:underline">
+                Manage addresses →
+              </Link>}>
+              <div className="space-y-5">
                 {addresses.length === 0
                   ? (
-                    <p className="text-sm text-amber-800">
+                    <Callout tone="warn">
                       You have no current address.{" "}
-                      <Link href={SHOP_PAGES.account.href} className="font-medium underline">Add one in My account →</Link>
-                    </p>
+                      <Link href={SHOP_PAGES.account.href} className="font-bold underline">Add one in My account →</Link>
+                    </Callout>
                   )
                   : (
-                    <fieldset className="space-y-2">
-                      <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    <fieldset>
+                      <legend className="mb-2 text-[12px] font-bold tracking-[0.08em] text-muted uppercase">
                         One of your current addresses
                       </legend>
-                      {addresses.map((a) => (
-                        <label key={a.address_no} className="flex cursor-pointer items-start gap-3 rounded-lg border
-                          border-neutral-200 px-3 py-2 text-sm hover:bg-neutral-50">
-                          <input type="radio" name="address" className="mt-1" checked={address?.address_no === a.address_no}
-                            onChange={() => change(() => setAddressNo(a.address_no))} />
-                          <span>
-                            <span className="font-medium">{a.line1}</span>
-                            <span className="block text-xs text-neutral-500">{a.suburb} {a.state} {a.postcode}</span>
-                          </span>
-                        </label>
-                      ))}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {addresses.map((a) => (
+                          <label key={a.address_no} className="flex cursor-pointer items-start gap-3 rounded-card border
+                            border-line bg-white p-4 text-[15px] transition-colors hover:border-ink has-checked:border-ink
+                            has-checked:ring-1 has-checked:ring-ink has-focus-visible:ring-2 has-focus-visible:ring-brand">
+                            <input type="radio" name="address" className="mt-1 h-4 w-4 accent-ink"
+                              checked={address?.address_no === a.address_no}
+                              onChange={() => change(() => setAddressNo(a.address_no))} />
+                            <span>
+                              <span className="block font-bold">{a.line1}</span>
+                              <span className="block text-[14px] text-muted">{a.suburb} {a.state} {a.postcode}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
                     </fieldset>
                   )}
                 <Field label="Ship from"
@@ -324,112 +347,151 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
                   </select>
                 </Field>
               </div>
-            </Card>
+            </Step>
           )}
 
-          <Card title="What you are buying"
-            actions={<Link href={SHOP_PAGES.cart.href} className="text-xs font-medium hover:underline">Edit cart</Link>}>
+          <Step n={3} title="What you are buying"
+            actions={<Link href={SHOP_PAGES.cart.href} className="text-[13px] font-bold text-brand-strong hover:underline">
+              Edit cart
+            </Link>}>
             {products.error && (
-              <div className="flex flex-wrap items-center gap-3 p-4">
+              <div className="mb-4 flex flex-wrap items-center gap-3">
                 <ErrorBox error={products.error} />
                 <Button onClick={products.reload}>Try again</Button>
               </div>
             )}
-            <ul className="divide-y divide-neutral-100">
+            <ul className="divide-y divide-line">
               {lines.map((line) => (
-                <li key={line.product_id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                  <span>
-                    <span className="font-medium">{line.product?.name ?? `Product #${line.product_id}`}</span>
-                    <span className="block text-xs text-neutral-500">
+                <li key={line.product_id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+                  <ProductImage categoryId={line.product?.category_id} categories={categories}
+                    className="h-14 w-14 shrink-0 rounded-tile" iconClassName="h-7 w-7" />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold">{line.product?.name ?? `Product #${line.product_id}`}</span>
+                    <span className="block text-[13px] text-muted">
                       {line.quantity} × {line.product ? money(line.product.current_price) : "…"}
                       {line.product && !line.product.is_active && " · retired: remove it from your cart"}
                       {!line.product && loaded && " · no longer in the catalogue: remove it from your cart"}
                     </span>
                   </span>
-                  <span className="tabular-nums">
+                  <span className="font-display font-bold tabular-nums">
                     {line.product ? money(fromCents(lineTotalCents(line.product.current_price, line.quantity))) : "…"}
                   </span>
                 </li>
               ))}
             </ul>
             {fulfilling && short.length > 0 && (
-              <p className="border-t border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+              <Callout tone="warn" className="mt-4">
                 {fulfilling.name} has only {short.map((s) => `${s.have} × ${s.name}`).join(", ")} right now. You can
                 still try: the stock is checked again when the order is placed.
-              </p>
+              </Callout>
             )}
-          </Card>
+          </Step>
         </fieldset>
 
-        <Card title="Pay (simulated)">
-          <div className="space-y-3 p-4">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-neutral-600">Total</span>
-              <span className="text-2xl font-bold tabular-nums">{money(fromCents(totalCents))}</span>
+        <aside className="lg:sticky lg:top-6 lg:self-start">
+          <section aria-labelledby="pay" className="space-y-4 rounded-card border border-line bg-white p-5">
+            <h2 id="pay" className="font-display text-[20px] font-bold tracking-[-0.01em]">Pay (simulated)</h2>
+            <div className="flex items-baseline justify-between gap-3 border-b border-line pb-4">
+              <span className="text-[15px] text-muted">Total</span>
+              <Price size="xl" value={fromCents(totalCents)} />
             </div>
-            <p className="text-xs text-neutral-500">
+            <p className="text-[13px] leading-relaxed text-muted">
               The database works the total out again from today&apos;s prices when the order is placed. If it differs
               from this one, nothing is saved and you are shown the new amount.
             </p>
 
             {failure && changed && (
-              <Conflict title="The price changed while you were reviewing">
+              <Callout tone="warn" role="alert" title="The price changed while you were reviewing">
                 Nothing was charged. At today&apos;s prices the total is <b>{money(changed.total)}</b>, not{" "}
                 {money(failure.sent.expected_total)}:
-                <ul className="mt-1.5 space-y-0.5 text-xs">
+                <ul className="mt-1.5 space-y-0.5 text-[13px]">
                   {changed.lines.map((line) => (
                     <li key={line.line_no}>{line.quantity} × {line.name} at {money(line.unit_price)}</li>
                   ))}
                 </ul>
                 <p className="mt-1.5">The prices on this page are updated: check them, then place the order again.</p>
-              </Conflict>
+              </Callout>
             )}
             {shortage && (
-              <Conflict title="Not enough stock">
+              <Callout tone="warn" role="alert" title="Not enough stock">
                 {stores.find((s) => s.store_id === shortage.store_id)?.name ?? `Store ${shortage.store_id}`} has{" "}
                 {shortage.available} of {byId.get(shortage.product_id)?.name ?? shortage.sku}; you asked for{" "}
                 {shortage.requested}. Nothing was charged. Choose another store, or{" "}
-                <Link href={SHOP_PAGES.cart.href} className="font-medium underline">change the quantity</Link>.
-              </Conflict>
+                <Link href={SHOP_PAGES.cart.href} className="font-bold underline">change the quantity</Link>.
+              </Callout>
             )}
             {failure && !changed && !shortage && <ErrorBox error={failure.error} />}
             {retrying && !sending && (
-              <p className="text-xs text-neutral-600">
+              <p className="text-[13px] text-muted">
                 An earlier try of this order got no answer, so it may have been placed. Trying again is safe: it uses
                 that try&apos;s key, so you get the order if it went through, or it is placed now — never twice.
               </p>
             )}
             {drifted && !sending && (
-              <Conflict title="An earlier try got no answer">
+              <Callout tone="warn" role="alert" title="An earlier try got no answer">
                 It may have been placed, and your review has changed since, so a new order could buy twice. Check{" "}
-                <Link href={SHOP_PAGES.orders.href} className="font-medium underline">My orders</Link>, then{" "}
-                <button type="button" className="font-medium underline" disabled={sending} onClick={resendEarlier}>
+                <Link href={SHOP_PAGES.orders.href} className="font-bold underline">My orders</Link>, then{" "}
+                <button type="button" className="font-bold underline" disabled={sending} onClick={resendEarlier}>
                   send the earlier order again
                 </button>{" "}
                 (exactly as it was, with its own key: you get that order if it went through, or it is placed now —
                 never twice) or, if it isn&apos;t there,{" "}
-                <button type="button" className="font-medium underline" disabled={sending} onClick={startOver}>
+                <button type="button" className="font-bold underline" disabled={sending} onClick={startOver}>
                   start a new order
                 </button>.
-              </Conflict>
+              </Callout>
             )}
 
             <Button tone="primary" className="w-full" disabled={sending || drifted || !body} onClick={placeOrder}>
               {sending ? "Placing your order…" : retrying ? "Try again" : "Place order"}
             </Button>
-            {blocker && <p className="text-xs text-neutral-500">{blocker}</p>}
-          </div>
-        </Card>
+            {blocker && <p className="text-[13px] text-muted">{blocker}</p>}
+            <Link href={SHOP_PAGES.cart.href} className={`${pillLink("sand")} w-full`}>Back to cart</Link>
+          </section>
+        </aside>
       </div>
     </>
   );
 }
 
-function Conflict({ title, children }: { title: string; children: ReactNode }) {
+/** One numbered step of the checkout, so the order of the choices is plain. */
+function Step({ n, title, actions, children }: { n: number; title: string; actions?: ReactNode; children: ReactNode }) {
   return (
-    <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-      <div className="font-semibold">{title}</div>
-      <div className="mt-0.5">{children}</div>
-    </div>
+    <section aria-labelledby={`step-${n}`} className="rounded-card border border-line bg-white">
+      <header className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
+        <h2 id={`step-${n}`} className="flex items-center gap-3 font-display text-[19px] font-bold tracking-[-0.01em]">
+          <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-[14px]
+            text-white">
+            {n}
+          </span>
+          <span><span className="sr-only">Step {n}: </span>{title}</span>
+        </h2>
+        {actions}
+      </header>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function StoreIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" className="text-brand-strong">
+      <path d="M4 10v10h16V10" />
+      <path d="M2.5 10 5 4h14l2.5 6z" />
+      <path d="M10 20v-5h4v5" />
+    </svg>
+  );
+}
+
+function TruckIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" className="text-brand-strong">
+      <path d="M2 6h11v10H2z" />
+      <path d="M13 9h4.5l3.5 3.5V16h-8" />
+      <circle cx="6" cy="17.5" r="1.8" />
+      <circle cx="17" cy="17.5" r="1.8" />
+    </svg>
   );
 }

@@ -4,24 +4,23 @@ import Link from "next/link";
 
 import { CustomerGate } from "@/components/shop/customer-gate";
 import { StatusBadge } from "@/components/shop/order-timeline";
+import { Crumbs, focusRing, PageIntro, pillLink, Price, SectionTitle, Skeleton } from "@/components/shop/page-parts";
 import { Button, Card, Empty, ErrorBox } from "@/components/ui";
 import { api, call, type CustomerDetail, type OrderSummary } from "@/lib/api/client";
-import { formatDateTime, money } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { SHOP_PAGES } from "@/lib/shop-pages";
 import { useLoad } from "@/lib/use-load";
 
 export default function OrdersPage() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <title>My orders · TechLight</title>
-      <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
-        <Link href="/" className="hover:underline">Home</Link> / My orders
-      </nav>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">My orders</h1>
-        <Link href={SHOP_PAGES.catalogue.href} className="text-sm font-medium hover:underline">
-          Shop all products →
-        </Link>
+      <div className="space-y-4">
+        <Crumbs trail={[["Home", "/"], ["My orders"]]} />
+        <PageIntro title="My orders"
+          actions={<Link href={SHOP_PAGES.catalogue.href} className={pillLink("outline")}>Shop all products</Link>}>
+          Every order you have placed, newest first. Open one to follow it, cancel it or return items.
+        </PageIntro>
       </div>
       <CustomerGate what="see your orders">{(customer) => <Orders customer={customer} />}</CustomerGate>
     </div>
@@ -41,7 +40,7 @@ function Orders({ customer }: { customer: CustomerDetail }) {
       </div>
     );
   }
-  if (!orders.data) return <div className="h-32 animate-pulse rounded-xl bg-neutral-200" />;
+  if (!orders.data) return <Skeleton className="h-40" />;
 
   // Newest first, as the API lists them (v_order_summary). useLoad keeps the last result while the next one
   // loads, so keep to this customer's orders.
@@ -49,7 +48,8 @@ function Orders({ customer }: { customer: CustomerDetail }) {
   if (rows.length === 0) {
     return (
       <Card><Empty>
-        No orders yet. <Link href={SHOP_PAGES.catalogue.href} className="font-medium underline">Start shopping →</Link>
+        No orders yet.{" "}
+        <Link href={SHOP_PAGES.catalogue.href} className="font-bold text-brand-strong underline">Start shopping →</Link>
       </Empty></Card>
     );
   }
@@ -57,52 +57,60 @@ function Orders({ customer }: { customer: CustomerDetail }) {
   const rest = rows.filter((order) => order.status !== "ready");
 
   return (
-    <>
+    <div className="space-y-14">
       {ready.length > 0 && (
         <section>
-          <h2 className="mb-2 text-lg font-semibold tracking-tight">Ready to collect</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <SectionTitle>Ready to collect</SectionTitle>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {ready.map((order) => <OrderCard key={order.order_id} order={order} highlight />)}
           </div>
         </section>
       )}
       {rest.length > 0 && (
         <section>
-          {ready.length > 0 && <h2 className="mb-2 text-lg font-semibold tracking-tight">Earlier orders</h2>}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {ready.length > 0 ? <SectionTitle>Earlier orders</SectionTitle> : <h2 className="sr-only">Your orders</h2>}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {rest.map((order) => <OrderCard key={order.order_id} order={order} />)}
           </div>
         </section>
       )}
-    </>
+    </div>
   );
 }
 
+/** One order as a card. An order waiting at the store is the dark card, like the homepage's store panel. */
 function OrderCard({ order, highlight = false }: { order: OrderSummary; highlight?: boolean }) {
+  const muted = highlight ? "text-on-ink-muted" : "text-muted";
   return (
     <Link href={`${SHOP_PAGES.orders.href}/${order.order_id}`}
-      className={`block rounded-xl bg-white p-4 shadow-sm ring-1 transition hover:shadow-md ${
-        highlight ? "ring-2 ring-brand" : "ring-neutral-200"}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="font-semibold">Order #{order.order_id}</div>
-          <div className="text-xs text-neutral-500">
+      className={`flex flex-col gap-4 rounded-card p-5 transition-colors ${focusRing} ${highlight
+        ? "bg-ink text-white hover:bg-ink/90"
+        : "border border-line bg-white hover:border-ink"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {highlight && (
+            <span className="mb-1 block text-[12px] font-bold tracking-[0.08em] text-ember uppercase">
+              Ready to collect
+            </span>
+          )}
+          <div className="font-display text-[20px] font-bold tracking-[-0.01em]">Order #{order.order_id}</div>
+          <div className={`text-[13px] ${muted}`}>
             {formatDateTime(order.placed_at)}
             {order.last_updated_at !== order.placed_at && <> · updated {formatDateTime(order.last_updated_at)}</>}
           </div>
         </div>
         <StatusBadge status={order.status} />
       </div>
-      <div className="mt-3 text-sm text-neutral-600">
+      <div className={`text-[15px] ${highlight ? "text-on-ink" : "text-muted"}`}>
         {order.line_count} {order.line_count === 1 ? "item" : "items"} ·{" "}
         {order.fulfilment_method === "delivery" ? "Delivery" : "Click & Collect"} · {order.fulfilling_store_name}
       </div>
-      <div className="mt-2 text-lg font-bold tabular-nums">{money(order.total)}</div>
-      {highlight && (
-        <p className="mt-1 text-xs font-medium text-amber-700">
-          <b>{order.fulfilling_store_name}</b> has it ready for you.
-        </p>
-      )}
+      <div className={`mt-auto flex items-end justify-between gap-3 border-t pt-4 ${highlight ? "border-white/15" : "border-line"}`}>
+        <Price size="lg" value={order.total} />
+        <span className={`text-[14px] font-bold ${highlight ? "text-white" : "text-brand-strong"}`}>
+          View order <span aria-hidden="true">→</span>
+        </span>
+      </div>
     </Link>
   );
 }
