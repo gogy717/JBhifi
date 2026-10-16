@@ -124,7 +124,7 @@ function ReportSections({ report, loading }: { report: StoreReport; loading: boo
         )}
       </Card>
 
-      <div className="grid items-start gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         <Card title="Sales by category">
           <Table label="Sales by category"
             columns={["Category", { label: "Orders", align: "right" }, { label: "Units", align: "right" },
@@ -238,7 +238,7 @@ function Division({ result }: { result: StockedEverywhere }) {
           .join(", ")}): <b className="font-display text-base text-ink">{result.products.length}</b> products.
       </p>
       {result.products.length === 0 ? <p className="text-muted">None.</p> : (
-        <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
           {result.products.map((p) => (
             <li key={p.product_id} className="flex min-w-0 items-baseline gap-2">
               <Dot className="-translate-y-px bg-ok" />

@@ -109,7 +109,7 @@ function Order({ orderId }: { orderId: number }) {
       <NoticeBanner notice={notice} onClose={clear} />
 
       <Card className="mb-5">
-        <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
+        <div className="grid grid-cols-1 gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
           <FulfilmentPath method={detail.fulfilment_method} status={detail.status}
             reached={detail.history.map((change) => change.to_status)} />
           <div className="space-y-3 lg:border-l lg:border-line lg:pl-6">

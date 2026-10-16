@@ -234,7 +234,7 @@ function SpecsEditor({ productId, specs, readOnly, onSaved }: {
       <fieldset disabled={readOnly} className="space-y-2 p-5">
         {rows.length === 0 && <p className="text-sm text-muted">No specs yet.</p>}
         {rows.map((r) => (
-          <div key={r.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+          <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
             <input className={inputClass} placeholder="Name, e.g. Screen size" value={r.spec_name}
               onChange={(e) => update(r.id, "spec_name", e.target.value)} />
             <input className={inputClass} placeholder="Value" value={r.spec_value}

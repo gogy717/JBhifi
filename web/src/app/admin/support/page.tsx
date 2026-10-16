@@ -111,7 +111,7 @@ function CustomerFile({ customerId }: { customerId: number }) {
         {customer.error && <ErrorBox error={customer.error} className="m-5" />}
         {!profile && !customer.error && <div className="m-5 h-20 animate-pulse rounded-tile bg-sand" />}
         {profile && (
-          <div className="grid gap-5 p-5 text-sm sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 p-5 text-sm sm:grid-cols-2">
             <div>
               <h2 className="font-display text-xl font-bold tracking-[-0.02em]">{profile.full_name}</h2>
               <div className="mt-1 text-[15px]">{profile.email}</div>

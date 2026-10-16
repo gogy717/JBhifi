@@ -15,7 +15,9 @@ export function Table({ columns, label, loading = false, children }: {
   children: ReactNode;
 }) {
   return (
-    <div className={`overflow-x-auto transition-opacity ${loading ? "opacity-60" : ""}`}>
+    // relative: screen-reader-only text in a cell is positioned absolutely, and without a containing block here it
+    // would escape the scrolling box and widen the page.
+    <div className={`relative overflow-x-auto transition-opacity ${loading ? "opacity-60" : ""}`}>
       <table className="w-full border-collapse text-sm">
         <caption className="sr-only">{label}</caption>
         <thead>
