@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from tests.auth_support import as_customer, as_staff
 from tests.checkout_support import a_customer, a_product, committed
-from tests.orders_support import paid_order
+from tests.orders_support import move, paid_order
 from tests.returns_support import completed_days_ago, completed_order, refunds_of, returns_of
 
 client = TestClient(app)
@@ -340,3 +340,28 @@ def test_a_stores_desk_lists_its_orders_requested_returns_and_the_returns_it_rec
     assert error_of(client.get(f"{API}/stores/2/returns", headers=as_staff(14))) == (403, "other_store")
     assert error_of(client.get(f"{API}/stores/1/returns", headers=as_customer(email))) == (403, "staff_only")
     assert error_of(client.get(f"{API}/stores/999/returns", headers=as_staff(SUPPORT))) == (404, "not_found")
+
+
+def test_the_refund_restocks_the_store_that_received_the_items():
+    # Collected at Sydney CBD, brought back to Bondi Junction: the stock goes on Bondi's shelf, not back to the
+    # order's store (which is what a cancellation does).
+    product = a_product("189.00", stock=3)
+    _, email = a_customer()
+    order_id = completed_order(email, [(product["sku"], 2)])
+    asked = ask(as_customer(email), order_id, [(1, 2)]).json()
+    act(as_staff(16), asked["return_id"], "receive")
+    assert act(as_staff(16), asked["return_id"], "refund").status_code == 200
+    assert (stock_of(1, product["product_id"]), stock_of(2, product["product_id"])) == (3, 2)
+
+
+def test_the_warehouse_desk_lists_no_requested_returns():
+    # Deliveries ship from the warehouse, but it can't receive returns (BR22) or open requested ones, so its desk
+    # doesn't list them: the customer brings the items to a retail store.
+    _, email = a_customer()
+    order_id = paid_order(email, [(a_product("189.00")["sku"], 1)], method="delivery", store_id=13, address_no=1)
+    move(order_id, "picking", "shipped", "delivered", staff_id=13)
+    asked = ask(as_customer(email), order_id, [(1, 1)])
+    assert asked.status_code == 201, asked.text
+    desk = client.get(f"{API}/stores/13/returns", headers=as_staff(13))
+    assert desk.status_code == 200, desk.text
+    assert asked.json()["return_id"] not in [row["return_id"] for row in desk.json()]

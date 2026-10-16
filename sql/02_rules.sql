@@ -681,3 +681,16 @@ END $$;
 CREATE TRIGGER br22_return_received_at_retail_store
     BEFORE INSERT OR UPDATE OF received_store_id ON return_request
     FOR EACH ROW EXECUTE FUNCTION br22_check_receiving_store();
+
+-- ---------------------------------------------------------------- BR14 (widened): a return's lines are fixed
+-- A refund is checked against its return's value when it is paid (br14_refund_matches_return); the lines that
+-- value comes from never change after the request, so the two can't part afterwards. As for order lines
+-- (BR08), lines are only ever inserted. Consequence: a return with lines can't be deleted either (the
+-- ON DELETE CASCADE from return_request can't fire).
+CREATE TRIGGER br14_return_line_immutable
+    BEFORE UPDATE OR DELETE ON return_line
+    FOR EACH ROW EXECUTE FUNCTION block_append_only_change('br14_return_line_immutable');
+
+CREATE TRIGGER br14_return_line_immutable_truncate
+    BEFORE TRUNCATE ON return_line
+    FOR EACH STATEMENT EXECUTE FUNCTION block_append_only_change('br14_return_line_immutable');

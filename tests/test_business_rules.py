@@ -808,3 +808,14 @@ def test_a_return_without_lines_is_worth_nothing(cur, collected_order):
     return_id = request_return(cur, collected_order, [])
     cur.execute("SELECT quantity, value FROM v_return_value WHERE return_id = %s", (return_id,))
     assert [(row["quantity"], str(row["value"])) for row in cur.fetchall()] == [(0, "0.00")]
+
+
+def test_br14_a_returns_lines_never_change(cur, collected_order, violates):
+    # A refund equals its return's value (br14_refund_matches_return) when it is paid; the lines it was worked out
+    # from must stay as they were, or the two could part afterwards. Returning more is BR12's to refuse first.
+    return_id = request_return(cur, collected_order, [(1, 1)])
+    violates("br14_return_line_immutable",
+             "UPDATE return_line SET quantity = 1 WHERE return_id = %s", (return_id,))
+    violates("br14_return_line_immutable", "DELETE FROM return_line WHERE return_id = %s", (return_id,))
+    violates("br14_return_line_immutable", "TRUNCATE return_line")          # row triggers don't fire on TRUNCATE
+    violates("br14_return_line_immutable", "DELETE FROM return_request WHERE return_id = %s", (return_id,))

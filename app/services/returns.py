@@ -131,16 +131,18 @@ def list_customer_returns(cur, actor, customer_id: int) -> list[dict]:
 def list_store_returns(cur, actor, store_id: int) -> list[dict]:
     """A store's returns desk, newest first (ReturnSummary): the requested returns of orders this store
     fulfilled (where their customers are most likely to bring them), and every return received here. For that
-    store's staff, or support."""
+    store's staff, or support. The warehouse lists no requested returns: it ships deliveries but can't receive
+    returns (BR22), so the customer brings those to a retail store."""
     require_store_or_support_reader(actor, store_id)
-    cur.execute("SELECT 1 FROM store WHERE store_id = %s", (store_id,))
-    if cur.fetchone() is None:
+    cur.execute("SELECT store_type FROM store WHERE store_id = %s", (store_id,))
+    store = cur.fetchone()
+    if store is None:
         raise NotFound("Store", store_id)           # only support can ask about another store
     cur.execute(
         SUMMARY_COLUMNS + SUMMARY_FROM
-        + sql.SQL("WHERE (r.status = 'requested' AND o.fulfilling_store_id = %s) OR r.received_store_id = %s")
+        + sql.SQL("WHERE (r.status = 'requested' AND o.fulfilling_store_id = %s AND %s) OR r.received_store_id = %s")
         + NEWEST_FIRST,
-        (store_id, store_id),
+        (store_id, store["store_type"] == "retail", store_id),
     )
     return _with_lines(cur, cur.fetchall())
 
