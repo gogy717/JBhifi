@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { ProductImage } from "@/components/product-image";
 import { useShop } from "@/components/shop/context";
 import {
   Callout, Crumbs, Eyebrow, PageIntro, pillLink, Price, QuantityStepper, Skeleton,
@@ -15,7 +16,7 @@ import { SHOP_PAGES } from "@/lib/shop-pages";
 import { useLoad } from "@/lib/use-load";
 
 export default function CartPage() {
-  const { store } = useShop();
+  const { store, categories } = useShop();
   const { items, ready, count, setQuantity, removeItem } = useCart();
   const storeId = store?.store_id;
 
@@ -72,11 +73,8 @@ export default function CartPage() {
                 const name = line.product?.name ?? `Product #${line.product_id}`;
                 return (
                   <li key={line.product_id} className="flex flex-wrap items-center gap-4 p-4 sm:flex-nowrap sm:p-5">
-                    {/* The image block: no product photos in the database, so the tile shows the brand. */}
-                    <div aria-hidden="true" className="flex h-20 w-20 shrink-0 items-center justify-center rounded-tile
-                      bg-sand px-1 text-center text-[11px] font-bold tracking-[0.06em] text-muted uppercase">
-                      {line.product?.brand}
-                    </div>
+                    <ProductImage categoryId={line.product?.category_id} categories={categories}
+                      className="h-20 w-20 shrink-0 rounded-tile" iconClassName="h-9 w-9" />
 
                     <div className="min-w-0 flex-1 basis-48">
                       {line.product ? (

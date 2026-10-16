@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { ProductImage } from "@/components/product-image";
 import { useShop } from "@/components/shop/context";
 import {
   Callout, Crumbs, DetailRow, Eyebrow, pillLink, Price, SectionTitle, Skeleton,
@@ -21,7 +22,7 @@ export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
   const productId = Number(id);
   const valid = Number.isInteger(productId) && productId > 0;
-  const { store } = useShop();
+  const { store, categories } = useShop();
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState("1");
   const [added, setAdded] = useState<number>();
@@ -64,18 +65,16 @@ export default function ProductPage() {
       {detail && (
         <>
           <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-10">
-            {/* The product image block. The database has no product photos: the tile shows the brand. */}
-            <div className="relative flex min-h-[280px] flex-col items-center justify-center gap-3 rounded-panel bg-sand
-              p-8 sm:min-h-[420px]">
+            {/* The database has no product photos: the tile shows the category's icon and the brand. */}
+            <ProductImage categoryId={detail.category_id} categories={categories} brand={detail.brand}
+              className="h-72 rounded-panel sm:h-[420px]" iconClassName="h-24 w-24">
               {detail.on_sale && (
                 <span className="absolute top-5 left-5 rounded-full bg-brand-strong px-3.5 py-1.5 text-[15px] font-extrabold
                   text-white uppercase">
                   {percentOff(detail.base_price, detail.current_price)}
                 </span>
               )}
-              <span className="font-display text-[28px] font-bold tracking-[-0.02em] text-muted">{detail.brand}</span>
-              <span className="text-[13px] font-semibold tracking-[0.08em] text-faint uppercase">{detail.category}</span>
-            </div>
+            </ProductImage>
 
             <div className="flex flex-col gap-5">
               <div className="space-y-2">

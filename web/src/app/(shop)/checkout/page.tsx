@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { ProductImage } from "@/components/product-image";
 import { useShop } from "@/components/shop/context";
 import { CustomerGate } from "@/components/shop/customer-gate";
 import { Callout, Crumbs, focusRing, PageIntro, pillLink, Price, Skeleton } from "@/components/shop/page-parts";
@@ -64,7 +65,7 @@ export default function CheckoutPage() {
 
 function Checkout({ customer }: { customer: CustomerDetail }) {
   const router = useRouter();
-  const { stores, retailStores, store: myStore, loadError, reload, reloadCustomer } = useShop();
+  const { stores, retailStores, store: myStore, loadError, reload, reloadCustomer, categories } = useShop();
   const { items, ready, removeSubmitted } = useCart();
   // The earlier try in this browser that got no answer, if any (kept across tabs and reloads by
   // lib/checkout-attempt.ts). The page starts from its choices, so placing the same order again reuses its key.
@@ -361,8 +362,10 @@ function Checkout({ customer }: { customer: CustomerDetail }) {
             )}
             <ul className="divide-y divide-line">
               {lines.map((line) => (
-                <li key={line.product_id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-                  <span className="min-w-0">
+                <li key={line.product_id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+                  <ProductImage categoryId={line.product?.category_id} categories={categories}
+                    className="h-14 w-14 shrink-0 rounded-tile" iconClassName="h-7 w-7" />
+                  <span className="min-w-0 flex-1">
                     <span className="font-semibold">{line.product?.name ?? `Product #${line.product_id}`}</span>
                     <span className="block text-[13px] text-muted">
                       {line.quantity} × {line.product ? money(line.product.current_price) : "…"}
