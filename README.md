@@ -113,7 +113,15 @@ a sale price above the base price…) the page shows which rule refused it, e.g.
 
 `sql/*.sql` only run when the database volume is empty — **after editing or pulling changes to anything in
 `sql/`, reset the database** or you won't see the change. `pytest` never touches your data: it rebuilds a separate
-`jbhifi_test` database from `sql/` on every run.
+`jbhifi_test` database (or the one named by `POSTGRES_TEST_DB` in `.env`) from `sql/` on every run.
+
+**Several worktrees at once.** All of them share the one `jbhifi-db` container; only the main checkout runs
+`docker compose`. In each worktree's `.env`, give `POSTGRES_DB` and `POSTGRES_TEST_DB` names of its own — the test
+run drops its database with `FORCE`, which would cut off another worktree's tests — and build its dev database with
+the commands above, using that name. Run the API and the web app on their own ports
+(`fastapi dev app/main.py --port 8002`, `API_URL=http://127.0.0.1:8002 npx next dev -p 3002` in `web/`), add the
+web port to `AUTH_AUTHORIZED_PARTIES`, and regenerate the API types with
+`npx openapi-typescript http://127.0.0.1:8002/openapi.json -o src/lib/api/schema.d.ts` (`gen:api` assumes port 8000).
 
 ## Project layout
 

@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from psycopg2.extras import RealDictCursor
 
 load_dotenv()
-TEST_DB = "jbhifi_test"
+# Each run drops and rebuilds this database, so checkouts that run tests at the same time need their own.
+TEST_DB = os.environ.get("POSTGRES_TEST_DB", "jbhifi_test")
 # app/db.py reads POSTGRES_DB on every connect, so the API under test talks to the test database.
 os.environ["POSTGRES_DB"] = TEST_DB
 

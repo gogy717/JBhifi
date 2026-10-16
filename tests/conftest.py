@@ -1,4 +1,5 @@
-"""Test harness: a separate database, jbhifi_test, in the same container, rebuilt from sql/ once per run.
+"""Test harness: a separate database (POSTGRES_TEST_DB, default jbhifi_test) in the same container, rebuilt
+from sql/ once per run.
 
 Each test gets its own connection, and everything it does is rolled back afterwards, so every test
 starts from the seed data. Tests that have to commit (API and concurrency tests) work on rows they
@@ -20,7 +21,7 @@ SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
 
 @pytest.fixture(scope="session", autouse=True)
 def test_database():
-    """Drop and recreate jbhifi_test, then run sql/*.sql in filename order, as Docker does."""
+    """Drop and recreate the test database, then run sql/*.sql in filename order, as Docker does."""
     admin = connect("postgres")
     admin.autocommit = True                     # CREATE DATABASE can't run inside a transaction
     with admin.cursor() as cur:
