@@ -4,38 +4,50 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
-## 2026-10-16 — Branch `gogy717/seed-generated-data`: generated customers and orders
+## 2026-10-16 — Branch `gogy717/seed-generated-data`: generated customers, orders and returns
 
 Design: `docs/superpowers/specs/2026-10-16-seed-design.md`; plan: `docs/superpowers/plans/2026-10-16-seed.md`.
-Plan §7's data volume, except returns, which follow once sub-project 3 is merged.
+Plan §7's data volume, returns included (rebased on SP3 and SP4).
 
 **What's on the branch.**
 
-- **`sql/20_seed_generated.sql`**: 300 customers (plus the 4 personas) and 1,500 orders over the last 182 days.
-  67 of them are cancelled, 78 are stock deliveries, and 40 are customers who moved house. The open orders wait
-  in the store queues, including the demo's: Alice has a return to make, a return BR11 refuses, an order ready
-  to collect and one to cancel; Sydney CBD has paid and picking orders to move.
-- **How it is made.** `scripts/generate_seed.py` plans the timeline in Python with a fixed seed. The file
-  replays it through `pg_temp` helpers (`scripts/seed_helpers.sql`) that each do what a service does: T1
-  checkout, a status move, T4 cancel, T3 stock received. No trigger is disabled, so every seeded order went
-  through every rule. Times are relative to Sydney midnight on the load day, so every time is in the past
-  whatever time of day the file is loaded.
+- **`sql/20_seed_generated.sql`**: 300 customers (plus the 4 personas), 1,500 orders and 79 returns over the last
+  182 days.
+  - Orders: collected 769, delivered 626, cancelled 70; the rest are still open in the queues.
+  - Returns: refunded 65, rejected 11, received 2, requested 1; 13 of them are partial.
+  - Also 77 stock deliveries, and 37 customers who moved house.
+  - The demo's scenarios: Alice has a return waiting to be received, a return BR11 refuses, an order ready to
+    collect and one to cancel. Sydney CBD has paid and picking orders to move, a received return to decide on,
+    and returns in its 30- and 90-day report windows.
+- **How it is made.** `scripts/generate_seed.py` plans the timeline in Python with a fixed seed. The file replays
+  it through `pg_temp` helpers (`scripts/seed_helpers.sql`), one per service action: T1 checkout, a status move,
+  T4 cancel, T3 stock received, and SP3's request, receive, refund (T2) and reject. No trigger is disabled, so
+  every seeded row went through every rule.
+- **Times.** Every time is relative to Sydney midnight on the load day and worked out on the local clock, so local
+  times are right across daylight-saving changes. Staff work 09:00–20:59, and nothing happens 00:00–06:59.
 - **BR09** (changed existing object): the status log reads *when* from the transaction-local `app.changed_at`, as
-  it already read *who* from `app.staff_id`. The API never sets it. The test database now skips generated
-  files, and the four personas signed up 200–400 days before the build date instead of at build time.
+  it already read *who* from `app.staff_id`. The API never sets it.
+- Also changed: the test database skips generated files, and the four personas signed up 200–400 days before the
+  build date instead of at build time.
 
-**Decisions.** Spec §1–§3: Python plans and SQL replays, rather than inserting rows and back-dating them with the
-guards switched off. Times hang off an anchor at Sydney midnight. Stock is received only when a sale needs it, so
-low and empty shelves remain. Considered and rejected: a rule that history times never go backwards, because
-`now()` is a transaction's start time and a request that waited on a lock can legitimately write an earlier time
-than the row before it.
+**Decisions.** Spec §1–§3 and §6:
+- Python plans and SQL replays, rather than inserting rows and back-dating them with the guards switched off.
+- Times hang off an anchor at Sydney midnight.
+- Stock is received only when a sale needs it, so low and empty shelves remain.
+- Returns go to the collection store, or for a delivery to the customer's home store.
+- Considered and rejected: a rule that history times never go backwards. `now()` is a transaction's start time,
+  so a request that waited on a lock can legitimately write an earlier time than the row before it.
 
-**Verification (actually run).** `pytest` → **423 passed** (27 new): the BR09 time test, the helpers (6), the
-planner (12) and the loaded seed (8). The loaded seed passes the history checks, matches money to every status,
-runs every order's timeline forward, dates nothing after `now()`, and adds up the stock: opening + received −
-sold, per store and product. Loading takes about 0.6 s. The whole `sql/` directory also loads with `psql`, as
-Docker and the README's rebuild loop run it.
+**Verification (actually run).** `pytest` → **648 passed** (46 new): the BR09 time test, the helpers (12), the
+planner (18) and the loaded seed (15). The loaded seed:
+- passes the history checks;
+- matches money to every order's status and every return's;
+- runs every order's and return's timeline forward and dates nothing after `now()`;
+- adds up the stock: opening + received − sold + refunded returns, per store and product.
 
+The file is also replayed as of four other load dates, the days after daylight saving starts and ends among them.
+Loading takes about 0.6 s, and the whole `sql/` directory also loads with `psql`. A whole-branch review found
+nothing critical; its fixes (daylight-saving times, staff hours, UTF-8 files on Windows) were made test-first.
 ---
 
 ## 2026-10-16 — Branch `gogy717/rule-traceability`: the rule traceability table, checked against the database

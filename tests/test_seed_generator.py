@@ -119,7 +119,7 @@ def test_moves_follow_each_methods_path_and_are_made_by_that_stores_staff(refere
 
 def test_stock_never_goes_below_zero(reference, events):
     stock = dict(reference.stock)
-    checkouts = {}
+    checkouts, requests, receipts = {}, {}, {}
     for event in events:
         if isinstance(event, gen.Receive):
             stock[(event.store_id, event.product_id)] += event.delta
@@ -133,6 +133,14 @@ def test_stock_never_goes_below_zero(reference, events):
             order = checkouts[event.order_id]
             for line in order.lines:
                 stock[(order.store_id, line.product_id)] += line.quantity
+        elif isinstance(event, gen.ReturnRequested):
+            requests[event.return_id] = event
+        elif isinstance(event, gen.ReturnReceived):
+            receipts[event.return_id] = event
+        elif isinstance(event, gen.ReturnRefunded):                # T2 puts the units back where they came in
+            request, store = requests[event.return_id], receipts[event.return_id].store_id
+            for line_no, quantity in request.lines:
+                stock[(store, checkouts[request.order_id].lines[line_no - 1].product_id)] += quantity
     assert of(events, gen.Receive)                     # 3 units each: deliveries were needed
 
 
@@ -183,7 +191,8 @@ def test_staff_work_store_hours_and_customers_waking_hours(events):
     event falls in the night, where the hour that doesn't exist when daylight saving starts (02:00–03:00) is."""
     for event in events:
         minutes = gen.at(event.t)[1]
-        staff = isinstance(event, (gen.Move, gen.Receive)) or (isinstance(event, gen.Cancel) and event.staff_id)
+        staff = isinstance(event, (gen.Move, gen.Receive, gen.ReturnReceived, gen.ReturnRefunded, gen.ReturnRejected)) \
+            or (isinstance(event, gen.Cancel) and event.staff_id)
         if staff:
             assert 9 * 60 <= minutes < 21 * 60, event
         elif not isinstance(event, (gen.AddressAdded, gen.AddressRetired)):    # address rows carry no time
@@ -202,3 +211,69 @@ def test_the_generator_reads_and_writes_utf8_whatever_the_locale(tmp_path):
     env = {**os.environ, "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0", "LC_ALL": "C", "LANG": "C"}
     result = subprocess.run([sys.executable, "-c", script], cwd=gen.ROOT, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+
+# ---------------------------------------------------------------- returns
+
+def return_paths(events):
+    """{return_id: [its events in order]}, starting with the request."""
+    paths = defaultdict(list)
+    for event in events:
+        if isinstance(event, (gen.ReturnRequested, gen.ReturnReceived, gen.ReturnRefunded, gen.ReturnRejected)):
+            paths[event.return_id].append(event)
+    return paths
+
+
+def test_returns_are_asked_for_within_30_days_of_completion(events):
+    completed = {}
+    for move in of(events, gen.Move):
+        if move.status in ("collected", "delivered"):
+            completed[move.order_id] = move.t
+    requests = of(events, gen.ReturnRequested)
+    for request in requests:
+        assert request.order_id in completed and completed[request.order_id] < request.t
+        assert request.t - completed[request.order_id] <= 30 * gen.DAY
+        assert 8 * 60 <= gen.at(request.t)[1] < 22 * 60
+    assert len({request.order_id for request in requests}) == len(requests)          # one return per order
+    assert [request.return_id for request in requests] == list(range(1, len(requests) + 1))
+    assert len({request.key for request in requests}) == len(requests)
+    assert 0.03 <= len(requests) / len(completed) <= 0.10
+
+
+def test_returns_go_requested_received_then_refunded_or_rejected_at_a_retail_store(reference, events):
+    stores = {store.store_id: store for store in reference.stores}
+    kinds = defaultdict(int)
+    for path in return_paths(events).values():
+        assert isinstance(path[0], gen.ReturnRequested) and all(a.t < b.t for a, b in zip(path, path[1:]))
+        assert [type(e) for e in path[1:2]] in ([], [gen.ReturnReceived])
+        if len(path) > 1:
+            store = path[1].store_id
+            assert stores[store].store_type == "retail"
+            assert all(e.staff_id in reference.staff_by_store[store] for e in path[1:])
+        assert len(path) <= 3 and (len(path) < 3 or isinstance(path[2], (gen.ReturnRefunded, gen.ReturnRejected)))
+        kinds[type(path[-1]).__name__] += 1
+        if isinstance(path[-1], gen.ReturnRejected):
+            assert path[-1].reason
+    assert set(kinds) == {"ReturnRequested", "ReturnReceived", "ReturnRefunded", "ReturnRejected"}
+    assert kinds["ReturnRefunded"] > kinds["ReturnRejected"]
+
+
+def test_returns_never_exceed_what_was_bought_and_some_are_partial(events):
+    checkouts = {checkout.order_id: checkout for checkout in of(events, gen.Checkout)}
+    partial = 0
+    for request in of(events, gen.ReturnRequested):
+        bought = {n: line.quantity for n, line in enumerate(checkouts[request.order_id].lines, start=1)}
+        assert request.lines and all(1 <= quantity <= bought[n] for n, quantity in request.lines)
+        partial += sum(quantity for _, quantity in request.lines) < sum(bought.values())
+    assert partial >= 3
+
+
+def test_the_scripted_returns_are_in_the_plan(events):
+    checkouts = {checkout.order_id: checkout for checkout in of(events, gen.Checkout)}
+    paths = return_paths(events)
+    alice = [path for path in paths.values() if checkouts[path[0].order_id].email == gen.ALICE]
+    assert any(len(path) == 1 and gen.at(path[0].t)[0] == 1 for path in alice)   # asked for yesterday, waiting
+    waiting = [path for path in paths.values()
+               if len(path) == 2 and path[1].store_id == NSW_RETAIL and gen.at(path[1].t)[0] == 3]
+    assert waiting                                                                 # received at Sydney CBD 3 days ago

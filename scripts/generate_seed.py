@@ -163,6 +163,41 @@ class Receive:
     staff_id: int
 
 
+@dataclass(frozen=True)
+class ReturnRequested:
+    """A customer asks to return part of a completed order: lines are (line_no, quantity)."""
+    t: int
+    return_id: int
+    order_id: int
+    key: str
+    reason: str
+    lines: tuple[tuple[int, int], ...]
+
+
+@dataclass(frozen=True)
+class ReturnReceived:
+    t: int
+    return_id: int
+    store_id: int
+    staff_id: int
+
+
+@dataclass(frozen=True)
+class ReturnRefunded:
+    """T2: restock at the receiving store and refund what the return is worth."""
+    t: int
+    return_id: int
+    staff_id: int
+
+
+@dataclass(frozen=True)
+class ReturnRejected:
+    t: int
+    return_id: int
+    staff_id: int
+    reason: str
+
+
 def at(t: int) -> tuple[int, int]:
     """A time as (days before the anchor, minutes after that day's midnight): pg_temp.seed_at's arguments."""
     days = -(t // DAY)
@@ -184,6 +219,9 @@ LAST_NAMES = ["Smith", "Jones", "Williams", "Brown", "Wilson", "Taylor", "Nguyen
               "Anderson", "Walker", "Thompson", "Harris", "Lee", "Ryan", "Robinson", "Kelly", "King", "Davis",
               "Wright", "Evans", "Roberts", "Green", "Hall", "Wood", "Jackson", "Clarke", "Patel", "Khan", "Chen",
               "Wang", "Li", "Kim", "Singh", "Tran", "Murphy", "O'Brien", "Rossi", "Papadopoulos", "Ali", "Hughes"]
+RETURN_REASONS = ["Changed my mind", "Faulty", "Not as described", "Found it cheaper elsewhere",
+                  "Doesn't work with my setup", "Arrived damaged"]
+REJECTION_REASONS = ["Opened and used", "Damaged after purchase", "Missing accessories and packaging"]
 STREETS = ["George St", "King St", "Church St", "High St", "Victoria Rd", "Station St", "Park Rd", "Elizabeth St",
            "Queen St", "Bridge Rd", "Main St", "Ocean Pde", "Railway Pde", "Hill St", "Smith St", "Grove Ave"]
 SUBURBS = {
@@ -218,6 +256,18 @@ class _Order:
     lines: tuple[Line, ...]
     steps: list = field(default_factory=list)  # [(t, "move", status, staff_id) | (t, "cancel", staff_id, from)]
     address_no: int | None = None
+    scripted: bool = False                      # a demo scenario: no random return is added to it
+    ret: _Return | None = None
+
+
+@dataclass
+class _Return:
+    """A return before ids are given: when it is asked for, which lines, and its later steps."""
+    t: int
+    reason: str
+    lines: tuple[tuple[int, int], ...]          # (line_no, quantity)
+    steps: list = field(default_factory=list)  # [(t, "received", store_id, staff_id) | (t, "refunded", staff_id)
+                                                #  | (t, "rejected", staff_id, reason)]
 
 
 def plan(reference: Reference, seed: int = SEED) -> list:
@@ -247,6 +297,7 @@ class _Planner:
             orders.append(self.random_order(shopper))
         address_events = self.addresses(shoppers, orders)
         self.sign_up(generated, orders)
+        self.returns(shoppers, orders)
         return self.timeline(seed, shoppers, orders, address_events)
 
     # -------------------------------------------------- customers
@@ -331,6 +382,62 @@ class _Planner:
             return t - minutes + DAY + 9 * HOUR + self.rng.randint(0, 90)
         return t
 
+    def waking_hours(self, t: int) -> int:
+        """t, or if it is outside 08:00–21:59 (when customers shop), a little after 08:00 the next morning."""
+        minutes = t % DAY
+        if minutes < 8 * HOUR:
+            return t - minutes + 8 * HOUR + self.rng.randint(0, 120)
+        if minutes >= 22 * HOUR:
+            return t - minutes + DAY + 8 * HOUR + self.rng.randint(0, 120)
+        return t
+
+    # -------------------------------------------------- returns
+
+    def returns(self, shoppers: list[_Shopper], orders: list[_Order]) -> None:
+        """About 5% of completed orders (15% of Sydney CBD's, so its return rates have data) get a return, asked for
+        1 hour to 25 days after completion (BR11 allows 30), received 1–5 days later, then refunded or rejected."""
+        homes = {shopper.email: shopper.home for shopper in shoppers}
+        for order in orders:
+            if order.scripted or not order.steps or order.steps[-1][1] != "move" \
+                    or order.steps[-1][2] not in ("collected", "delivered"):
+                continue
+            if self.rng.random() >= (0.15 if order.store_id == SYDNEY_CBD else 0.05):
+                continue
+            asked = self.waking_hours(order.steps[-1][0] + self.rng.randint(HOUR, 25 * DAY))
+            if asked >= 0:
+                continue
+            # A delivery comes back to the customer's own store; Click & Collect to the store it was collected from.
+            store = order.store_id if order.method == "click_collect" else homes[order.email].store_id
+            order.ret = self.a_return(asked, self.returned_lines(order), store)
+
+    def returned_lines(self, order: _Order) -> tuple[tuple[int, int], ...]:
+        """Every line in full, or (about 40%) part of the order: fewer lines, or fewer units of one."""
+        lines = [(line_no, line.quantity) for line_no, line in enumerate(order.lines, start=1)]
+        if self.rng.random() < 0.4:
+            if len(lines) > 1:
+                return tuple(sorted(self.rng.sample(lines, self.rng.randint(1, len(lines) - 1))))
+            if lines[0][1] > 1:
+                return ((lines[0][0], lines[0][1] - 1),)
+        return tuple(lines)
+
+    def a_return(self, asked: int, lines: tuple[tuple[int, int], ...], store_id: int, *,
+                 outcome: str | None = None) -> _Return:
+        """The return's steps from `asked`, each in store hours; any that would come after the anchor waits."""
+        ret = _Return(asked, self.rng.choice(RETURN_REASONS), lines)
+        received = self.open_hours(asked + self.rng.randint(DAY, 5 * DAY))
+        resolved = self.open_hours(received + self.rng.randint(HOUR, 3 * DAY))
+        outcome = outcome or ("rejected" if self.rng.random() < 0.15 else "refunded")
+        steps = [(received, "received", store_id, self.staff(store_id))]
+        if outcome == "rejected":
+            steps.append((resolved, "rejected", self.staff(store_id), self.rng.choice(REJECTION_REASONS)))
+        else:
+            steps.append((resolved, "refunded", self.staff(store_id)))
+        for step in steps:
+            if step[0] >= 0:
+                break
+            ret.steps.append(step)
+        return ret
+
     def random_order(self, shopper: _Shopper) -> _Order:
         t = when(self.rng.randint(1, WINDOW_DAYS), self.rng.randint(8, 21), self.rng.randint(0, 59))
         if self.rng.random() < 0.55:
@@ -371,7 +478,7 @@ class _Planner:
     def scripted(self, shoppers: list[_Shopper]) -> list[_Order]:
         """The demo's orders (spec §3): fixed times, through the same rules and stock as every other order."""
         def order(email, method, store, lines, t, *steps):
-            return _Order(t, email, method, store, lines, list(steps))
+            return _Order(t, email, method, store, lines, list(steps), scripted=True)
 
         def move(t, status, staff):
             return (t, "move", status, staff)
@@ -410,6 +517,16 @@ class _Planner:
                   move(when(14, 11), "shipped", self.staff(PARRAMATTA)),
                   move(when(12, 16), "delivered", self.staff(PARRAMATTA))),
         ]
+        # Alice asks to return the speaker from the order she collected 5 days ago: waiting for Sydney CBD to take it.
+        collected = next(o for o in orders if o.email == ALICE and o.steps[-1:] and o.steps[-1][2] == "collected")
+        speaker = next(n for n, line in enumerate(collected.lines, start=1) if line.sku == "JBL-FLIP7-B")
+        collected.ret = _Return(when(1, 10), "Changed my mind", ((speaker, 1),))
+        # A return Sydney CBD took in 3 days ago (Aiden), waiting to be refunded or rejected.
+        received = order(cbd[7 % len(cbd)].email, "click_collect", SYDNEY_CBD, self.lines_of("APL-AP4"), when(12, 11),
+                         move(when(12, 12), "picking", AIDEN), move(when(12, 15), "ready", AIDEN),
+                         move(when(10, 14), "collected", OLIVIA))
+        received.ret = _Return(when(4, 10), "Faulty", ((1, 1),), [(when(3, 11), "received", SYDNEY_CBD, AIDEN)])
+        orders.append(received)
         # Sydney CBD's queue for Aiden and Olivia: four paid and three being picked, from the last two days.
         for n, t in enumerate([when(1, 18), when(1, 19, 15), when(1, 20, 30), when(2, 20)]):
             orders.append(order(cbd[n % len(cbd)].email, "click_collect", SYDNEY_CBD, self.basket(), t))
@@ -435,12 +552,24 @@ class _Planner:
                     events.append(Move(step[0], order_id, step[2], step[3]))
                 else:
                     events.append(Cancel(step[0], order_id, step[2], step[3]))
+        returns = sorted(((order.ret, order_id) for order_id, order in enumerate(orders, start=1) if order.ret),
+                         key=lambda pair: pair[0].t)
+        for return_id, (ret, order_id) in enumerate(returns, start=1):
+            key = str(uuid.uuid5(KEY_NAMESPACE, f"{seed}:return:{return_id}"))
+            events.append(ReturnRequested(ret.t, return_id, order_id, key, ret.reason, ret.lines))
+            for step in ret.steps:
+                if step[1] == "received":
+                    events.append(ReturnReceived(step[0], return_id, step[2], step[3]))
+                elif step[1] == "refunded":
+                    events.append(ReturnRefunded(step[0], return_id, step[2]))
+                else:
+                    events.append(ReturnRejected(step[0], return_id, step[2], step[3]))
         events = self.stocked(_sorted(events))
         return _sorted(events)
 
     def stocked(self, events: list) -> list:
         stock = dict(self.ref.stock)
-        checkouts, out = {}, []
+        checkouts, requests, receipts, out = {}, {}, {}, []
         for event in events:
             if isinstance(event, Checkout):
                 checkouts[event.order_id] = event
@@ -460,6 +589,15 @@ class _Planner:
                 order = checkouts[event.order_id]
                 for line in order.lines:
                     stock[(order.store_id, line.product_id)] += line.quantity
+            elif isinstance(event, ReturnRequested):
+                requests[event.return_id] = event
+            elif isinstance(event, ReturnReceived):
+                receipts[event.return_id] = event.store_id
+            elif isinstance(event, ReturnRefunded):                 # T2 restocks the receiving store
+                request = requests[event.return_id]
+                for line_no, quantity in request.lines:
+                    product = checkouts[request.order_id].lines[line_no - 1].product_id
+                    stock[(receipts[event.return_id], product)] += quantity
             out.append(event)
         return out
 
@@ -480,7 +618,8 @@ def render(events: list) -> str:
         "-- GENERATED by scripts/generate_seed.py — do not edit. To change it, change the generator and run",
         "--     python scripts/generate_seed.py",
         f"-- Seed {SEED}: {kinds['Customer']} customers, {kinds['Checkout']} orders ({cancelled} cancelled), "
-        f"{kinds['Receive']} stock deliveries, {kinds['AddressRetired']} address changes, over {WINDOW_DAYS} days.",
+        f"{kinds['Receive']} stock deliveries, {kinds['AddressRetired']} address changes, "
+        f"{kinds['ReturnRequested']} returns, over {WINDOW_DAYS} days.",
         "-- Every time is relative to the anchor: Sydney midnight on the day this file is loaded "
         "(docs/superpowers/specs/2026-10-16-seed-design.md).",
         "BEGIN;",
@@ -494,8 +633,10 @@ def render(events: list) -> str:
         out.extend(_calls(event))
     out += [
         "",
-        "-- Order ids were given explicitly: move the identity past them, so the API's next order doesn't collide.",
+        "-- Order and return ids were given explicitly: move the identities past them, so the API's next ones don't collide.",
         "SELECT setval(pg_get_serial_sequence('customer_order', 'order_id'), (SELECT max(order_id) FROM customer_order));",
+        "SELECT setval(pg_get_serial_sequence('return_request', 'return_id'), "
+        "(SELECT COALESCE(max(return_id), 1) FROM return_request), (SELECT count(*) > 0 FROM return_request));",
         "COMMIT;",
         "",
     ]
@@ -527,6 +668,15 @@ def _calls(event) -> list[str]:
         return [call("seed_cancel", event.order_id, time, event.staff_id)]
     if isinstance(event, Receive):
         return [call("seed_receive", event.store_id, event.sku, event.delta, event.staff_id, time)]
+    if isinstance(event, ReturnRequested):
+        return ([call("seed_request_return", event.return_id, event.order_id, event.key, event.reason, time)]
+                + [call("seed_return_line", event.return_id, line_no, quantity) for line_no, quantity in event.lines])
+    if isinstance(event, ReturnReceived):
+        return [call("seed_receive_return", event.return_id, event.store_id, event.staff_id, time)]
+    if isinstance(event, ReturnRefunded):
+        return [call("seed_refund_return", event.return_id, event.staff_id, time)]
+    if isinstance(event, ReturnRejected):
+        return [call("seed_reject_return", event.return_id, event.staff_id, time, event.reason)]
     raise TypeError(event)
 
 

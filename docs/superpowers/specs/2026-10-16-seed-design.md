@@ -1,8 +1,8 @@
 # Generated seed data — design
 
 Status: approved on 2026-10-16 (three sections plus the anchor). Branch `gogy717/seed-generated-data`, from
-`main` at `b633860`. Plan §7's data volume: ~300 customers and ~1,500 orders over 6 months; returns (~5%) are
-added once sub-project 3 is on `main`. Layout from plan §7: `scripts/generate_seed.py` (fixed random seed) →
+`main` at `b633860`. Plan §7's data volume: ~300 customers and ~1,500 orders over 6 months, and returns on ~5% of
+completed orders (§6, added once sub-project 3 was on `main`). Layout from plan §7: `scripts/generate_seed.py` (fixed random seed) →
 committed `sql/20_seed_generated.sql`.
 
 ## 1. Approach
