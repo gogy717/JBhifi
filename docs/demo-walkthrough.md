@@ -34,17 +34,18 @@ database before a run-through or a recording.
    | Nora Fitzgerald | support | `nora.fitzgerald+clerk_test@example.com` |
 
 4. Use one browser profile (or private window) per persona, so two can be signed in side by side.
-5. When the database refuses something, the page shows a box headed **"Rejected by the database"** with the
-   rule's name in a code box (e.g. `br03_inventory_qty_nonneg`). That box is the evidence that the rule lives in
-   the database.
+5. When the database refuses something, the page shows a red-edged box headed **"Rejected by the database"**, with
+   the message and the rule's name under it (e.g. `br03_inventory_qty_nonneg`). That box is the evidence that the
+   rule lives in the database. Conflicts the application answers itself, such as two clicks on the same order, are
+   headed **"Request failed"** instead.
 
 ## Alice — customer (storefront, `/`)
 
 | # | Where | Do | You should see | Shows |
 |---|---|---|---|---|
-| 1 | Home | **Sign in** (top right) as Alice | "Hi, Alice"; her name in the header | R14, BR19 |
-| 2 | Header | **My store** → Sydney CBD | Deals and stock now for Sydney CBD | R3 |
-| 3 | **Shop all products** | Filter by a category and a price range, **Apply** | Only matching products; promotions at the sale price | R1, R2 |
+| 1 | Home | **Sign in** (top right) as Alice | "Hi, Alice" in the panel beside "Your store", with her delivery address; her name in the header | R14, BR19 |
+| 2 | Header | **My store** → Sydney CBD | The utility bar says "Click & Collect from Sydney CBD"; the deal of the week and Current deals show Sydney CBD's stock | R3 |
+| 3 | **Shop all products** (on the home page, beside Current deals) | Pick a category pill, type a price range, **Apply** | Only matching products, the filters as chips; promotions at the sale price | R1, R2 |
 | 4 | A product → **Details** | Look at "Where it is in stock" | Quantity per store, "your store" tagged, the warehouse badged | R3 |
 | 5 | **Add to cart** → **Cart** → **Checkout** | **Click & Collect** at Sydney CBD → **Place order** | The order page: status *paid*; timeline placed → paid; Payment charged = total | R4, T1, BR08, BR20 |
 | 6 | Checkout again | **Delivery** to one of her addresses, ship from the warehouse → **Place order** | A delivery order, paid | R4, BR06, BR17 |
@@ -54,29 +55,29 @@ database before a run-through or a recording.
 | 10 | **Returns** | — | The new return and **#79**, both **Requested** | R6 |
 | 11 | **My orders** → **#1141** (delivered about 40 days ago) | Look for "Return items" | "The 30-day return window closed on …" — no form | R6, BR11 |
 | 12 | (for the report) the page only hides the form; the refusal itself is the database's | `pytest tests/test_business_rules.py -k br11` | `test_br11_returns_within_30_days_of_completion` passes: an insert past the window fails with `br11_return_window` | BR11 |
-| 13 | **Account** | **Add address** → **Save address**; then **Retire…** an old one | The new address listed; the retired one kept for old orders but no longer offered at checkout | BR16, BR17 |
+| 13 | **Account** | **Add an address** → **Save address**; then **Retire…** an old one → **Retire address** | The new address listed; the retired one kept for old orders but no longer offered at checkout | BR16, BR17 |
 
 ## Aiden — store staff, Sydney CBD (admin, `/admin`)
 
 | # | Where | Do | You should see | Shows |
 |---|---|---|---|---|
-| 1 | **Orders** | Show "To do" | Sydney CBD's queue, oldest first: paid, picking and ready orders, Alice's **#1488** (ready) among them | R7 |
-| 2 | Order **#1489** (paid) | **Start picking** → **Ready for collection** → **Mark collected** | "Order #1489 is now …"; the timeline names Aiden on each move | R7, R11, BR09 |
-| 3 | Same order in two tabs | Click the same next step in both | The second tab gets a notice that the order moved on (`status_changed`) and reloads | R7 (one winner) |
-| 4 | Order **#1483** (*ready*, not collected) | **Cancel order…** → **Yes, cancel it** | Cancelled, refunded, restocked. The transition table allows ready → cancelled (not collected in time); the customer could only cancel before picking | T4, BR09, BR21 |
-| 5 | **Returns** → return **#79** (Alice's speaker) | **Receive at Sydney CBD** | Status **Received** | R8, BR22 |
-| 6 | Same return | **Refund $199.95…** → **Restock and refund $199.95** | Status **Refunded**; Inventory shows the speaker back; Alice's order #1436 shows the refund | R8, T2, BR14 |
-| 7 | Return **#78** (Ryan Rossi's AirPods, already received) | **Reject…**, give a reason → **Reject** | Status **Rejected**, with the reason (the customer sees it on their Returns page; Nora sees it in Support) | R8 |
-| 8 | **Inventory** | **+1** / **−1**, or **Adjust…** with a reason → **Save adjustment** | The quantity changes; "Recent adjustments" lists who, why and by how much | R13, T3, BR18 |
-| 9 | **Inventory**, the PlayStation 5 (1 left) | **Adjust…** → remove 2 → **Save adjustment** | "Rejected by the database" · `br03_inventory_qty_nonneg`; still 1 left | BR03 |
+| 1 | **Orders** | — (**Show: To do** is the default) | Tiles count the orders waiting at Sydney CBD: To pick, Picking, Ready to collect, Shipped. The list is oldest first, Alice's **#1488** (ready) among them, and its **Next** column names each order's next move (e.g. **Start picking →**) | R7 |
+| 2 | Order **#1489** (paid): **Start picking →** in its row | **Start picking** → **Ready for collection** → **Mark collected** | "Order #1489 is now …" after each; the path marks each step, and the timeline names Aiden on each move | R7, R11, BR09 |
+| 3 | Same order in two tabs | Click the same next step in both | The second tab: "Request failed — This order is … now, not …" (`status_changed`), and the page reloads to where the order is | R7 (one winner) |
+| 4 | Order **#1483** (*ready*, not collected) | **Cancel order…** → "Put the items back in stock and refund $…?" → **Yes, cancel it** | "Order #1483 is cancelled: its stock is back and $… was refunded." The transition table allows ready → cancelled (not collected in time); the customer could only cancel before picking | T4, BR09, BR21 |
+| 5 | **Returns** → the **Requested** tile → return **#79** (Alice's speaker); or **Find return #** 79 → **Open** | **Receive at Sydney CBD** | Status **Received** | R8, BR22 |
+| 6 | Same return | **Refund $199.95…** → in the dialog, **Restock and refund $199.95** | Status **Refunded**; Inventory shows the speaker back; Alice's order #1436 shows the refund | R8, T2, BR14 |
+| 7 | Return **#78** (Ryan Rossi's AirPods, under the **Received** tile) | **Reject…**, give a reason → **Reject** | Status **Rejected**, with the reason (the customer sees it on their Returns page; Nora sees it in Support) | R8 |
+| 8 | **Inventory** | **−1** / **+1**, or **Adjust…** (Add stock or Remove stock, units, a reason) → **Save adjustment** | The quantity changes; "Recent adjustments" lists who, why and by how much | R13, T3, BR18 |
+| 9 | **Inventory**, the PlayStation 5 (1 left) | **Adjust…** → **Remove stock**, Units 2 → **Save adjustment** | The dialog warns "Below zero — the database will refuse this (BR03)"; saving gives "Rejected by the database" · `br03_inventory_qty_nonneg`; still 1 left | BR03 |
 | 10 | **Reports** | — | "Store reports are for the store's manager and for support staff." | R9 (who may read) |
 
 ## Olivia — manager, Sydney CBD (admin)
 
 | # | Where | Do | You should see | Shows |
 |---|---|---|---|---|
-| 1 | **Reports** | **30 days**, then **7 days** and **90 days** | Revenue, Orders, Units sold; Low stock (≤ 3 left or under 14 days of cover — the PlayStation 5 with 1 left is there); Sales by category; Return rate by category and by product (the Flip 7 and AirPods from #1436's return near the top) | R9, plan §6 #4 and #6 |
-| 2 | Reports, the bottom panel | State **NSW**, then **NT** | Products in stock at all four NSW stores (39 of the 48); for NT, "no retail stores … all 48 active products qualify" (vacuous truth) | plan §6 #5 |
+| 1 | **Reports** | "Sales in the last" **30 days**, then **7 days** and **90 days** | Tiles: Revenue, Orders, Units sold, Low stock; Low stock (≤ 3 left or under 14 days of cover — the PlayStation 5 with 1 left is there); Sales by category; Return rate by category and by product (the Flip 7 and AirPods from #1436's return near the top) | R9, plan §6 #4 and #6 |
+| 2 | Reports, the bottom panel ("In stock at every store of a state") | State **NSW**, then **NT** | "In stock at all 4 retail stores in NSW (…): 39 products" (of the 48 active); for NT, "NT has no retail stores … all 48 active products qualify" (vacuous truth) | plan §6 #5 |
 | 3 | **Promotions** | **New promotion** for a product that already has one in that period → **Create** | "Rejected by the database" · `br15_promotion_no_overlap` | BR15 |
 | 4 | **Products** → a product | Change the price → **Save** | The new price on the storefront; past orders keep the price paid | R2, BR08 |
 
@@ -88,7 +89,8 @@ database before a run-through or a recording.
 | 2 | Alice | — | Profile and addresses; Orders (#1141, #1436, #1488, #1500, …); Returns (#79: the speaker, $199.95, its status and receiving store); History, newest first: each status change with who made it, payments, return events (a refund just before "refunded") | R10, R11 |
 | 2a | Search "ryan rossi" | Open Ryan Rossi | Return #78 with Aiden's rejection reason (after Aiden step 7) | R10 |
 | 3 | **Reports** | Pick another store, e.g. Bondi Junction | That store's report | R9 |
-| 4 | **Orders**, **Returns**, **Inventory** | Pick any store | She can read every store's records; there are no buttons to move orders, handle returns or adjust stock | permissions (R14) |
+| 4 | **Orders** → store **Bondi Junction** → order **#1495** (Leo Wood's delivery, *paid*) | **Start picking** | Support can move any store's orders along: "Order #1495 is now being picked", and the timeline names Nora. There is no **Cancel order…** button: support never cancels, and the API refuses it (403 `support_cannot_cancel`) | R7, R11, permissions (R14) |
+| 5 | **Returns**, **Inventory** | Pick any store; open a return | She reads every store's records but doesn't handle them: a return says "Support staff can read returns; a store's staff handle them", and Inventory has no Adjust column. The API refuses both (403 `store_staff_only`). **Products** and **Promotions** she can change, like a manager | permissions (R14) |
 
 ## Video script — "the last console on launch day" (≤ 3 minutes)
 
@@ -108,7 +110,7 @@ The story: one database is the source of truth, and it decides even when two peo
 | 0:15–0:40 | Alice searches "PlayStation 5"; "Where it is in stock" shows **1** at Sydney CBD | Per-store stock (R3) |
 | 0:40–1:20 | Both customers at checkout, Click & Collect at Sydney CBD; **Place order** in both windows, one right after the other | One gets the order page (*paid*); the other gets **"Not enough stock"** — "Sydney CBD has 0 … Nothing was charged." The stock update locks the row, so the second checkout waits, re-checks and fails cleanly; `CHECK (quantity >= 0)` (BR03) is the backstop (T1). Mention that the race is also proven by an automated concurrency test. |
 | 1:20–1:35 | The second customer switches to Click & Collect at **Chatswood** (2 left) and succeeds | The shopper recovers; nothing was half-saved |
-| 1:35–2:00 | Aiden: **Orders** → the order → picking → ready → collected | The timeline records who and when (R7, R11, BR09) |
+| 1:35–2:00 | Aiden: **Orders** → the new order's **Start picking →** → **Start picking** → **Ready for collection** → **Mark collected** | The path fills in and the timeline records who and when (R7, R11, BR09) |
 | 2:00–2:30 | Aiden receives Alice's return **#79** (the speaker) and refunds $199.95 | One transaction restocks and refunds (R6, R8, T2) |
 | 2:30–2:45 | Aiden tries to remove more stock than exists | "Rejected by the database" · `br03_inventory_qty_nonneg` |
 | 2:45–3:00 | Nora's **Support** history for the customer, or Olivia's **Reports** | Everything that happened, from one source of truth (R9, R10) |

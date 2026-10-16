@@ -4,6 +4,41 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/walkthrough-redesign`: the walkthrough matches the code and the redesigned pages
+
+`docs/demo-walkthrough.md` is checked step by step. The permissions are checked against the services, the
+storefront's words against `main` after the storefront redesign (#18), and the admin's words against the admin
+redesign (#19 at f1d1d3a, the commit that was merged).
+
+- **Nora (support), which was wrong**: step 4 said support has no buttons to move orders. It can.
+  - `_require_mover` in `app/services/fulfilment.py` lets support move any store's orders; the step now moves
+    Bondi Junction's paid delivery **#1495** (seed) with **Start picking**.
+  - Cancelling is refused: `cancel_order` answers 403 `support_cannot_cancel`, and the order page shows no
+    **Cancel order…** to support.
+  - A new step 5 covers returns and stock. Support reads them but can't handle them (`store_staff_only` in
+    `returns.py` and `require_store_staff`).
+  - Products and promotions support can change, like a manager (`require_catalogue_writer`).
+- **The redesign's words**:
+  - Orders: the count tiles (To pick, Picking, Ready to collect, Shipped), **Show: To do**, and the queue's
+    **Next** column (**Start picking →**).
+  - The two-tab click is headed "Request failed" with "This order is … now, not …" (`status_changed`), and the
+    cancel confirmation reads "Put the items back in stock and refund $…?".
+  - Returns: the desk's status tiles and **Find return #**.
+  - The adjust dialog's **Remove stock** / Units and its below-zero warning.
+  - Reports: "Sales in the last" and the panel "In stock at every store of a state", with its exact sentences.
+  - Storefront: "Hi, Alice" now sits in the panel beside "Your store"; category pills and chips in the catalogue;
+    **Add an address** and **Retire address**.
+  - The video script's fulfilment shot uses the new button names.
+- The intro explains the two error headings: "Rejected by the database" (a rule) and "Request failed" (an
+  application conflict, such as two clicks on the same order).
+
+**Verification.** Each phrase in the changed steps was found in the code it names: the services, `main`'s
+storefront, and the admin at f1d1d3a. #1495 is paid, by delivery, from Bondi Junction (Leo Wood) in the seeded dev
+database, and no other step uses it. `pytest` → **675 passed** (no code changed). Not done: the walkthrough itself in
+a browser, which needs the personas' Clerk password.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/redesign-admin`: the store admin in the redesign's language
 
 The admin is the staff's workbench, not a shop window. It uses the same tokens, fonts, pills and cards as the
