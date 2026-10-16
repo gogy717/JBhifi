@@ -6,7 +6,11 @@ committed. The concurrency tests at the end commit, on products of their own.
 """
 from decimal import Decimal
 
+from fastapi.testclient import TestClient
+
+from app.main import app
 from app.services.reports import build_store_report
+from tests.auth_support import as_customer, as_staff
 from tests.reports_support import a_category, a_product, a_return, a_sale, a_store, cancel, collect
 
 
@@ -251,3 +255,53 @@ def test_products_are_listed_by_return_rate(cur):
     a_return(cur, collected_sale(cur, store_id, [(half, 2)]), [(1, 1)])
     a_return(cur, collected_sale(cur, store_id, [(all_back, 1)]), [(1, 1)])
     assert list(rates(cur, store_id)[1]) == [all_back, half, never]
+
+
+# ---------------------------------------------------------------- GET /stores/{id}/report: who may read it
+
+client = TestClient(app)
+API = "/api/v1"
+OLIVIA, AIDEN, NORA = 1, 14, 40         # manages Sydney CBD (store 1); works there; support
+
+
+def get_report(store_id: int, headers: dict, **params):
+    return client.get(f"{API}/stores/{store_id}/report", headers=headers, params=params)
+
+
+def error_of(response):
+    return response.status_code, response.json()["error"]["code"]
+
+
+def test_a_manager_reads_their_own_stores_report():
+    response = get_report(1, as_staff(OLIVIA))
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["store_id"], body["store_name"], body["days"]) == (1, "Sydney CBD", 30)
+    assert set(body) == {"store_id", "store_name", "days", "generated_at", "low_stock", "sales_by_category",
+                         "sales_total", "return_rate_by_category", "return_rate_by_product"}
+    assert isinstance(body["sales_total"]["revenue"], str)          # money as a decimal string
+
+
+def test_the_window_is_chosen_with_days():
+    assert get_report(1, as_staff(OLIVIA), days=90).json()["days"] == 90
+    assert error_of(get_report(1, as_staff(OLIVIA), days=0)) == (422, "validation_error")
+    assert error_of(get_report(1, as_staff(OLIVIA), days=366)) == (422, "validation_error")
+
+
+def test_a_manager_cannot_read_another_stores_report_or_one_that_does_not_exist():
+    assert error_of(get_report(2, as_staff(OLIVIA))) == (403, "other_store")
+    assert error_of(get_report(999999, as_staff(OLIVIA))) == (403, "other_store")
+
+
+def test_store_staff_who_do_not_run_the_store_cannot_read_its_report():
+    assert error_of(get_report(1, as_staff(AIDEN))) == (403, "manager_only")
+
+
+def test_support_reads_any_stores_report_and_is_told_when_a_store_does_not_exist():
+    assert get_report(2, as_staff(NORA)).status_code == 200
+    assert error_of(get_report(999999, as_staff(NORA))) == (404, "not_found")
+
+
+def test_customers_and_guests_cannot_read_reports():
+    assert error_of(get_report(1, as_customer("report.reader@example.com"))) == (403, "staff_only")
+    assert error_of(get_report(1, {})) == (401, "not_signed_in")

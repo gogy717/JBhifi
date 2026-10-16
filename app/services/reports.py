@@ -5,7 +5,8 @@ isn't cancelled, credited to the store that fulfils it, at the price paid. Every
 """
 from psycopg2 import sql
 
-from app.errors import NotFound
+from app.auth import require_staff
+from app.errors import ApiError, NotFound
 
 # Low stock: down to this many units, or fewer days of cover than COVER_DAYS at the rate of the last RATE_DAYS
 # days. Reordering is about the shelf, so these don't follow the report's window.
@@ -172,3 +173,23 @@ def build_store_report(cur, store_id: int, days: int) -> dict:
         "return_rate_by_category": _return_rate_by_category(cur, store_id, days),
         "return_rate_by_product": _return_rate_by_product(cur, store_id, days),
     }
+
+
+def _require_report_reader(actor, store_id: int):
+    """A store's report: its manager (store.manager_id, BR04), or support staff for any store. Decided from the
+    signed-in actor alone, before any query, so a manager gets the same 403 for a store that doesn't exist as for
+    someone else's; only support, who may read every store, is told 404."""
+    actor = require_staff(actor)
+    if actor.is_support:
+        return actor
+    if not actor.runs_store:
+        raise ApiError(403, "manager_only", "Only the store's manager can read its report.")
+    if actor.store_id != store_id:
+        raise ApiError(403, "other_store", "You can only read your own store's report.")
+    return actor
+
+
+def store_report(cur, actor, store_id: int, days: int) -> dict:
+    """R9: one store's report."""
+    _require_report_reader(actor, store_id)
+    return build_store_report(cur, store_id, days)
