@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/admin/inventory", label: "Inventory", hint: "Stock per store, ± adjustments" },
   { href: "/admin/products", label: "Products", hint: "Catalogue, prices, specs" },
   { href: "/admin/promotions", label: "Promotions", hint: "Sale prices over a period" },
+  { href: "/admin/returns", label: "Returns", hint: "Receive, refund or reject" },
   { href: "/admin/reports", label: "Reports", hint: "Low stock, sales, return rate" },
   { href: "/admin/support", label: "Support", hint: "Find a customer, see their history" },
 ];
