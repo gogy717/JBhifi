@@ -4,6 +4,93 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-10-16 — Branch `gogy717/redesign-admin`: the store admin in the redesign's language
+
+The admin is the staff's workbench, not a shop window. It uses the same tokens, fonts, pills and cards as the
+storefront, with denser tables and no hero. Every page should show at a glance what is waiting. Only `web/` changed;
+every action, request body, error path and confirmation step is the same as before.
+
+- **Sidebar on ink** (`components/sidebar.tsx`). We chose ink over white for three reasons:
+  - the storefront's header is white, so the dark frame tells staff at once that they are in the staff tool;
+  - in the homepage design, ink is already the colour of the tool surfaces (utility bar, store card, footer);
+  - the canvas and white cards beside it get the most contrast, which leaves attention for the tables.
+
+  What it holds:
+  - the logo with "Store admin" in ember;
+  - a card with who is signed in: "Staff · Sydney CBD", "Manager · Sydney CBD" or "Support · all stores";
+  - line icons for each section;
+  - the current page: a white tint, a `brand` bar and a `brand` icon, plus `aria-current`. It is read with
+    `useSelectedLayoutSegment`, so `/admin/orders/42` still marks Orders.
+
+  On a phone the sidebar sits on top and its links scroll sideways.
+- **Shared admin pieces** (`components/admin/`, new files):
+  - `AdminShell`: the sidebar plus a 1280px content column.
+  - `Table`, `Row`, `Cell`, `ProductName`. The header row is in small tracked capitals; rows are about 52px; number
+    columns are right-aligned in tabular figures. Each table has a caption for screen readers and scrolls inside its
+    card. The scrolling box is `relative`, so screen-reader text in a cell can't widen the page.
+  - `FilterPills`: a short list of choices, all in view, with `aria-pressed`.
+  - `CountTiles`: how much is waiting at each step. Each tile is also a filter, and waiting work is orange.
+  - `RuleTag`: the BR/R/T number a panel demonstrates, kept for the demo.
+  - `FulfilmentPath`: the order's way to the customer (C&C: paid → picking → ready → collected; delivery: … shipped
+    → delivered), or how far a cancelled order got.
+  - `nextMove`: the queue's "Next" hint.
+  - `StorePicker`: store staff see their store as a pill; support picks any store.
+  - `StaffProvider`: `StaffGate` uses it, and so do the tests.
+- **Pages**:
+  - **Orders**:
+    - four count tiles: To pick (orange while any), Picking, Ready to collect, Shipped;
+    - pills for To do / Delivered or collected / Cancelled / All;
+    - a "Next" column linking to the order ("Start picking →").
+  - **Order**: the fulfilment path next to the next-step buttons, the items to pick as a table, the timeline, and
+    payment.
+  - **Returns**: count tiles per status, with Received orange because it waits on the store; the "Find return #"
+    lookup; the desk as a table.
+  - **Return**: the lines and their worth, the actions, and a vertical "where it is up to" line.
+  - **Inventory**:
+    - out-of-stock and low (orange) counts above the table, and "Low stock only" as a pill;
+    - ±1 and Adjust… as 32px pills in each row;
+    - the adjust dialog's add/remove choice as a segmented pill;
+    - recent adjustments beside the table from 1536px, below it on smaller screens.
+  - **Products** and the **product** page: the table, and the details, specs, stock by location and promotions cards.
+  - **Promotions**: status pills and the table, with the saving in `brand-strong`.
+  - **Reports**:
+    - the period as pills;
+    - KPI tiles, plus Low stock in orange;
+    - days of cover under 14 in orange;
+    - each category's share of revenue as a bar;
+    - the relational-division panel with state pills.
+  - **Support**: the search; the customer's profile; orders as a table; returns; the history as a timeline with one
+    colour per kind of event.
+- **One data-flow change, on the orders queue.** The counts need the to-do list (paid, picking, ready, shipped), so
+  it is always loaded, and the four tile filters filter it in the browser. Before, each status filter asked the API
+  with that one status. Delivered or collected, Cancelled and All are one more GET of the same endpoint, with the
+  same parameters as before.
+
+**Verification (actually run).**
+
+- `npm run test:unit` → **77 passed**, 18 of them new:
+  - `components/admin/filters.test.tsx` (4): pills say which choice is on; tiles show counts, a dash while loading,
+    orange only when work is waiting, and filter when chosen;
+  - `components/admin/fulfilment-path.test.tsx` (3): both paths and a cancelled order;
+  - `components/admin/order-moves.test.ts` (3): every next move, and none for a finished order;
+  - `components/sidebar.test.tsx` (4): the current section, including an order's page, and the three roles;
+  - `app/admin/orders/page.test.tsx` (4): the counts, the "Next" links, tile filters sending no request, and
+    another queue sending exactly one more.
+
+  Three deliberate bugs were each caught by these tests: delivery orders shown as "ready"; counts taken from
+  whichever list is shown; and a broken current-page check.
+- `typecheck`, `lint` and `build` are clean, run on a clean tree. `pytest` → **675 passed** (only `web/` changed).
+- **Screenshots** are from a local preview: the real page components and the seed data, but no Clerk sign-in. The
+  real sign-in flow is for the user's walk-through. They cover every admin page, before and after, at 1440px and
+  390px, and the adjust and refund dialogs, including the database refusing stock below zero (`br03_…`) inside the
+  dialog.
+- **No sideways scrolling at 390px**: `scrollWidth` fits the frame on every admin page, the support page with a
+  customer open included.
+- **Not seen in a browser:** the sign-in itself, and `StaffGate`'s own screens ("Checking who you are…", "Staff
+  only", the error state). Those are checked by typecheck and build only.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/redesign-storefront`: the other shop pages in the redesign's language
 
 The storefront pages other than the home page now follow the homepage design, on the foundation (PR #16) and the
