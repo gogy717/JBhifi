@@ -1,23 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { AddressForm } from "@/components/shop/address-form";
 import { useShop } from "@/components/shop/context";
 import { CustomerGate } from "@/components/shop/customer-gate";
-import { Badge, Button, Card, Empty, ErrorBox, Modal } from "@/components/ui";
+import { Callout, Crumbs, DetailRow, focusRing, PageIntro, SectionTitle } from "@/components/shop/page-parts";
+import { Badge, Button, Card, ErrorBox, Modal } from "@/components/ui";
 import { type Address, type ApiError, api, call, type CustomerDetail, toApiError } from "@/lib/api/client";
 import { formatDate } from "@/lib/format";
 
 export default function AccountPage() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <title>My account · TechLight</title>
-      <nav aria-label="Breadcrumb" className="text-sm text-neutral-500">
-        <Link href="/" className="hover:underline">Home</Link> / My account
-      </nav>
-      <h1 className="text-2xl font-semibold tracking-tight">My account</h1>
+      <div className="space-y-4">
+        <Crumbs trail={[["Home", "/"], ["My account"]]} />
+        <PageIntro title="My account">Your details, and the addresses an order can be delivered to.</PageIntro>
+      </div>
       <CustomerGate what="see your details and addresses">
         {(customer) => <Account customer={customer} />}
       </CustomerGate>
@@ -55,93 +55,82 @@ function Account({ customer }: { customer: CustomerDetail }) {
   const current = customer.addresses.filter((address) => address.is_active);
   const past = customer.addresses.filter((address) => !address.is_active);
 
+  const initials = customer.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+
   return (
     <>
       {notice && (
-        <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm
-          text-emerald-900">
+        <Callout tone="ok" role="status">
           {notice}
-          <button type="button" className="ml-3 underline" onClick={() => setNotice(undefined)}>dismiss</button>
-        </p>
+          <button type="button" className="ml-3 font-semibold underline" onClick={() => setNotice(undefined)}>dismiss</button>
+        </Callout>
       )}
       {error && !retiring && <ErrorBox error={error} onClose={() => setError(undefined)} />}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <Card title="Your details">
-          <dl className="divide-y divide-neutral-100 text-sm">
-            <div className="flex justify-between gap-4 px-4 py-2.5">
-              <dt className="text-neutral-500">Name</dt>
-              <dd className="font-medium">{customer.full_name}</dd>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <section className="min-w-0">
+          <SectionTitle>Your details</SectionTitle>
+          <Card>
+            <div className="flex items-center gap-4 border-b border-line px-5 py-5">
+              <span aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full
+                bg-brand-soft font-display text-[20px] font-bold text-brand-strong">
+                {initials}
+              </span>
+              <div className="min-w-0">
+                <div className="font-display text-[20px] font-bold tracking-[-0.01em]">{customer.full_name}</div>
+                <div className="truncate text-[14px] text-muted">{customer.email}</div>
+              </div>
             </div>
-            <div className="flex justify-between gap-4 px-4 py-2.5">
-              <dt className="text-neutral-500">Email</dt>
-              <dd className="font-mono text-xs">{customer.email}</dd>
-            </div>
-            <div className="flex justify-between gap-4 px-4 py-2.5">
-              <dt className="text-neutral-500">Phone</dt>
-              <dd>{customer.phone ?? "—"}</dd>
-            </div>
-            <div className="flex justify-between gap-4 px-4 py-2.5">
-              <dt className="text-neutral-500">Customer since</dt>
-              <dd>{formatDate(customer.created_at)}</dd>
-            </div>
-            <div className="flex justify-between gap-4 px-4 py-2.5">
-              <dt className="text-neutral-500">Customer #</dt>
-              <dd className="tabular-nums">{customer.customer_id}</dd>
-            </div>
-          </dl>
-          <p className="border-t border-neutral-200 px-4 py-3 text-xs text-neutral-500">
-            The email is unique and stored in lower case (BR01). You sign in with Clerk; the API links that sign-in
-            to this record.
-          </p>
-        </Card>
+            <dl className="divide-y divide-line">
+              <DetailRow label="Name">{customer.full_name}</DetailRow>
+              <DetailRow label="Email"><span className="font-mono text-[13px] break-all">{customer.email}</span></DetailRow>
+              <DetailRow label="Phone">{customer.phone ?? "—"}</DetailRow>
+              <DetailRow label="Customer since">{formatDate(customer.created_at)}</DetailRow>
+              <DetailRow label="Customer #"><span className="tabular-nums">{customer.customer_id}</span></DetailRow>
+            </dl>
+            <p className="border-t border-line px-5 py-4 text-[13px] text-muted">
+              The email is unique and stored in lower case (BR01). You sign in with Clerk; the API links that sign-in
+              to this record.
+            </p>
+          </Card>
+        </section>
 
-        <div className="space-y-5">
-          <Card title="Current delivery addresses"
-            actions={<Button size="sm" onClick={() => setAdding(true)}>Add address</Button>}>
-            {current.length === 0
-              ? <Empty>No current address. Add one before ordering delivery.</Empty>
-              : (
-                <ul className="divide-y divide-neutral-100">
-                  {current.map((address) => (
-                    <li key={address.address_no}
-                      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                      <div>
-                        <div className="font-medium">{address.line1}</div>
-                        <div className="text-xs text-neutral-500">
-                          {address.suburb} {address.state} {address.postcode} · #{address.address_no}
-                        </div>
-                      </div>
-                      <Button size="sm" onClick={() => setRetiring(address)}>Retire…</Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            <p className="border-t border-neutral-200 px-4 py-3 text-xs text-neutral-500">
+        <div className="min-w-0 space-y-14">
+          <section>
+            <SectionTitle aside={<Button size="sm" tone="primary" onClick={() => setAdding(true)}>Add address</Button>}>
+              Current delivery addresses
+            </SectionTitle>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {current.map((address) => (
+                <AddressCard key={address.address_no} address={address}
+                  action={<Button size="sm" onClick={() => setRetiring(address)}>Retire…</Button>} />
+              ))}
+              <button type="button" onClick={() => setAdding(true)}
+                className={`flex min-h-36 flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed
+                  border-line p-5 text-[15px] font-bold text-muted transition-colors hover:border-ink hover:text-ink
+                  ${focusRing}`}>
+                <span aria-hidden="true" className="text-[24px] leading-none">+</span>
+                {current.length === 0 ? "No current address. Add one before ordering delivery." : "Add an address"}
+              </button>
+            </div>
+            <p className="mt-4 text-[13px] leading-relaxed text-muted">
               Retiring replaces an address without rewriting it: orders already placed keep the address they were
               placed with (BR16), and checkout only offers current ones (BR17).
             </p>
-          </Card>
+          </section>
 
           {past.length > 0 && (
-            <Card title="Past addresses">
-              <ul className="divide-y divide-neutral-100">
+            <section>
+              <SectionTitle>Past addresses</SectionTitle>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {past.map((address) => (
-                  <li key={address.address_no} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                    <div>
-                      <div className="text-neutral-700">{address.line1}</div>
-                      <div className="text-xs text-neutral-500">
-                        {address.suburb} {address.state} {address.postcode} · #{address.address_no}
-                      </div>
-                    </div>
-                    <Badge>retired</Badge>
-                  </li>
+                  <AddressCard key={address.address_no} address={address} retired action={<Badge>retired</Badge>} />
                 ))}
-              </ul>
-              <p className="border-t border-neutral-200 px-4 py-3 text-xs text-neutral-500">
-                An address is <b>kept on past orders</b>, which is why it is never edited or deleted.
+              </div>
+              <p className="mt-4 text-[13px] text-muted">
+                An address is <b className="text-ink">kept on past orders</b>, which is why it is never edited or deleted.
               </p>
-            </Card>
+            </section>
           )}
         </div>
       </div>
@@ -161,11 +150,11 @@ function Account({ customer }: { customer: CustomerDetail }) {
             {pending ? "Retiring…" : "Retire address"}
           </Button>
         </>}>
-          <div className="rounded-lg border border-neutral-200 px-4 py-3 text-sm">
-            <div className="font-medium">{retiring.line1}</div>
-            <div className="text-neutral-600">{retiring.suburb} {retiring.state} {retiring.postcode}</div>
+          <div className="rounded-tile bg-sand px-4 py-3 text-[15px]">
+            <div className="font-bold">{retiring.line1}</div>
+            <div className="text-muted">{retiring.suburb} {retiring.state} {retiring.postcode}</div>
           </div>
-          <p className="text-sm text-neutral-700">
+          <p className="text-[15px]">
             It stops being offered at checkout straight away. Orders already placed keep it — the record stays on
             file, still pointing at them.
           </p>
@@ -173,5 +162,32 @@ function Account({ customer }: { customer: CustomerDetail }) {
         </Modal>
       )}
     </>
+  );
+}
+
+/** One address as a card; a retired one is quieter. */
+function AddressCard({ address, action, retired = false }: { address: Address; action: ReactNode; retired?: boolean }) {
+  return (
+    <article className={`flex flex-col gap-4 rounded-card border border-line p-5 ${retired ? "bg-sand" : "bg-white"}`}>
+      <div className="flex items-start gap-3">
+        <span aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]
+          ${retired ? "bg-white" : "bg-brand-soft"}`}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" className={retired ? "text-muted" : "text-brand-strong"}>
+            <path d="M3 10.5 12 3l9 7.5" />
+            <path d="M5 9v11h14V9" />
+            <path d="M10 20v-6h4v6" />
+          </svg>
+        </span>
+        <div className="min-w-0">
+          <div className={`font-bold ${retired ? "text-muted" : ""}`}>{address.line1}</div>
+          <div className="text-[14px] text-muted">{address.suburb} {address.state} {address.postcode}</div>
+        </div>
+      </div>
+      <div className="mt-auto flex items-center justify-between gap-3">
+        <span className="text-[13px] text-muted tabular-nums">Address #{address.address_no}</span>
+        {action}
+      </div>
+    </article>
   );
 }

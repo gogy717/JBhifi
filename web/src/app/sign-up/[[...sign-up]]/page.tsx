@@ -1,17 +1,12 @@
 import { SignUp } from "@clerk/nextjs";
-import Link from "next/link";
 
-import { LogoMark, Wordmark } from "@/components/brand";
+import { AuthFrame, clerkAppearance } from "@/components/shop/auth-frame";
 
 export default function SignUpPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
+    <AuthFrame title="Make it yours.">
       <title>Create an account · TechLight</title>
-      <Link href="/" className="flex items-center gap-2.5 text-ink" aria-label="TechLight home">
-        <LogoMark className="h-10 w-10" />
-        <Wordmark className="text-3xl" />
-      </Link>
-      <SignUp />
-    </main>
+      <SignUp appearance={clerkAppearance} />
+    </AuthFrame>
   );
 }
