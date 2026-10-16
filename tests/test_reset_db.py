@@ -24,3 +24,14 @@ def test_postgresql_system_databases_are_refused():
 
 def test_the_test_database_is_refused():
     assert "POSTGRES_TEST_DB" in reset_db.refusal("jbhifi_test", "jbhifi_test")
+
+
+def test_the_default_test_database_is_refused_when_none_is_named(monkeypatch):
+    """Without POSTGRES_TEST_DB in .env the tests use their default, so that default must be refused too."""
+    monkeypatch.delenv("POSTGRES_TEST_DB", raising=False)
+    assert reset_db.refusal("jbhifi_test", reset_db.test_database_name()) is not None
+
+
+def test_the_script_and_the_tests_share_one_default_test_database():
+    from tests import support
+    assert reset_db.DEFAULT_TEST_DB == support.DEFAULT_TEST_DB

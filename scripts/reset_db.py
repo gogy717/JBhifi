@@ -19,6 +19,15 @@ from psycopg2 import sql
 ROOT = Path(__file__).resolve().parent.parent
 SQL_DIR = ROOT / "sql"
 SYSTEM_DATABASES = {"postgres", "template0", "template1"}
+# The test database when .env names none: the same default as tests/support.py, which pytest drops and rebuilds.
+# tests/test_reset_db.py checks the two stay equal (this script can't import tests/support.py: importing it
+# points POSTGRES_DB at the test database).
+DEFAULT_TEST_DB = "jbhifi_test"
+
+
+def test_database_name() -> str:
+    """The database pytest uses: POSTGRES_TEST_DB, or the tests' default when .env names none."""
+    return os.environ.get("POSTGRES_TEST_DB", DEFAULT_TEST_DB)
 
 
 def refusal(dbname: str | None, test_dbname: str | None) -> str | None:
@@ -28,7 +37,8 @@ def refusal(dbname: str | None, test_dbname: str | None) -> str | None:
     if dbname in SYSTEM_DATABASES:
         return f"{dbname} is a PostgreSQL system database"
     if dbname == test_dbname:
-        return f"{dbname} is also POSTGRES_TEST_DB: give the dev and test databases different names in .env"
+        return (f"{dbname} is the test database (POSTGRES_TEST_DB, by default {DEFAULT_TEST_DB}), which pytest drops "
+                "and rebuilds: give the dev database another name in .env")
     return None
 
 
@@ -74,7 +84,7 @@ def main() -> int:
     sys.stdout.reconfigure(line_buffering=True)     # keep stdout and stderr in order when piped to a log
     load_dotenv(ROOT / ".env")
     dbname = os.environ.get("POSTGRES_DB")
-    reason = refusal(dbname, os.environ.get("POSTGRES_TEST_DB"))
+    reason = refusal(dbname, test_database_name())
     if reason:
         print(f"Not resetting: {reason}.", file=sys.stderr)
         return 1
