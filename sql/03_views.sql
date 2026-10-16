@@ -92,3 +92,21 @@ FROM customer_order o
 JOIN order_line l ON l.order_id = o.order_id
 JOIN product p    ON p.product_id = l.product_id
 WHERE o.status NOT IN ('placed', 'cancelled');
+
+-- ===== SP3: returns =====
+
+-- What each return is worth: its items at the prices they were bought at (order_line.unit_price, BR08).
+-- The refund (BR14), T2 and the return pages all read it, so the amount is worked out in one place.
+-- The lines are joined to their order lines in parentheses *before* the LEFT JOIN: written as
+-- "LEFT JOIN return_line … JOIN order_line …", the joins group left to right and the inner join would drop a
+-- return that has no lines yet. Such a return keeps its row here, worth 0 and 0.00.
+CREATE VIEW v_return_value AS
+SELECT r.return_id,
+       r.order_id,
+       CAST(COALESCE(sum(rl.quantity), 0) AS INT)                            AS quantity,
+       CAST(COALESCE(sum(rl.quantity * ol.unit_price), 0) AS NUMERIC(10,2)) AS value
+FROM return_request r
+LEFT JOIN (return_line rl
+           JOIN order_line ol ON ol.order_id = rl.order_id AND ol.line_no = rl.line_no)
+       ON rl.return_id = r.return_id
+GROUP BY r.return_id, r.order_id;

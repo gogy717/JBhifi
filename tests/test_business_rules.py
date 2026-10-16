@@ -66,8 +66,8 @@ def pay(cur, order_id):
 
 
 RETURN_REQUEST = """
-    INSERT INTO return_request (order_id, reason, requested_at)
-    VALUES (%s, 'Changed my mind', now() + %s * interval '1 day')
+    INSERT INTO return_request (order_id, idempotency_key, reason, requested_at)
+    VALUES (%s, gen_random_uuid(), 'Changed my mind', now() + %s * interval '1 day')
     RETURNING return_id
 """
 RETURN_LINE = "INSERT INTO return_line (return_id, line_no, order_id, quantity) VALUES (%s, %s, %s, %s)"
@@ -80,6 +80,20 @@ def request_return(cur, order_id, lines, days_from_now=0) -> int:
     for line_no, quantity in lines:
         cur.execute(RETURN_LINE, (return_id, line_no, order_id, quantity))
     return return_id
+
+
+def receive(cur, return_id, store_id=1, staff_id=14):
+    """Take a requested return in at a store, as the receive action does."""
+    cur.execute("""UPDATE return_request
+                   SET status = 'received', received_store_id = %s, processed_by_staff_id = %s, received_at = now()
+                   WHERE return_id = %s""", (store_id, staff_id, return_id))
+
+
+def reject(cur, return_id, staff_id=14, reason="Water damage"):
+    """Refuse a received return, as the reject action does."""
+    cur.execute("""UPDATE return_request
+                   SET status = 'rejected', rejection_reason = %s, resolved_by_staff_id = %s, resolved_at = now()
+                   WHERE return_id = %s""", (reason, staff_id, return_id))
 
 
 @pytest.fixture
@@ -330,13 +344,15 @@ def test_br12_cannot_return_more_than_was_bought(cur, collected_order, violates)
 
 def test_br12_rejected_returns_do_not_count(cur, collected_order):
     first = request_return(cur, collected_order, [(1, 2)])
-    cur.execute("UPDATE return_request SET status = 'rejected' WHERE return_id = %s", (first,))
+    receive(cur, first)
+    reject(cur, first)
     request_return(cur, collected_order, [(1, 2)])                    # allowed: the rejected one doesn't count
 
 
 def test_br12_a_rejected_return_cannot_be_reopened(cur, collected_order, violates):
     return_id = request_return(cur, collected_order, [(1, 1)])
-    cur.execute("UPDATE return_request SET status = 'rejected' WHERE return_id = %s", (return_id,))
+    receive(cur, return_id)
+    reject(cur, return_id)
     violates("return_status_transition",
              "UPDATE return_request SET status = 'requested' WHERE return_id = %s", (return_id,))
 
@@ -348,9 +364,8 @@ def test_br13_return_lines_come_from_the_returned_order(cur, customer, collected
 
 
 def test_br14_refunds(cur, customer, collected_order, product_id, violates):
-    return_id = request_return(cur, collected_order, [(1, 1)])
-    cur.execute("""UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14
-                   WHERE return_id = %s""", (return_id,))
+    return_id = request_return(cur, collected_order, [(1, 1)])                 # worth 189.00
+    receive(cur, return_id)
     payment = "INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, %s, %s, %s)"
     # A refund without a return is a cancellation refund, and a collected order can't be cancelled.
     violates("br14_refund_without_return_is_cancellation", payment, (collected_order, "refund", "189.00", None))
@@ -358,9 +373,15 @@ def test_br14_refunds(cur, customer, collected_order, product_id, violates):
     # an order that is still placed; CHECKs run before foreign keys, so another order's return_id is fine here.
     placed = place_order(cur, customer, [(product_id("SONY-WH1000XM5-B"), 1, "399.00")])
     violates("br14_charge_has_no_return", payment, (placed, "charge", "1.00", return_id))
+    violates("br14_refund_matches_return", payment, (collected_order, "refund", "600.00", return_id))
+    # Refunds within what was charged is the second line of defence: while every refund equals its return's
+    # value and BR12 caps what is returned, it can't be reached. Switched off, the first line no longer hides it
+    # (ALTER TABLE is transactional: it is undone with the rest of the test).
+    cur.execute("ALTER TABLE payment DISABLE TRIGGER br14_refund_matches_return")
     violates("br14_refunds_within_charged", payment, (collected_order, "refund", "600.00", return_id))
+    cur.execute("ALTER TABLE payment ENABLE TRIGGER br14_refund_matches_return")
     cur.execute(payment, (collected_order, "refund", "189.00", return_id))
-    violates("br14_refund_once_per_return", payment, (collected_order, "refund", "10.00", return_id))
+    violates("br14_refund_once_per_return", payment, (collected_order, "refund", "189.00", return_id))
 
 
 def test_br14_payments_are_append_only(collected_order, violates):
@@ -600,8 +621,7 @@ def test_order_payment_balances_charges_and_refunds_without_fan_out(cur, custome
     # Refund one AirPods (line 1) and the Flip 7 (line 2), each on its own received return.
     for line_no, amount in [(1, "189.00"), (2, "149.95")]:
         return_id = request_return(cur, collected_order, [(line_no, 1)])
-        cur.execute("""UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14
-                       WHERE return_id = %s""", (return_id,))
+        receive(cur, return_id)
         cur.execute("INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, 'refund', %s, %s)",
                     (collected_order, amount, return_id))
     # Summed per order before any join, so the two lines don't double the three payments (joining the lines
@@ -693,3 +713,98 @@ def test_every_orders_status_is_its_latest_history_entry(cur, customer, collecte
     assert history_breaks(cur) == {"status is the newest row's to_status": [collected_order],
                                    "each row starts where the one before ended": [collected_order],
                                    "row 1 is NULL -> placed": []}
+
+
+# ---------------------------------------------------------------- SP3: returns (BR10, BR14 and BR22 widened or new)
+
+def test_br10_a_return_key_is_used_once_per_order(cur, customer, collected_order, product_id, violates):
+    key = str(uuid.uuid4())
+    insert = "INSERT INTO return_request (order_id, idempotency_key, reason) VALUES (%s, %s, 'Too big')"
+    cur.execute(insert, (collected_order, key))
+    violates("br10_return_idempotency_unique", insert, (collected_order, key))
+    other = place_order(cur, customer, [(product_id("SONY-WH1000XM5-B"), 1, "399.00")])
+    pay(cur, other)
+    advance(cur, other, "picking", "ready", "collected", staff_id=14)
+    cur.execute(insert, (other, key))                                  # the key is scoped to its order
+
+
+def test_br14_a_refund_equals_the_value_of_its_return(cur, collected_order, violates):
+    return_id = request_return(cur, collected_order, [(1, 1)])          # one AirPods, bought at 189.00
+    receive(cur, return_id)
+    payment = "INSERT INTO payment (order_id, kind, amount, return_id) VALUES (%s, 'refund', %s, %s)"
+    violates("br14_refund_matches_return", payment, (collected_order, "100.00", return_id))
+    violates("br14_refund_matches_return", payment, (collected_order, "189.01", return_id))
+    cur.execute(payment, (collected_order, "189.00", return_id))
+
+
+def test_br22_returns_are_received_at_a_retail_store(cur, collected_order, violates):
+    return_id = request_return(cur, collected_order, [(1, 1)])
+    receive_at = """UPDATE return_request
+                    SET status = 'received', received_store_id = %s, processed_by_staff_id = %s, received_at = now()
+                    WHERE return_id = %s"""
+    violates("br22_return_received_at_retail_store", receive_at, (13, 13, return_id))   # Eastern Creek DC
+    cur.execute(receive_at, (2, 16, return_id))                         # any retail store, not only store 1
+
+
+def test_a_return_is_rejected_only_after_it_is_received(cur, collected_order, violates):
+    return_id = request_return(cur, collected_order, [(1, 1)])
+    reject_unseen = """UPDATE return_request
+                       SET status = 'rejected', rejection_reason = 'Unseen', resolved_by_staff_id = 14,
+                           resolved_at = now()
+                       WHERE return_id = %s"""
+    violates("return_status_transition", reject_unseen, (return_id,))
+    # The CHECK holds the same line on its own: with the transition trigger off, a rejected return still
+    # needs a receiving store and receiver.
+    cur.execute("ALTER TABLE return_request DISABLE TRIGGER return_status_transition")
+    violates("return_request_receipt_recorded", reject_unseen, (return_id,))
+    cur.execute("ALTER TABLE return_request ENABLE TRIGGER return_status_transition")
+    receive(cur, return_id)
+    reject(cur, return_id)
+
+
+def test_return_receipt_and_resolution_are_recorded_together(cur, collected_order, violates):
+    return_id = request_return(cur, collected_order, [(1, 1)])
+    violates("return_request_received_at_recorded",
+             """UPDATE return_request SET status = 'received', received_store_id = 1, processed_by_staff_id = 14
+                WHERE return_id = %s""", (return_id,))
+    receive(cur, return_id)
+    violates("return_request_resolution_recorded",
+             "UPDATE return_request SET status = 'refunded' WHERE return_id = %s", (return_id,))
+    violates("return_request_resolution_recorded",
+             "UPDATE return_request SET resolved_by_staff_id = 14 WHERE return_id = %s", (return_id,))
+    violates("return_request_resolver_at_store", """UPDATE return_request
+                SET status = 'rejected', rejection_reason = 'Scratched', resolved_by_staff_id = 16,
+                    resolved_at = now()
+                WHERE return_id = %s""", (return_id,))      # staff 16 works at store 2, not the receiving store 1
+    reject(cur, return_id, staff_id=15)                     # another staff member of the receiving store
+
+
+def test_only_a_rejected_return_has_a_reason(cur, collected_order, violates):
+    return_id = request_return(cur, collected_order, [(1, 1)])
+    receive(cur, return_id)
+    violates("return_request_rejection_has_reason",
+             "UPDATE return_request SET rejection_reason = 'Scratched' WHERE return_id = %s", (return_id,))
+    reject_with = """UPDATE return_request
+                     SET status = 'rejected', rejection_reason = %s, resolved_by_staff_id = 14, resolved_at = now()
+                     WHERE return_id = %s"""
+    violates("return_request_rejection_has_reason", reject_with, (None, return_id))
+    violates("return_request_rejection_has_reason", reject_with, ("   ", return_id))
+    cur.execute(reject_with, ("Scratched", return_id))
+
+
+def test_return_value_is_the_purchase_price_of_what_came_back(cur, collected_order):
+    whole = request_return(cur, collected_order, [(1, 2), (2, 1)])     # 2 x 189.00 + 1 x 149.95
+    receive(cur, whole)
+    reject(cur, whole)                                                 # so its units can be asked for again
+    part = request_return(cur, collected_order, [(1, 1)])
+    cur.execute("SELECT return_id, order_id, quantity, value FROM v_return_value WHERE return_id IN (%s, %s)"
+                " ORDER BY return_id", (whole, part))
+    assert [(row["quantity"], str(row["value"])) for row in cur.fetchall()] == [(3, "527.95"), (1, "189.00")]
+
+
+def test_a_return_without_lines_is_worth_nothing(cur, collected_order):
+    # Claimed in this transaction, no lines yet: still one row in the view, so the BR14 trigger compares a
+    # refund with 0.00, never with NULL.
+    return_id = request_return(cur, collected_order, [])
+    cur.execute("SELECT quantity, value FROM v_return_value WHERE return_id = %s", (return_id,))
+    assert [(row["quantity"], str(row["value"])) for row in cur.fetchall()] == [(0, "0.00")]

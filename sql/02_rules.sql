@@ -303,8 +303,9 @@ CREATE TRIGGER br12_return_qty_within_purchased
     BEFORE INSERT OR UPDATE OF quantity, order_id, line_no ON return_line
     FOR EACH ROW EXECUTE FUNCTION br12_check_return_quantity();
 
--- Return status flow: requested → received → refunded, and requested/received → rejected.
--- Refunded and rejected are final; re-opening a rejected return would slip past BR12.
+-- Return status flow: requested → received → refunded or rejected. A return is rejected only once it has
+-- been received, so a rejection always names the store that saw the item. Refunded and rejected are final;
+-- re-opening a rejected return would slip past BR12.
 CREATE FUNCTION check_return_status_transition() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -313,7 +314,7 @@ BEGIN
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'return_status_transition';
         END IF;
     ELSIF NEW.status IS DISTINCT FROM OLD.status
-          AND NOT ((OLD.status = 'requested' AND NEW.status IN ('received', 'rejected'))
+          AND NOT ((OLD.status = 'requested' AND NEW.status = 'received')
                 OR (OLD.status = 'received'  AND NEW.status IN ('refunded', 'rejected'))) THEN
         RAISE EXCEPTION 'A return cannot move from % to %', OLD.status, NEW.status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'return_status_transition';
@@ -627,3 +628,56 @@ END $$;
 CREATE TRIGGER br21_cancelled_order_refunded
     BEFORE UPDATE OF status ON customer_order
     FOR EACH ROW EXECUTE FUNCTION br21_check_cancelled_refunded();
+
+-- ===== SP3: returns =====
+
+-- ---------------------------------------------------------------- BR14 (widened)
+-- A refund for a return is exactly what that return is worth: the prices its items were bought at
+-- (v_return_value, 03_views.sql). Refunds without a return_id (a cancelled order's refund) are not this
+-- rule's business; a return that doesn't exist is reported by payment_return_same_order.
+
+CREATE FUNCTION br14_check_refund_matches_return() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    worth NUMERIC(10,2);
+BEGIN
+    IF NEW.kind = 'refund' AND NEW.return_id IS NOT NULL THEN
+        SELECT value INTO worth FROM v_return_value WHERE return_id = NEW.return_id;
+        IF FOUND AND NEW.amount <> worth THEN
+            RAISE EXCEPTION 'Return % is worth %, so its refund can''t be %', NEW.return_id, worth, NEW.amount
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br14_refund_matches_return';
+        END IF;
+    END IF;
+    RETURN NEW;
+END $$;
+
+-- payment is append-only (br14_payment_append_only), so checking each INSERT is enough. Named br14_refund_…,
+-- so it runs before br14_refunds_within_charged: a wrong amount is reported as this rule, not as the cap.
+CREATE TRIGGER br14_refund_matches_return
+    BEFORE INSERT ON payment
+    FOR EACH ROW EXECUTE FUNCTION br14_check_refund_matches_return();
+
+-- ---------------------------------------------------------------- BR22
+-- When a return is received, the store receiving it is a retail store. Unlike BR06 this is a fact about one
+-- moment, not a standing state, so there is no store-side guard: a store that later changes type doesn't undo
+-- the receipts it made. FOR SHARE, as in BR06: a concurrent change of this store's type waits for the receipt.
+
+CREATE FUNCTION br22_check_receiving_store() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    receiving_store_type TEXT;
+BEGIN
+    IF NEW.received_store_id IS NOT NULL THEN
+        SELECT store_type INTO receiving_store_type
+        FROM store
+        WHERE store_id = NEW.received_store_id
+        FOR SHARE;
+        IF receiving_store_type <> 'retail' THEN      -- no such store (NULL): return_request_store_fk says so
+            RAISE EXCEPTION 'Returns are received at a retail store'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'br22_return_received_at_retail_store';
+        END IF;
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER br22_return_received_at_retail_store
+    BEFORE INSERT OR UPDATE OF received_store_id ON return_request
+    FOR EACH ROW EXECUTE FUNCTION br22_check_receiving_store();
