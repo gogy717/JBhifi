@@ -99,6 +99,9 @@ requirements and rules it covers, and which API it needs.
 managers and support staff also edit products, specs and prices and create promotions; support staff can look at
 any store's stock. When the database refuses something (stock below zero, staff from another store,
 a sale price above the base price…) the page shows which rule refused it, e.g. `br03_inventory_qty_nonneg`.
+**Reports** (`/admin/reports`) show a store's low stock, sales by category and return rate to its manager (support
+staff pick any store), plus the products in stock at every store of a state; **Support** (`/admin/support`) lets
+support staff find a customer and read their orders and full history.
 
 ## Everyday commands
 

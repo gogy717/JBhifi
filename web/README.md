@@ -8,7 +8,8 @@ Two apps in one Next.js project, on the same FastAPI backend:
   The other customer pages are **reserved**: each shows what it will do, which requirements (R#), rules (BR#)
   and transaction it covers, the API it needs (existing or to build) and the owner slice. Their content comes
   from `src/lib/shop-pages.ts` — build a page by replacing its `<ReservedPage>`.
-- **Store admin** at `/admin` — stock per store with ± adjustments, products (prices, specs), promotions.
+- **Store admin** at `/admin` — stock per store with ± adjustments, products (prices, specs), promotions,
+  store reports, and the support team's customer lookup.
 
 Every rule is enforced by the database; when it refuses a request, the page shows the constraint that fired
 (e.g. `br03_inventory_qty_nonneg`).
@@ -38,7 +39,7 @@ every endpoint, read from FastAPI's OpenAPI spec. Commit the regenerated file.
 | `src/app/(shop)/` | storefront pages; `(shop)` is a route group, so it adds nothing to the URL |
 | `src/app/(shop)/page.tsx` | the home page (live) |
 | `src/app/(shop)/{products,cart,checkout,orders,returns,stores,account}` | reserved customer pages |
-| `src/app/admin/` | store admin: `inventory`, `products`, `promotions` |
+| `src/app/admin/` | store admin: `inventory`, `products`, `promotions`, `reports`, `support` |
 | `src/components/shop/` | storefront header (Clerk sign-in), shop context (signed-in customer, my store), `ReservedPage` |
 | `src/proxy.ts` | Clerk's proxy: signed-out visitors to `/admin` go to sign-in (who may do what is the API's call) |
 | `src/components/api-auth.tsx`, `src/lib/me.ts` | each API request carries the Clerk session token; `useMe()` = who the API says you are |
