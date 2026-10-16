@@ -40,6 +40,15 @@ def test_database():
     conn.close()
 
 
+@pytest.fixture(scope="session")
+def seeded_db():
+    """The generated seed loaded into a database of its own, once per test run, with fresh statistics
+    (tests/seed_support.py): for tests/test_seed.py, and for the query plans in tests/test_indexes.py, which need
+    realistic data. Yields (cursor, opening stock, regenerated text, seconds to load, {anchor: timeline breaks})."""
+    from tests.seed_support import load_seed          # imported here, after tests.support has set the database
+    yield from load_seed()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def fake_clerk():
     """Tests never call Clerk: tokens are checked against the tests' own key (tests/auth_support.py)."""
