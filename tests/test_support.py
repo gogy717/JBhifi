@@ -8,10 +8,14 @@ from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
+from app.auth import Actor
 from app.main import app
+from app.services import support
 from tests.auth_support import as_customer, as_staff
 from tests.checkout_support import a_product, committed
 from tests.orders_support import customer_id, move, paid_order
+from tests.reports_support import a_category, a_sale, a_store, collect
+from tests.reports_support import a_product as a_report_product
 
 client = TestClient(app)
 API = "/api/v1"
@@ -100,6 +104,7 @@ def test_history_merges_status_changes_payments_and_returns_newest_first():
     refund(return_id, order_id, "40.00")
     assert events(customer_id(email)) == [
         ("refund", None, "40.00", None),
+        ("return_received", None, None, "Aiden Chen"),        # refund() takes it in at Sydney CBD first
         ("return_requested", None, None, None),
         ("status", "collected", None, "Aiden Chen"),
         ("status", "ready", None, "Aiden Chen"),
@@ -155,3 +160,68 @@ def test_store_staff_cannot_read_a_customers_history():
 
 def test_support_is_told_when_the_customer_does_not_exist():
     assert error_of(history(999999)) == (404, "not_found")
+
+
+# ---------------------------------------------------------------- returns in the history (SP3's T2)
+
+def collected_order(email: str, price: str = "40.00") -> int:
+    order_id = paid_order(email, [(a_product(price)["sku"], 1)])
+    move(order_id, "picking", "ready", "collected", staff_id=AIDEN)
+    return order_id
+
+
+def asked_to_return(email: str, order_id: int) -> int:
+    response = client.post(f"{API}/orders/{order_id}/returns", headers={**as_customer(email),
+                           "Idempotency-Key": str(uuid.uuid4())},
+                           json={"reason": "Too big", "lines": [{"line_no": 1, "quantity": 1}]})
+    assert response.status_code == 201, response.text
+    return response.json()["return_id"]
+
+
+def handled(return_id: int, action: str, body: dict | None = None) -> None:
+    response = client.post(f"{API}/returns/{return_id}/{action}", headers=as_staff(AIDEN), json=body)
+    assert response.status_code == 200, response.text
+
+
+def test_a_refunded_return_reads_requested_received_refund_refunded():
+    """T2 inserts the refund and marks the return refunded in one transaction, so both carry one now(): the
+    refund lands just before the return's refunded event, the change it completes."""
+    email = new_email()
+    return_id = asked_to_return(email, collected_order(email))
+    handled(return_id, "receive")
+    handled(return_id, "refund")
+    newest = history(customer_id(email)).json()[:4]
+    assert [(e["kind"], e["return_id"], e["amount"], e["staff_name"]) for e in newest] == [
+        ("return_refunded", return_id, None, "Aiden Chen"),
+        ("refund", return_id, "40.00", None),
+        ("return_received", return_id, None, "Aiden Chen"),
+        ("return_requested", return_id, None, None),
+    ]
+    assert newest[0]["at"] == newest[1]["at"]
+
+
+def test_a_rejected_return_reads_received_then_rejected_with_its_reason():
+    email = new_email()
+    return_id = asked_to_return(email, collected_order(email))
+    handled(return_id, "receive")
+    handled(return_id, "reject", {"reason": "Damaged after delivery"})
+    newest = history(customer_id(email)).json()[:3]
+    assert [(e["kind"], e["staff_name"], e["note"]) for e in newest] == [
+        ("return_rejected", "Aiden Chen", "Damaged after delivery"),
+        ("return_received", "Aiden Chen", None),
+        ("return_requested", None, None),
+    ]
+
+
+def test_a_charge_sits_just_before_paid_even_when_later_moves_share_its_instant(cur):
+    """Built in one transaction, every row below carries one now(). The charge belongs just before `paid`, the
+    change it enables — not before whichever status change happens to be the last at that moment."""
+    store_id, _ = a_store(cur)
+    order_id = a_sale(cur, store_id, [(a_report_product(cur, a_category(cur), "15.00"), 1)])
+    collect(cur, order_id)
+    cur.execute("SELECT customer_id FROM customer_order WHERE order_id = %s", (order_id,))
+    buyer = cur.fetchone()["customer_id"]
+    events_now = support.customer_history(cur, Actor("staff", NORA, "Nora", staff_type="support"), buyer)
+    assert [(e["kind"], e["to_status"]) for e in reversed(events_now)] == [
+        ("status", "placed"), ("charge", None), ("status", "paid"),
+        ("status", "picking"), ("status", "ready"), ("status", "collected")]

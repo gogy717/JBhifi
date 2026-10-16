@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useDeferredValue, useState } from "react";
 
 import { useStaff } from "@/components/admin/staff-gate";
+import { ReturnStatusBadge } from "@/components/return-status";
 import { StatusBadge } from "@/components/shop/order-timeline";
 import { Badge, Card, Empty, ErrorBox, Field, inputClass, PageHeader } from "@/components/ui";
-import { api, call, type HistoryEvent } from "@/lib/api/client";
+import { api, call, type HistoryEvent, type ReturnSummary } from "@/lib/api/client";
 import { formatDateTime, money } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
 
@@ -33,7 +34,7 @@ export default function SupportPage() {
         title="Support"
         description={<>
           Find any customer and see everything that happened to them: their orders, each status change and who
-          made it, payments and return requests (R10).
+          made it, payments and returns (R10).
         </>}
       />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
@@ -87,6 +88,8 @@ function CustomerFile({ customerId }: { customerId: number }) {
     call(api.GET("/api/v1/customers/{customer_id}", { params: { path: { customer_id: customerId } } })));
   const orders = useLoad(`customer-orders:${customerId}`, () =>
     call(api.GET("/api/v1/customers/{customer_id}/orders", { params: { path: { customer_id: customerId } } })));
+  const returns = useLoad(`customer-returns:${customerId}`, () =>
+    call(api.GET("/api/v1/customers/{customer_id}/returns", { params: { path: { customer_id: customerId } } })));
   const history = useLoad(`customer-history:${customerId}`, () =>
     call(api.GET("/api/v1/customers/{customer_id}/history", { params: { path: { customer_id: customerId } } })));
   const profile = customer.data;
@@ -136,7 +139,15 @@ function CustomerFile({ customerId }: { customerId: number }) {
         )}
       </Card>
 
-      {/* Returns: SP3's GET /customers/{id}/returns, added once SP3 is merged. */}
+      <Card title="Returns">
+        {returns.error && <ErrorBox error={returns.error} className="m-4" />}
+        {returns.data?.length === 0 && <Empty>No returns.</Empty>}
+        {returns.data && returns.data.length > 0 && (
+          <ul className="divide-y divide-neutral-100">
+            {returns.data.map((r) => <ReturnRow key={r.return_id} row={r} />)}
+          </ul>
+        )}
+      </Card>
 
       <Card title="History">
         {history.error && <ErrorBox error={history.error} className="m-4" />}
@@ -148,6 +159,40 @@ function CustomerFile({ customerId }: { customerId: number }) {
         )}
       </Card>
     </div>
+  );
+}
+
+/** One return as SP3's ReturnSummary describes it: what comes back, what it is worth, where it is up to. */
+function ReturnRow({ row }: { row: ReturnSummary }) {
+  return (
+    <li className="space-y-1 px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link href={`/admin/returns/${row.return_id}`} className="font-medium hover:underline">
+          Return #{row.return_id}
+        </Link>
+        <span className="text-neutral-500">
+          from order #{row.order_id} · asked for {formatDateTime(row.requested_at)}
+        </span>
+        <ReturnStatusBadge status={row.status} />
+      </div>
+      <ul className="text-neutral-700">
+        {row.lines.map((line) => (
+          <li key={line.line_no}>
+            {line.quantity} × {line.name} <span className="font-mono text-xs text-neutral-400">{line.sku}</span>
+            <span className="text-neutral-500"> at {money(line.unit_price)}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-x-4 text-xs text-neutral-500">
+        <span>Reason: {row.reason}</span>
+        <span>Worth {money(row.value)}</span>
+        {row.refunded !== null && <span>Refunded {money(row.refunded)}</span>}
+        {row.received_store_name && row.received_at && (
+          <span>Received at {row.received_store_name}, {formatDateTime(row.received_at)}</span>
+        )}
+        {row.rejection_reason && <span className="text-red-700">Rejected: {row.rejection_reason}</span>}
+      </div>
+    </li>
   );
 }
 
@@ -174,6 +219,13 @@ function describe(event: HistoryEvent): string {
         : `refunded ${money(event.amount ?? 0)}`;
     case "return_requested":
       return `return #${event.return_id} requested`;
+    case "return_received":
+      return `return #${event.return_id} received${event.staff_name ? `, by ${event.staff_name}` : ""}`;
+    case "return_refunded":
+      return `return #${event.return_id} refunded${event.staff_name ? `, by ${event.staff_name}` : ""}`;
+    case "return_rejected":
+      return `return #${event.return_id} rejected${event.staff_name ? ` by ${event.staff_name}` : ""}`
+        + (event.note ? `: ${event.note}` : "");
     default:
       return event.kind;
   }

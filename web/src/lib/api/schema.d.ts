@@ -882,7 +882,7 @@ export interface components {
         };
         /**
          * HistoryEvent
-         * @description One thing that happened to a customer: an order status change, a payment, or a return request.
+         * @description One thing that happened to a customer: an order status change, a payment, or a step of a return.
          */
         HistoryEvent: {
             /**
@@ -904,6 +904,8 @@ export interface components {
             amount: string | null;
             /** Staff Name */
             staff_name: string | null;
+            /** Note */
+            note: string | null;
         };
         /** InventoryRow */
         InventoryRow: {

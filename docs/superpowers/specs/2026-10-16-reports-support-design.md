@@ -88,12 +88,14 @@ days)`, which sets no isolation level, so tests can run it inside their own tran
   support; 404 only for support). One `UNION ALL` of three branches for this customer's orders: status changes
   (`v_order_timeline`, so the staff name comes from its `LEFT JOIN`), payments (`charge` / `refund`, each at its own
   `created_at`, as ledger events), and return requests (`requested_at`). Columns: `at, kind, order_id, return_id,
-  from_status, to_status, amount, staff_name`, plus an explicit sort column `step` in every branch, because
-  checkout writes `placed`, its charge and `paid` with one `now()`. A status row's step is `2 × seq`. A payment's
-  step is `2 × (the highest seq of that order's history rows with exactly its timestamp) − 1`, so it lands just
-  before the status change it enables: placed → charge → paid in checkout, refund → cancelled in SP2's
-  cancellation. A return request's step is 0. Ordered by `at, order_id, step` (descending: newest first), then by
-  payment or return id. After rebasing on SP3: add received / resolved events from its new columns.
+  from_status, to_status, amount, staff_name, note`, plus an explicit sort column `step` in every branch, because
+  one transaction writes several events with one `now()`. A status row's step is `2 × seq`; a return event's is
+  0. A payment sits just before the event it enables: a charge at `2 × (seq of the order's paid row at exactly
+  its timestamp) − 1`, a cancellation's refund likewise before `cancelled`, and a return's refund at −1, before
+  the return's refunded event (T2 writes both with one `now()`). So: placed → charge → paid, refund → cancelled,
+  refund → return refunded. Ordered by `at, order_id, step` (descending: newest first), then by payment or return
+  id. After SP3: return received (`received_at`, `processed_by_staff_id`) and refunded / rejected
+  (`resolved_at`, `resolved_by_staff_id`, the rejection reason in `note`), staff names by `LEFT JOIN staff`.
 - **Returns list:** the page calls SP3's `GET /customers/{id}/returns`. A return is SP3's entity, so its shape and
   value (`v_return_value`) are defined once. Until SP3 is merged, the section is not rendered.
 
