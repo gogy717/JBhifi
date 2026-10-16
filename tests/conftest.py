@@ -21,7 +21,8 @@ SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
 
 @pytest.fixture(scope="session", autouse=True)
 def test_database():
-    """Drop and recreate the test database, then run sql/*.sql in filename order, as Docker does."""
+    """Drop and recreate the test database, then run sql/*.sql in filename order, as Docker does — except the
+    generated files (numbered 20 and up), so tests start from the reference data alone."""
     admin = connect("postgres")
     admin.autocommit = True                     # CREATE DATABASE can't run inside a transaction
     with admin.cursor() as cur:
@@ -33,6 +34,8 @@ def test_database():
     conn.autocommit = True                      # the files manage their own transactions
     with conn.cursor() as cur:
         for path in sorted(SQL_DIR.glob("*.sql")):
+            if path.name >= "20":                 # generated data (20_seed_generated.sql): tests/test_seed.py
+                continue
             cur.execute(path.read_text())
     conn.close()
 
