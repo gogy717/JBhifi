@@ -123,6 +123,16 @@ def collect(cur, order_id: int, staff_id: int | None = None) -> None:
 
 
 def cancel(cur, order_id: int) -> None:
+    """Cancel as T4 does (SP2): refund the balance with a refund that names no return (allowed only while the
+    order can still be cancelled), then move to cancelled, which BR21 allows only once nothing is held.
+    Stock is not put back: these orders never took any."""
+    cur.execute(
+        """
+        INSERT INTO payment (order_id, kind, amount)
+        SELECT order_id, 'refund', balance FROM v_order_payment WHERE order_id = %s AND balance > 0
+        """,
+        (order_id,),
+    )
     _move(cur, order_id, "cancelled")
 
 

@@ -28,7 +28,8 @@ plan §6, and its return figures were wrong); every query was derived again.
   with no retail stores lists every product (vacuous truth), with the divisor stores in the answer.
 - **Support lookup** (R10): `GET /api/v1/customers?q=` searches names and emails; `GET /api/v1/customers/{id}/history`
   merges status changes (with the staff member), payments and return requests in one `UNION ALL`, newest first,
-  with an explicit sort step so checkout's same-instant events read placed → charge → paid.
+  with an explicit sort step so same-instant events read in order: placed → charge → paid at checkout, refund →
+  cancelled on a cancellation.
 - **Web**: `/admin/reports` (7 / 30 / 90 days, the four sections, the division panel) and `/admin/support` (search,
   profile, orders, history).
 
@@ -37,12 +38,13 @@ return rate by the cohort sold in the window (recent windows read low: items hav
 managers plus support read reports; the returns list on the support page will use SP3's endpoint, and is hidden
 until SP3 is merged; indexes and `EXPLAIN` move to a separate PR after the seed (T-8).
 
-**Verification (actually run).** `pytest` → **414 passed** (91 new: 33 in `test_reports.py`, 9 in
-`test_support.py`, 49 permission-matrix cases), including the report §4 evidence pair
+**Verification (actually run, after rebasing on SP2).** `pytest` → **488 passed** (92 new: 33 in
+`test_reports.py`, 10 in `test_support.py`, 49 permission-matrix cases), including the report §4 evidence pair
 `test_repeatable_read_keeps_a_sale_committed_mid_report_out_of_every_section` /
 `test_read_committed_would_let_a_sale_committed_mid_report_into_later_sections`. Web `typecheck`, `lint` and `build`
-clean; `test:unit` → **16 passed**. **Not done:** the in-browser walk-through (Clerk sign-in needs the personas'
-passwords).
+clean; `test:unit` → **20 passed**. A final whole-branch review found nothing critical or important; its minor
+findings are listed in the pull request. **Not done:** the in-browser walk-through (Clerk sign-in needs the
+personas' passwords).
 
 ---
 

@@ -117,6 +117,19 @@ def test_checkout_events_at_one_instant_read_placed_charge_paid():
     assert response[1]["amount"] == str(Decimal("30.00"))
 
 
+def test_a_cancellation_reads_refund_then_cancelled():
+    """T4 (SP2) refunds the order and moves it to cancelled in one transaction, so both carry one now(): the
+    refund lands just before the status change it enables."""
+    email = new_email()
+    order_id = paid_order(email, [(a_product("25.00")["sku"], 2)])
+    response = client.post(f"{API}/orders/{order_id}/cancel", headers=as_customer(email), json={"from_status": "paid"})
+    assert response.status_code == 200, response.text
+    newest = history(customer_id(email)).json()[:2]
+    assert [(e["kind"], e["to_status"], e["amount"]) for e in newest] == [
+        ("status", "cancelled", None), ("refund", None, "50.00")]
+    assert newest[0]["at"] == newest[1]["at"]
+
+
 def test_history_shows_only_this_customers_events():
     email, other = new_email(), new_email()
     sku = a_product("10.00")["sku"]
