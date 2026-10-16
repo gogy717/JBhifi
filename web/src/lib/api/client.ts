@@ -61,10 +61,13 @@ export type AddressCreate = Schemas["AddressCreate"];
 export type OrderCreate = Schemas["OrderCreate"];
 export type OrderSummary = Schemas["OrderSummary"];
 export type OrderDetail = Schemas["OrderDetail"];
+export type OrderStatus = Schemas["StatusMove"]["from_status"];
+export type StaffMove = Schemas["StatusMove"]["to_status"];
 
-/** The 409s the application itself answers at checkout (T1): the price changed since the review, or the stock
- *  ran out. Every other 409 is the database refusing the request, with the constraint's name as the code. */
-export const APP_CONFLICTS: ReadonlySet<string> = new Set(["price_changed", "out_of_stock"]);
+/** The 409s the application itself answers: at checkout (T1), the price changed since the review or the stock ran
+ *  out; on an order's status, it moved on since the screen showed it (status_changed). Every other 409 is the
+ *  database refusing the request, with the constraint's name as the code. */
+export const APP_CONFLICTS: ReadonlySet<string> = new Set(["price_changed", "out_of_stock", "status_changed"]);
 
 /** Every API error has this shape; for database rules, `code` is the constraint name (brNN_…). */
 export class ApiError extends Error {
