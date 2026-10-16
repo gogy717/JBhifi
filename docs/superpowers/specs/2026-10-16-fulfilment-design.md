@@ -41,9 +41,10 @@ not its `order_cancellation` table, deferred BR14 triggers or `flush_deferred`.
 2. Who: customer (own order) / store staff (fulfilling store) / support (refused). 403 comes before any 404.
 3. `from_status` ≠ current status → 409 `status_changed`, detail `{status}`.
 4. A customer may cancel only a `placed` or `paid` order, else 403 `customer_cancel_before_picking`.
-5. Restock (status `paid` or `ready`): `UPDATE inventory SET quantity = quantity + %s WHERE store_id = %s AND
-   product_id = %s`, in ascending `product_id`. The row exists: T1 took the stock from it, and inventory rows are
-   never deleted.
+5. Restock (status `paid` or `ready`), in ascending `product_id`, as T3 does: `INSERT INTO inventory (store_id,
+   product_id, quantity) VALUES (%s, %s, 0) ON CONFLICT DO NOTHING`, then the relative `UPDATE inventory SET
+   quantity = quantity + %s …`. No rule keeps an inventory row from being deleted, so the row is made sure of
+   first rather than assumed (otherwise the UPDATE would match 0 rows and the stock would silently vanish).
 6. Refund (`_refund`, its own function so a test can make it fail): `INSERT INTO payment (order_id, kind, amount)
    SELECT order_id, 'refund', balance FROM v_order_payment WHERE order_id = %s AND balance > 0`.
 7. `set_config('app.staff_id', <staff id, or '' for the customer>, true)`, then `UPDATE … SET status =
