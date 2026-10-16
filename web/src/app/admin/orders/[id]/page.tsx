@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { RuleTag } from "@/components/admin/filters";
+import { FulfilmentPath } from "@/components/admin/fulfilment-path";
+import { CollectIcon, DeliveryIcon } from "@/components/admin/icons";
+import { isMove, MOVES } from "@/components/admin/order-moves";
 import { useStaff } from "@/components/admin/staff-gate";
+import { Cell, Row, Table } from "@/components/admin/table";
 import { ORDER_STATUS_TEXT, OrderTimeline, StatusBadge } from "@/components/shop/order-timeline";
 import { Button, Card, Empty, ErrorBox, NoticeBanner, PageHeader, useNotice } from "@/components/ui";
 import {
@@ -12,19 +17,6 @@ import {
 } from "@/lib/api/client";
 import { formatDateTime, money } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
-
-// The forward moves staff make, in path order, with what the button says.
-const MOVES: Record<StaffMove, string> = {
-  picking: "Start picking",
-  ready: "Ready for collection",
-  shipped: "Mark shipped",
-  collected: "Mark collected",
-  delivered: "Mark delivered",
-};
-
-function isMove(status: string): status is StaffMove {
-  return status in MOVES;
-}
 
 export default function AdminOrderPage() {
   const { id } = useParams<{ id: string }>();
@@ -91,84 +83,105 @@ function Order({ orderId }: { orderId: number }) {
       </div>
     );
   }
-  if (!detail) return <div className="h-40 animate-pulse rounded-xl bg-neutral-200" />;
+  if (!detail) return <div className="h-40 animate-pulse rounded-card bg-sand" />;
 
   const moves = detail.allowed_next_statuses.filter(isMove);
   // Support staff move orders along but never cancel them (spec §1); the API says so too.
   const canCancel = detail.allowed_next_statuses.includes("cancelled") && me.staff_type === "store";
+  const delivery = detail.fulfilment_method === "delivery";
+  const units = detail.lines.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
     <>
       <title>{`Order #${detail.order_id} · TechLight Admin`}</title>
-      <nav aria-label="Breadcrumb" className="mb-2 text-sm text-neutral-500">
-        <Link href="/admin/orders" className="hover:underline">Orders</Link> / #{detail.order_id}
+      <nav aria-label="Breadcrumb" className="mb-3 text-sm text-muted">
+        <Link href="/admin/orders" className="font-semibold text-brand-strong hover:underline">Orders</Link>
+        <span aria-hidden="true"> / </span>#{detail.order_id}
       </nav>
       <PageHeader
         title={`Order #${detail.order_id}`}
-        description={<>Placed {formatDateTime(detail.placed_at)} ·{" "}
-          {detail.fulfilment_method === "delivery" ? "Delivery from " : "Click & Collect at "}
-          {detail.fulfilling_store_name}</>}
+        description={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+          {delivery ? <DeliveryIcon className="h-4 w-4" /> : <CollectIcon className="h-4 w-4" />}
+          {delivery ? "Delivery from " : "Click & Collect at "}{detail.fulfilling_store_name}
+          <span aria-hidden="true">·</span> placed {formatDateTime(detail.placed_at)}</span>}
         actions={<StatusBadge status={detail.status} />}
       />
       <NoticeBanner notice={notice} onClose={clear} />
 
-      <Card title="Next step" className="mb-5"
-        actions={<span className="text-xs text-neutral-500">BR09 decides which moves are allowed</span>}>
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-          {moves.map((to) => (
-            <Button key={to} tone="primary" disabled={busy} onClick={() => move(detail, to)}>{MOVES[to]}</Button>
-          ))}
-          {canCancel && !confirmCancel && (
-            <Button tone="ghost" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancel order…</Button>
-          )}
-          {canCancel && confirmCancel && (
-            <span className="flex flex-wrap items-center gap-2 text-sm">
-              Put the items back in stock and refund {money(detail.payment.balance)}?
-              <Button tone="danger" disabled={busy} onClick={() => cancel(detail)}>Yes, cancel it</Button>
-              <Button disabled={busy} onClick={() => setConfirmCancel(false)}>Keep it</Button>
-            </span>
-          )}
-          {moves.length === 0 && !canCancel && (
-            <p className="text-sm text-neutral-600">Nothing more to do: this order is {ORDER_STATUS_TEXT[detail.status].toLowerCase()}.</p>
-          )}
+      <Card className="mb-5">
+        <div className="grid grid-cols-1 gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
+          <FulfilmentPath method={detail.fulfilment_method} status={detail.status}
+            reached={detail.history.map((change) => change.to_status)} />
+          <div className="space-y-3 lg:border-l lg:border-line lg:pl-6">
+            <h2 className="flex items-center gap-2 font-sans text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+              Next step <RuleTag>BR09</RuleTag>
+            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              {moves.map((to) => (
+                <Button key={to} tone="primary" disabled={busy} onClick={() => move(detail, to)}>{MOVES[to]}</Button>
+              ))}
+              {canCancel && !confirmCancel && (
+                <Button tone="ghost" disabled={busy} onClick={() => setConfirmCancel(true)}>Cancel order…</Button>
+              )}
+              {moves.length === 0 && !canCancel && (
+                <p className="text-[15px] text-muted">
+                  Nothing more to do: this order is {ORDER_STATUS_TEXT[detail.status].toLowerCase()}.
+                </p>
+              )}
+            </div>
+            {canCancel && confirmCancel && (
+              <div className="space-y-3 rounded-tile border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                <p>Put the items back in stock and refund {money(detail.payment.balance)}?</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button tone="danger" disabled={busy} onClick={() => cancel(detail)}>Yes, cancel it</Button>
+                  <Button disabled={busy} onClick={() => setConfirmCancel(false)}>Keep it</Button>
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-muted">The transition table decides which moves are allowed.</p>
+          </div>
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <Card title="Items to pick">
-          <ul className="divide-y divide-neutral-100">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Card title={<>Items to pick <span className="font-sans font-normal text-muted">· {units} {units === 1 ? "unit" : "units"}</span></>}>
+          <Table label={`Items in order #${detail.order_id}`}
+            columns={[{ label: "Qty", align: "right" }, "Product", { label: "Total", align: "right" }]}>
             {detail.lines.map((line) => (
-              <li key={line.line_no} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                <div>
-                  <div className="font-medium">{line.name}</div>
-                  <div className="font-mono text-xs text-neutral-500">{line.sku}</div>
-                </div>
-                <div className="text-right text-sm tabular-nums">
-                  <div className="font-semibold">× {line.quantity}</div>
-                  <div className="text-neutral-500">{money(line.line_total)}</div>
-                </div>
-              </li>
+              <Row key={line.line_no}>
+                <Cell numeric className="w-16 font-display text-lg font-bold">× {line.quantity}</Cell>
+                <Cell>
+                  <div className="font-semibold">{line.name}</div>
+                  <div className="font-mono text-xs text-muted">{line.sku}</div>
+                </Cell>
+                <Cell numeric>{money(line.line_total)}</Cell>
+              </Row>
             ))}
-          </ul>
+          </Table>
           {detail.delivery_address && (
-            <p className="border-t border-neutral-200 px-4 py-3 text-sm text-neutral-600">
-              Ship to {detail.delivery_address.line1}, {detail.delivery_address.suburb} {detail.delivery_address.state}{" "}
-              {detail.delivery_address.postcode}
-            </p>
+            <div className="flex items-start gap-2 border-t border-line px-5 py-4 text-sm">
+              <DeliveryIcon className="mt-0.5 h-4 w-4 text-muted" />
+              <span>
+                <span className="block text-xs font-semibold uppercase tracking-[0.08em] text-muted">Ship to</span>
+                {detail.delivery_address.line1}, {detail.delivery_address.suburb} {detail.delivery_address.state}{" "}
+                {detail.delivery_address.postcode}
+              </span>
+            </div>
           )}
         </Card>
 
         <div className="space-y-5">
-          <Card title="Timeline" actions={<span className="text-xs text-neutral-500">R11</span>}>
+          <Card title="Timeline" actions={<RuleTag>R11</RuleTag>}>
             <OrderTimeline history={detail.history} />
           </Card>
-          <Card title="Payment (simulated)" actions={<span className="text-xs text-neutral-500">BR14, BR20, BR21</span>}>
-            <dl className="divide-y divide-neutral-100 text-sm">
+          <Card title="Payment (simulated)"
+            actions={<span className="flex gap-1"><RuleTag>BR14</RuleTag><RuleTag>BR20</RuleTag><RuleTag>BR21</RuleTag></span>}>
+            <dl className="divide-y divide-line text-sm">
               {([["Charged", detail.payment.charged], ["Refunded", detail.payment.refunded],
-                ["Held (charged − refunded)", detail.payment.balance]] as const).map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between gap-4 px-4 py-2.5">
-                  <dt className="text-neutral-600">{label}</dt>
-                  <dd className="tabular-nums">{money(value)}</dd>
+                ["Held (charged − refunded)", detail.payment.balance]] as const).map(([label, value], index) => (
+                <div key={label} className="flex items-center justify-between gap-4 px-5 py-3">
+                  <dt className="text-muted">{label}</dt>
+                  <dd className={`tabular-nums ${index === 2 ? "font-display text-base font-bold" : ""}`}>{money(value)}</dd>
                 </div>
               ))}
             </dl>

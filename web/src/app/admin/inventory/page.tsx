@@ -2,11 +2,14 @@
 
 import { useDeferredValue, useState } from "react";
 
+import { RuleTag } from "@/components/admin/filters";
+import { SearchIcon } from "@/components/admin/icons";
 import { useStaff } from "@/components/admin/staff-gate";
-import { StoreSelect } from "@/components/admin/store-select";
+import { StorePicker } from "@/components/admin/store-select";
+import { Cell, ProductName, Row, Table } from "@/components/admin/table";
 import { CategorySelect } from "@/components/category-select";
 import {
-  Badge, Button, Card, Empty, ErrorBox, Field, inputClass, LOW_STOCK, Modal, NoticeBanner, PageHeader,
+  Badge, Button, Card, Dot, Empty, ErrorBox, Field, inputClass, LOW_STOCK, Modal, NoticeBanner, PageHeader,
   selectClass, StockBadge, useNotice,
 } from "@/components/ui";
 import {
@@ -99,112 +102,102 @@ export default function InventoryPage() {
           Stock at each location. Every change is one transaction that updates the quantity and writes an
           audit row saying who, why and by how much (BR18). The database refuses stock below zero (BR03).
         </>}
+        actions={<StorePicker ownStore={canAdjust ? store?.name ?? "…" : undefined} stores={stores.data ?? []}
+          value={storeId} onChange={changeStore} />}
       />
 
-      <Card className="mb-4">
-        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[repeat(2,minmax(0,1.25fr))_repeat(3,minmax(0,1fr))]">
-          <Field label="Store">
-            {canAdjust
-              ? <p className="flex h-9 items-center text-sm font-medium">{store?.name ?? "…"}</p>
-              : <StoreSelect stores={stores.data ?? []} value={storeId} onChange={changeStore} />}
-          </Field>
-          <Field label="Signed in as"
-            hint={canAdjust ? "Every change is logged under your name (BR18)."
-              : "Support staff can look at any store's stock but don't adjust it."}>
-            <p className="flex h-9 items-center text-sm">{me.display_name}</p>
-          </Field>
+      <Card className="mb-5">
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(2,minmax(0,1fr))]">
           <Field label="Search">
-            <input className={inputClass} placeholder="Name, SKU or brand" value={search}
-              onChange={(e) => setSearch(e.target.value)} />
+            <span className="relative block">
+              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input className={`${inputClass} pl-10`} placeholder="Name, SKU or brand" value={search}
+                onChange={(e) => setSearch(e.target.value)} />
+            </span>
           </Field>
           <Field label="Category">
             <CategorySelect categories={categories.data ?? []} value={categoryId} onChange={setCategoryId}
               allLabel="All categories" />
           </Field>
           <Field label="Reason for ± buttons">
-            <select className={selectClass} value={quickReason}
+            <select className={selectClass} value={quickReason} disabled={!canAdjust}
               onChange={(e) => setQuickReason(e.target.value as AdjustmentReason)}>
               {Object.entries(REASONS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </Field>
         </div>
+        <p className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-3 text-sm text-muted">
+          Signed in as <b className="font-semibold text-ink">{me.display_name}</b> ·{" "}
+          {canAdjust ? "every change is logged under your name." : "support staff can look at any store's stock but don't adjust it."}
+          <RuleTag>BR18</RuleTag>
+        </p>
       </Card>
 
       <NoticeBanner notice={notice} onClose={clear} />
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <Card
-          title={<>
-            {store ? `${store.name}` : "Stock"}
-            {store?.store_type === "warehouse" && <span className="ml-2"><Badge tone="blue">warehouse</Badge></span>}
-            <span className="ml-3 font-normal text-neutral-500">
-              {rows.length} products · <span className="text-red-600">{outOfStock} out of stock</span> ·{" "}
-              <span className="text-amber-700">{low} low (≤ {LOW_STOCK})</span>
-            </span>
-          </>}
-          actions={
-            <label className="flex items-center gap-2 text-sm text-neutral-700">
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <Card className="self-start">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <h2 className="text-base font-bold">{store?.name ?? "Stock"}</h2>
+              {store?.store_type === "warehouse" && <Badge tone="blue">warehouse</Badge>}
+              <span className="text-muted"><span className="tabular-nums">{rows.length}</span> products</span>
+              <span className="flex items-center gap-1.5 font-semibold text-ink">
+                <Dot className="bg-muted" />
+                <span className="tabular-nums">{outOfStock}</span> out of stock
+              </span>
+              <span className="flex items-center gap-1.5 font-semibold text-warn-ink">
+                <Dot className="bg-warn" />
+                <span className="tabular-nums">{low}</span> low (≤ {LOW_STOCK})
+              </span>
+            </div>
+            <label className="flex cursor-pointer items-center gap-2 rounded-full border border-line px-3.5 py-1.5
+              text-sm font-semibold has-checked:border-ink has-checked:bg-ink has-checked:text-white">
               <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)}
-                className="h-4 w-4 accent-neutral-900" />
+                className="h-4 w-4 accent-brand-strong" />
               Low stock only
             </label>
-          }
-        >
-          {inventory.error && <ErrorBox error={inventory.error} className="m-4" />}
+          </div>
+          {inventory.error && <ErrorBox error={inventory.error} className="m-5" />}
           {!inventory.error && rows.length === 0 && (
             <Empty>{inventory.loading ? "Loading…" : "No products match."}</Empty>
           )}
           {rows.length > 0 && (
-            <div className={`overflow-x-auto ${inventory.loading ? "opacity-60" : ""}`}>
-              <table className="w-full text-sm">
-                <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">Product</th>
-                    <th className="px-4 py-2 font-medium">Category</th>
-                    <th className="px-4 py-2 text-right font-medium">Price</th>
-                    <th className="whitespace-nowrap px-4 py-2 text-center font-medium">On hand</th>
-                    <th className="px-4 py-2 text-right font-medium">Adjust</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {rows.map((row) => (
-                    <tr key={row.product_id} className="hover:bg-neutral-50">
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium text-neutral-900">
-                          {row.name} {!row.is_active && <Badge>retired</Badge>}
-                        </div>
-                        <div className="text-xs text-neutral-500">
-                          {row.brand} · <span className="font-mono">{row.sku}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-neutral-600">{row.category}</td>
-                      <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums">
-                        {row.on_sale && <span className="mr-1.5"><Badge tone="sale">sale</Badge></span>}
-                        {money(row.current_price)}
-                      </td>
-                      <td className="px-4 py-2.5 text-center"><StockBadge quantity={row.quantity} /></td>
-                      <td className="px-4 py-2.5">
-                        {canAdjust && (
-                          <div className="flex justify-end gap-1">
-                            <Button size="sm" aria-label={`Remove one ${row.name}`}
-                              disabled={busyId === row.product_id} onClick={() => quickAdjust(row, -1)}>−1</Button>
-                            <Button size="sm" aria-label={`Add one ${row.name}`}
-                              disabled={busyId === row.product_id} onClick={() => quickAdjust(row, 1)}>+1</Button>
-                            <Button size="sm" tone="ghost" onClick={() => setDialog({ row, direction: "add" })}>
-                              Adjust…
-                            </Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table label={`Stock at ${store?.name ?? "this store"}`} loading={inventory.loading}
+              columns={["Product", { label: "Price", align: "right" }, { label: "On hand", align: "center" },
+                ...(canAdjust ? [{ label: "Adjust", align: "right" } as const] : [])]}>
+              {rows.map((row) => (
+                <Row key={row.product_id}>
+                  <Cell>
+                    <ProductName name={row.name} brand={row.brand} sku={row.sku} category={row.category}>
+                      {!row.is_active && <span className="ml-2"><Badge>retired</Badge></span>}
+                    </ProductName>
+                  </Cell>
+                  <Cell numeric>
+                    {row.on_sale && <span className="mr-1.5"><Badge tone="sale">sale</Badge></span>}
+                    {money(row.current_price)}
+                  </Cell>
+                  <Cell align="center"><StockBadge quantity={row.quantity} /></Cell>
+                  {canAdjust && (
+                    <Cell>
+                      <div className="flex justify-end gap-1.5">
+                        <Button size="sm" aria-label={`Remove one ${row.name}`}
+                          disabled={busyId === row.product_id} onClick={() => quickAdjust(row, -1)}>−1</Button>
+                        <Button size="sm" aria-label={`Add one ${row.name}`}
+                          disabled={busyId === row.product_id} onClick={() => quickAdjust(row, 1)}>+1</Button>
+                        <Button size="sm" tone="ghost" onClick={() => setDialog({ row, direction: "add" })}>
+                          Adjust…
+                        </Button>
+                      </div>
+                    </Cell>
+                  )}
+                </Row>
+              ))}
+            </Table>
           )}
         </Card>
 
-        <Card title="Recent adjustments" actions={<span className="text-xs text-neutral-500">{store?.name}</span>}>
+        <Card className="self-start" title="Recent adjustments" actions={<span className="text-xs text-muted">{store?.name}</span>}>
           <AdjustmentList adjustments={history.data ?? []} loading={history.loading} error={history.error} />
         </Card>
       </div>
@@ -232,24 +225,27 @@ function AdjustmentList({ adjustments, loading, error }: {
   loading: boolean;
   error?: ApiError;
 }) {
-  if (error) return <ErrorBox error={error} className="m-4" />;
+  if (error) return <ErrorBox error={error} className="m-5" />;
   if (adjustments.length === 0) {
     return <Empty>{loading ? "Loading…" : "No adjustments at this store yet. Try the ± buttons."}</Empty>;
   }
   return (
-    <ol className="divide-y divide-neutral-100">
+    <ol className="divide-y divide-line">
       {adjustments.map((a) => (
-        <li key={a.adjustment_id} className="px-4 py-3 text-sm">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className={`font-semibold tabular-nums ${a.delta > 0 ? "text-emerald-700" : "text-red-700"}`}>
-              {signed(a.delta)}
-            </span>
-            <span className="text-xs text-neutral-500">{REASONS[a.reason]}</span>
-            <span className="ml-auto text-xs tabular-nums text-neutral-500">now {a.quantity_after}</span>
-          </div>
-          <div className="truncate text-neutral-900">{a.product_name}</div>
-          <div className="text-xs text-neutral-500">
-            {a.staff_name} · {timeAgo(a.adjusted_at)}{a.note && <> · “{a.note}”</>}
+        <li key={a.adjustment_id} className="flex gap-3 px-5 py-3 text-sm">
+          <span className={`mt-0.5 inline-flex h-7 min-w-11 shrink-0 items-center justify-center rounded-full px-2
+            text-xs font-bold tabular-nums ${a.delta > 0 ? "bg-emerald-50 text-ok" : "bg-red-50 text-red-700"}`}>
+            {signed(a.delta)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="truncate font-semibold text-ink">{a.product_name}</span>
+              <span className="shrink-0 text-xs tabular-nums text-muted">now {a.quantity_after}</span>
+            </div>
+            <div className="text-xs text-muted">
+              {REASONS[a.reason]} · {a.staff_name} · {timeAgo(a.adjusted_at)}
+            </div>
+            {a.note && <div className="mt-0.5 truncate text-xs text-muted">“{a.note}”</div>}
           </div>
         </li>
       ))}
@@ -290,7 +286,7 @@ function AdjustDialog({ row, initialDirection, storeName, actorName, onClose, on
 
   return (
     <Modal
-      title={<>Adjust stock · <span className="font-normal text-neutral-600">{storeName}</span></>}
+      title={<>Adjust stock · <span className="font-sans font-normal text-muted">{storeName}</span></>}
       onClose={onClose}
       footer={<>
         <Button onClick={onClose}>Cancel</Button>
@@ -299,16 +295,14 @@ function AdjustDialog({ row, initialDirection, storeName, actorName, onClose, on
         </Button>
       </>}
     >
-      <div>
-        <div className="font-medium">{row.name}</div>
-        <div className="text-xs text-neutral-500">{row.brand} · <span className="font-mono">{row.sku}</span></div>
-      </div>
+      <ProductName name={row.name} brand={row.brand} sku={row.sku} />
 
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-neutral-100 p-1">
+      <div role="group" aria-label="Direction" className="grid grid-cols-2 gap-1 rounded-full bg-sand p-1">
         {(["add", "remove"] as const).map((d) => (
-          <button key={d} type="button" onClick={() => changeDirection(d)}
-            className={`rounded-md py-1.5 text-sm font-medium ${
-              direction === d ? "bg-white shadow-sm" : "text-neutral-600 hover:text-neutral-900"}`}>
+          <button key={d} type="button" aria-pressed={direction === d} onClick={() => changeDirection(d)}
+            className={`h-9 rounded-full text-sm font-semibold transition-colors focus-visible:outline-hidden
+              focus-visible:ring-2 focus-visible:ring-brand ${
+              direction === d ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink"}`}>
             {d === "add" ? "Add stock" : "Remove stock"}
           </button>
         ))}
@@ -331,10 +325,10 @@ function AdjustDialog({ row, initialDirection, storeName, actorName, onClose, on
           maxLength={500} onChange={(e) => setNote(e.target.value)} />
       </Field>
 
-      <div className="flex items-center justify-between rounded-lg border border-neutral-200 px-4 py-3">
-        <div className="text-sm text-neutral-600">On hand</div>
-        <div className="flex items-center gap-2 text-lg font-semibold tabular-nums">
-          {row.quantity} <span className="text-neutral-400">→</span>
+      <div className="flex items-center justify-between rounded-tile bg-canvas px-4 py-3">
+        <div className="text-sm text-muted">On hand</div>
+        <div className="flex items-center gap-2 font-display text-2xl font-bold tabular-nums">
+          {row.quantity} <span className="text-faint">→</span>
           <span className={after < 0 ? "text-red-600" : ""}>{valid ? after : "?"}</span>
         </div>
       </div>
@@ -343,7 +337,7 @@ function AdjustDialog({ row, initialDirection, storeName, actorName, onClose, on
           Below zero — the database will refuse this (BR03). Save anyway to see it happen.
         </p>
       )}
-      <p className="text-xs text-neutral-500">Logged as {actorName}.</p>
+      <p className="text-xs text-muted">Logged as {actorName}.</p>
 
       {error && <ErrorBox error={error} />}
     </Modal>

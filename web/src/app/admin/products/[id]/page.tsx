@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { canEditCatalogue, useStaff } from "@/components/admin/staff-gate";
+import { Cell, Row, Table } from "@/components/admin/table";
 import { CategorySelect } from "@/components/category-select";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, NoticeBanner, PageHeader, selectClass, StockBadge,
@@ -32,7 +33,7 @@ export default function ProductPage() {
     return (
       <>
         <BackLink />
-        {product.error ? <ErrorBox error={product.error} /> : <p className="text-sm text-neutral-500">Loading…</p>}
+        {product.error ? <ErrorBox error={product.error} /> : <div className="h-40 animate-pulse rounded-card bg-sand" />}
       </>
     );
   }
@@ -45,17 +46,17 @@ export default function ProductPage() {
   return (
     <>
       <title>{`${p.name} · TechLight Admin`}</title>
-      <BackLink />
+      <BackLink name={p.name} />
       <PageHeader
         title={`${p.brand} ${p.name}`}
-        description={<>
-          <span className="font-mono">{p.sku}</span> · {p.category}{" "}
+        description={<span className="inline-flex flex-wrap items-center gap-2">
+          <span className="font-mono">{p.sku}</span> · {p.category}
           {p.on_sale && <Badge tone="sale">on sale</Badge>} {!p.is_active && <Badge>retired</Badge>}
-        </>}
+        </span>}
       />
       <NoticeBanner notice={notice} onClose={clear} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         {/* Keyed on the saved values, so the form resets to them after each save. */}
         <DetailsForm key={JSON.stringify([p.name, p.brand_id, p.category_id, p.base_price, p.is_active])}
           product={p} brands={brands.data ?? []} categories={categories.data ?? []} readOnly={!canEdit}
@@ -64,32 +65,32 @@ export default function ProductPage() {
         <SpecsEditor key={JSON.stringify(p.specs)} productId={p.product_id} specs={p.specs} readOnly={!canEdit}
           onSaved={(specs) => saved({ ...p, specs }, "Specifications")} />
 
-        <Card title={<>Stock by location <span className="font-normal text-neutral-500">· {p.total_stock} in total</span></>}
-          actions={<Link href="/admin/inventory" className="text-xs text-neutral-600 hover:underline">Adjust in Inventory →</Link>}>
-          <table className="w-full text-sm">
-            <tbody className="divide-y divide-neutral-100">
-              {p.stock.map((s) => (
-                <tr key={s.store_id}>
-                  <td className="px-4 py-2">
-                    {s.store_name} {s.store_type === "warehouse" && <Badge tone="blue">warehouse</Badge>}
-                  </td>
-                  <td className="px-4 py-2 text-neutral-500">{s.state}</td>
-                  <td className="px-4 py-2 text-right"><StockBadge quantity={s.quantity} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <Card title={<>Stock by location <span className="font-sans font-normal text-muted">· {p.total_stock} in total</span></>}
+          actions={<Link href="/admin/inventory" className="text-sm font-semibold text-brand-strong hover:underline">Adjust in Inventory →</Link>}>
+          <Table label={`Stock of ${p.name} by location`}
+            columns={["Location", "State", { label: "On hand", align: "right" }]}>
+            {p.stock.map((s) => (
+              <Row key={s.store_id}>
+                <Cell>
+                  <span className="font-semibold">{s.store_name}</span>{" "}
+                  {s.store_type === "warehouse" && <Badge tone="blue">warehouse</Badge>}
+                </Cell>
+                <Cell className="text-muted">{s.state}</Cell>
+                <Cell align="right"><StockBadge quantity={s.quantity} /></Cell>
+              </Row>
+            ))}
+          </Table>
         </Card>
 
         <Card title="Promotions"
-          actions={<Link href="/admin/promotions" className="text-xs text-neutral-600 hover:underline">Manage →</Link>}>
+          actions={<Link href="/admin/promotions" className="text-sm font-semibold text-brand-strong hover:underline">Manage →</Link>}>
           {p.promotions.length === 0 ? <Empty>No promotions for this product.</Empty> : (
-            <ul className="divide-y divide-neutral-100">
+            <ul className="divide-y divide-line">
               {p.promotions.map((pr) => (
-                <li key={pr.promotion_id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <li key={pr.promotion_id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
                   <div>
-                    <span className="font-semibold">{money(pr.sale_price)}</span>
-                    <span className="ml-2 text-xs text-neutral-500">
+                    <span className="font-display text-base font-bold tabular-nums">{money(pr.sale_price)}</span>
+                    <span className="ml-2 text-xs tabular-nums text-muted">
                       {formatDateTime(pr.starts_at)} → {formatDateTime(pr.ends_at)}
                     </span>
                   </div>
@@ -104,8 +105,13 @@ export default function ProductPage() {
   );
 }
 
-function BackLink() {
-  return <Link href="/admin/products" className="mb-3 inline-block text-sm text-neutral-600 hover:underline">← Products</Link>;
+function BackLink({ name }: { name?: string }) {
+  return (
+    <nav aria-label="Breadcrumb" className="mb-3 text-sm text-muted">
+      <Link href="/admin/products" className="font-semibold text-brand-strong hover:underline">Products</Link>
+      {name && <><span aria-hidden="true"> / </span>{name}</>}
+    </nav>
+  );
 }
 
 function DetailsForm({ product, brands, categories, readOnly, onSaved }: {
@@ -151,7 +157,7 @@ function DetailsForm({ product, brands, categories, readOnly, onSaved }: {
       <Button tone="primary" size="sm" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save"}</Button>
     )}>
       {/* A disabled fieldset disables every input inside it: read-only for staff who may not edit. */}
-      <fieldset disabled={readOnly} className="space-y-3 p-4">
+      <fieldset disabled={readOnly} className="space-y-4 p-5">
         <Field label="Name">
           <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
@@ -173,9 +179,9 @@ function DetailsForm({ product, brands, categories, readOnly, onSaved }: {
               onChange={(e) => setBasePrice(e.target.value)} />
           </Field>
           <Field label="Status">
-            <label className="flex h-9 items-center gap-2 text-sm">
+            <label className="flex min-h-11 items-center gap-2 text-sm">
               <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)}
-                className="h-4 w-4 accent-neutral-900" />
+                className="h-4 w-4 shrink-0 accent-brand-strong" />
               Active (uncheck to retire — products are never deleted)
             </label>
           </Field>
@@ -225,10 +231,10 @@ function SpecsEditor({ productId, specs, readOnly, onSaved }: {
         <Button tone="primary" size="sm" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save"}</Button>
       </div>
     )}>
-      <fieldset disabled={readOnly} className="space-y-2 p-4">
-        {rows.length === 0 && <p className="text-sm text-neutral-500">No specs yet.</p>}
+      <fieldset disabled={readOnly} className="space-y-2 p-5">
+        {rows.length === 0 && <p className="text-sm text-muted">No specs yet.</p>}
         {rows.map((r) => (
-          <div key={r.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+          <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
             <input className={inputClass} placeholder="Name, e.g. Screen size" value={r.spec_name}
               onChange={(e) => update(r.id, "spec_name", e.target.value)} />
             <input className={inputClass} placeholder="Value" value={r.spec_value}
@@ -238,8 +244,8 @@ function SpecsEditor({ productId, specs, readOnly, onSaved }: {
             </Button>
           </div>
         ))}
-        <p className="pt-1 text-xs text-neutral-500">
-          Saved as key–value rows in <code>product_spec</code>, key (product_id, spec_name): one value per name.
+        <p className="pt-1 text-xs text-muted">
+          Saved as key–value rows in <code className="font-mono">product_spec</code>, key (product_id, spec_name): one value per name.
         </p>
         {error && <ErrorBox error={error} />}
       </fieldset>

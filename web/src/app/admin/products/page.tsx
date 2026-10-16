@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useState } from "react";
 
+import { SearchIcon } from "@/components/admin/icons";
 import { canEditCatalogue, useStaff } from "@/components/admin/staff-gate";
+import { Cell, ProductName, Row, Table } from "@/components/admin/table";
 import { CategorySelect } from "@/components/category-select";
 import {
   Badge, Button, Card, Empty, ErrorBox, Field, inputClass, Modal, PageHeader, selectClass,
@@ -37,17 +39,20 @@ export default function ProductsPage() {
         title="Products"
         description={<>
           The catalogue: one row per SKU. “Current” is the price right now, read from the view
-          <code className="mx-1 rounded bg-neutral-100 px-1 text-xs">v_product_current_price</code>
+          <code className="mx-1 rounded bg-sand px-1.5 py-0.5 font-mono text-xs">v_product_current_price</code>
           (base price, or the sale price while a promotion runs).
         </>}
         actions={canEdit ? <Button tone="primary" onClick={() => setCreating(true)}>New product</Button> : undefined}
       />
 
-      <Card className="mb-4">
-        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Card className="mb-5">
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(2,minmax(0,1fr))_auto] lg:items-end">
           <Field label="Search">
-            <input className={inputClass} placeholder="Name, SKU or brand" value={search}
-              onChange={(e) => setSearch(e.target.value)} />
+            <span className="relative block">
+              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input className={`${inputClass} pl-10`} placeholder="Name, SKU or brand" value={search}
+                onChange={(e) => setSearch(e.target.value)} />
+            </span>
           </Field>
           <Field label="Category">
             <CategorySelect categories={categories.data ?? []} value={categoryId} onChange={setCategoryId}
@@ -60,53 +65,46 @@ export default function ProductsPage() {
               {(brands.data ?? []).map((b) => <option key={b.brand_id} value={b.brand_id}>{b.name}</option>)}
             </select>
           </Field>
-          <label className="flex items-end gap-2 pb-2 text-sm text-neutral-700">
+          <label className="flex h-11 cursor-pointer items-center gap-2 self-end rounded-full border border-line px-4
+            text-sm font-semibold has-checked:border-ink has-checked:bg-ink has-checked:text-white">
             <input type="checkbox" checked={includeRetired} onChange={(e) => setIncludeRetired(e.target.checked)}
-              className="h-4 w-4 accent-neutral-900" />
+              className="h-4 w-4 accent-brand-strong" />
             Show retired products
           </label>
         </div>
       </Card>
 
-      <Card title={<>{rows.length} products</>}>
-        {products.error && <ErrorBox error={products.error} className="m-4" />}
+      <Card>
+        <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+          <h2 className="text-base font-bold">Catalogue</h2>
+          <span className="text-sm text-muted"><span className="tabular-nums">{rows.length}</span> products</span>
+        </div>
+        {products.error && <ErrorBox error={products.error} className="m-5" />}
         {!products.error && rows.length === 0 && <Empty>{products.loading ? "Loading…" : "No products match."}</Empty>}
         {rows.length > 0 && (
-          <div className={`overflow-x-auto ${products.loading ? "opacity-60" : ""}`}>
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Product</th>
-                  <th className="px-4 py-2 font-medium">Category</th>
-                  <th className="px-4 py-2 text-right font-medium">Base</th>
-                  <th className="px-4 py-2 text-right font-medium">Current</th>
-                  <th className="px-4 py-2 text-right font-medium">Stock (all)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {rows.map((p) => (
-                  <tr key={p.product_id} className="hover:bg-neutral-50">
-                    <td className="px-4 py-2.5">
-                      <Link href={`/admin/products/${p.product_id}`} className="font-medium text-neutral-900 hover:underline">
-                        {p.name}
-                      </Link>{" "}
-                      {!p.is_active && <Badge>retired</Badge>}
-                      <div className="text-xs text-neutral-500">
-                        {p.brand} · <span className="font-mono">{p.sku}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-neutral-600">{p.category}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-neutral-600">{money(p.base_price)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">
-                      {p.on_sale && <span className="mr-1.5"><Badge tone="sale">sale</Badge></span>}
-                      <span className={p.on_sale ? "font-semibold" : ""}>{money(p.current_price)}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{p.total_stock}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table label="Products" loading={products.loading}
+            columns={["Product", "Category", { label: "Base", align: "right" }, { label: "Current", align: "right" },
+              { label: "Stock (all)", align: "right" }]}>
+            {rows.map((p) => (
+              <Row key={p.product_id}>
+                <Cell>
+                  <ProductName brand={p.brand} sku={p.sku} name={
+                    <Link href={`/admin/products/${p.product_id}`} className="hover:text-brand-strong hover:underline">
+                      {p.name}
+                    </Link>}>
+                    {!p.is_active && <span className="ml-2"><Badge>retired</Badge></span>}
+                  </ProductName>
+                </Cell>
+                <Cell className="text-muted">{p.category}</Cell>
+                <Cell numeric className="text-muted">{money(p.base_price)}</Cell>
+                <Cell numeric>
+                  {p.on_sale && <span className="mr-1.5"><Badge tone="sale">sale</Badge></span>}
+                  <span className={p.on_sale ? "font-semibold text-brand-strong" : ""}>{money(p.current_price)}</span>
+                </Cell>
+                <Cell numeric>{p.total_stock}</Cell>
+              </Row>
+            ))}
+          </Table>
         )}
       </Card>
 
@@ -176,7 +174,7 @@ function NewProductDialog({ brands, categories, onClose }: {
             onChange={(id) => set("categoryId")(id === undefined ? "" : String(id))} allLabel="Choose…" />
         </Field>
       </div>
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-muted">
         The SKU format, unique SKU and non-negative price are checked by the database, not here — try breaking them.
       </p>
       {error && <ErrorBox error={error} />}
