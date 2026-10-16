@@ -37,8 +37,9 @@ lecture*.
 | 4 Non-repeatable read | — | referenced, not rewritten: SP4's `test_repeatable_read_keeps_a_sale_committed_mid_report_out_of_every_section` and `test_read_committed_would_let_a_sale_committed_mid_report_into_later_sections` |
 
 The faulty BR15 pattern runs on a committed table `demo_promotion_<random>` with no trigger, dropped at the start
-(`IF EXISTS`) and the end, because the real trigger can't be bypassed fairly: `ALTER TABLE … DISABLE TRIGGER` takes
-an `ACCESS EXCLUSIVE` lock, which would itself serialise the two transactions and hide the anomaly.
+(`IF EXISTS`) and the end, because the real trigger is never switched off: disabled inside each racing transaction,
+`ALTER TABLE … DISABLE TRIGGER` takes a `SHARE ROW EXCLUSIVE` lock that conflicts with the other's and with every
+`INSERT`, so it would serialise the two transactions; disabled and committed, it would switch BR15 off for everyone.
 
 ## 3. Document (`docs/concurrency-evidence.md`)
 

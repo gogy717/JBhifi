@@ -191,9 +191,10 @@ DEMO_PRODUCT = 1
 @pytest.fixture
 def demo_promotions():
     """A committed table shaped like promotion but with no trigger, for the faulty check-then-insert pattern. The
-    real trigger can't be bypassed fairly: ALTER TABLE … DISABLE TRIGGER takes an ACCESS EXCLUSIVE lock, which would
-    itself serialise the two transactions and hide the anomaly. The name is random, and the table is dropped first
-    and last, so a failed test leaves nothing behind for the next."""
+    real trigger is never switched off: disabled inside each racing transaction, ALTER TABLE … DISABLE TRIGGER's
+    SHARE ROW EXCLUSIVE lock would conflict with the other's and with every INSERT, and serialise the two; disabled
+    and committed, it would switch BR15 off for every connection. The name is random and the table is dropped at
+    the end, so a failed test leaves nothing behind for the next."""
     table = sql.Identifier(f"demo_promotion_{uuid.uuid4().hex[:8]}")
     admin = connect()
     admin.autocommit = True

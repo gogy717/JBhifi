@@ -14,7 +14,8 @@ product code, no `sql/`).
 
 - **`docs/concurrency-evidence.md`**: for each anomaly, the faulty pattern, what PostgreSQL does, and ours, with the
   results the tests printed, a summary table, and an answer to tutor question 4 (plan §12) listing the test that
-  pins each conditional `UPDATE` and parent-row lock — and the four locks that have no race test of their own.
+  pins each conditional `UPDATE` and parent-row lock — and the locks and lock orders that have no race test of
+  their own.
 - **`tests/test_concurrency_evidence.py`** (8 tests): a lost update (read, compute in Python, write back: one unit
   sold twice, BR03's `CHECK` silent) against the conditional `UPDATE` (one sale), plus the same statement under
   `REPEATABLE READ` failing with 40001; a deadlock from opposite lock orders (40P01, one transaction rolled back)
@@ -24,8 +25,8 @@ product code, no `sql/`).
 - **`tests/concurrency_support.py`**: each transaction on its own connection with a `lock_timeout`; a blocked
   statement runs in a thread, and the test waits on `pg_stat_activity` (`wait_event_type = 'Lock'`) before its
   next step, so no sleep decides the order. The write-skew demo uses a throwaway table (a random name, dropped
-  first and last), because `ALTER TABLE … DISABLE TRIGGER` would take an `ACCESS EXCLUSIVE` lock and serialise
-  the demonstration.
+  first and last), because the real trigger is never switched off: `ALTER TABLE … DISABLE TRIGGER` takes a
+  `SHARE ROW EXCLUSIVE` lock, which would itself serialise the two racing transactions.
 
 **Open.** Whether the Week 9 lecture covered SQL isolation levels is unconfirmed; until it is, the
 `REPEATABLE READ` / `SERIALIZABLE` material is marked *optional — confirm against the Week 9 transactions lecture*.
