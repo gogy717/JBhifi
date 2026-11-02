@@ -1,0 +1,1735 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "erd",
+  "quality": "standard",
+  "startedAt": "2026-11-02T03:24:43.723Z",
+  "specification": {
+    "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.erd.json",
+    "sha256": "72e563ca1ba5cdee013d74c783228680a252a61434173772097c17ad2de2c565",
+    "bytes": 31493
+  },
+  "artifact": {
+    "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+    "sha256": "b4f4f1686a68081f652aa3e40e6632d2fec84795a33a297cc7222a604c35d34e",
+    "bytes": 946845
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "/Users/ethan/.nvm/versions/node/v24.19.0/bin/node",
+        "/Users/ethan/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "erd",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.erd.json",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+        "--quality",
+        "standard",
+        "--repo-root",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "72e563ca1ba5cdee013d74c783228680a252a61434173772097c17ad2de2c565",
+          "bytes": 31493
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "standard",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 10,
+          "compositionIssues": [
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "return_processor",
+                "from": "return_request",
+                "to": "staff",
+                "label": "processed by",
+                "collectionIndex": 14,
+                "artifactIndex": 15
+              },
+              "point": [
+                1019,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "return_resolver",
+                "from": "return_request",
+                "to": "staff",
+                "label": "resolved by",
+                "collectionIndex": 15,
+                "artifactIndex": 16
+              },
+              "point": [
+                1043,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                788,
+                930
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "adjustment_staff",
+                "from": "stock_adjustment",
+                "to": "staff",
+                "label": "made by",
+                "collectionIndex": 23,
+                "artifactIndex": 24
+              },
+              "point": [
+                1240,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "history_staff",
+                "from": "order_status_history",
+                "to": "staff",
+                "label": "changed by",
+                "collectionIndex": 11,
+                "artifactIndex": 12
+              },
+              "otherRelationship": {
+                "id": "return_order",
+                "from": "return_request",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 12,
+                "artifactIndex": 13
+              },
+              "point": [
+                825,
+                662
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "history_staff",
+                "from": "order_status_history",
+                "to": "staff",
+                "label": "changed by",
+                "collectionIndex": 11,
+                "artifactIndex": 12
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                788,
+                662
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "return_order",
+                "from": "return_request",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 12,
+                "artifactIndex": 13
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                825,
+                642
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "return_store",
+                "from": "return_request",
+                "to": "store",
+                "label": "received at",
+                "collectionIndex": 13,
+                "artifactIndex": 14
+              },
+              "otherRelationship": {
+                "id": "adjustment_staff",
+                "from": "stock_adjustment",
+                "to": "staff",
+                "label": "made by",
+                "collectionIndex": 23,
+                "artifactIndex": 24
+              },
+              "point": [
+                1240,
+                390
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "otherRelationship": {
+                "id": "payment_order",
+                "from": "payment",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 18,
+                "artifactIndex": 19
+              },
+              "point": [
+                788,
+                934
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/desktop-readability",
+              "nodeId": "user_account",
+              "owner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "viewportWidth": 1440,
+              "viewportHeight": 900,
+              "availableDiagramWidth": 930,
+              "budgetBasis": "legacy-930",
+              "readerContract": "declared-wide-v1",
+              "requestedTargetPx": 7.5,
+              "requestedTargetMet": false,
+              "budgetLimit": "legacy",
+              "viewBoxWidth": 1932,
+              "scale": 0.4813664596273292,
+              "text": "PK",
+              "detail": "context",
+              "sourceFontPx": 9,
+              "projectedFontPx": 4.332298136645963,
+              "minimumProjectedFontPx": 6
+            }
+          ]
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 364,
+      "command": [
+        "/Users/ethan/.nvm/versions/node/v24.19.0/bin/node",
+        "/Users/ethan/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "erd",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.erd.json",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+        "--quality",
+        "standard",
+        "--repo-root",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "c8f89e4a-363b-4c89-a7a9-50760079cfff",
+        "ok": true,
+        "command": "deliver",
+        "type": "erd",
+        "input": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.erd.json",
+        "output": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+        "specification": {
+          "sha256": "72e563ca1ba5cdee013d74c783228680a252a61434173772097c17ad2de2c565",
+          "bytes": 31493
+        },
+        "artifact": {
+          "sha256": "b4f4f1686a68081f652aa3e40e6632d2fec84795a33a297cc7222a604c35d34e",
+          "bytes": 946845
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "standard",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 10,
+          "compositionIssues": [
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "return_processor",
+                "from": "return_request",
+                "to": "staff",
+                "label": "processed by",
+                "collectionIndex": 14,
+                "artifactIndex": 15
+              },
+              "point": [
+                1019,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "return_resolver",
+                "from": "return_request",
+                "to": "staff",
+                "label": "resolved by",
+                "collectionIndex": 15,
+                "artifactIndex": 16
+              },
+              "point": [
+                1043,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                788,
+                930
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "adjustment_staff",
+                "from": "stock_adjustment",
+                "to": "staff",
+                "label": "made by",
+                "collectionIndex": 23,
+                "artifactIndex": 24
+              },
+              "point": [
+                1240,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "history_staff",
+                "from": "order_status_history",
+                "to": "staff",
+                "label": "changed by",
+                "collectionIndex": 11,
+                "artifactIndex": 12
+              },
+              "otherRelationship": {
+                "id": "return_order",
+                "from": "return_request",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 12,
+                "artifactIndex": 13
+              },
+              "point": [
+                825,
+                662
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "history_staff",
+                "from": "order_status_history",
+                "to": "staff",
+                "label": "changed by",
+                "collectionIndex": 11,
+                "artifactIndex": 12
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                788,
+                662
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "return_order",
+                "from": "return_request",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 12,
+                "artifactIndex": 13
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                825,
+                642
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "return_store",
+                "from": "return_request",
+                "to": "store",
+                "label": "received at",
+                "collectionIndex": 13,
+                "artifactIndex": 14
+              },
+              "otherRelationship": {
+                "id": "adjustment_staff",
+                "from": "stock_adjustment",
+                "to": "staff",
+                "label": "made by",
+                "collectionIndex": 23,
+                "artifactIndex": 24
+              },
+              "point": [
+                1240,
+                390
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "otherRelationship": {
+                "id": "payment_order",
+                "from": "payment",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 18,
+                "artifactIndex": 19
+              },
+              "point": [
+                788,
+                934
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/desktop-readability",
+              "nodeId": "user_account",
+              "owner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "viewportWidth": 1440,
+              "viewportHeight": 900,
+              "availableDiagramWidth": 930,
+              "budgetBasis": "legacy-930",
+              "readerContract": "declared-wide-v1",
+              "requestedTargetPx": 7.5,
+              "requestedTargetMet": false,
+              "budgetLimit": "legacy",
+              "viewBoxWidth": 1932,
+              "scale": 0.4813664596273292,
+              "text": "PK",
+              "detail": "context",
+              "sourceFontPx": 9,
+              "projectedFontPx": 4.332298136645963,
+              "minimumProjectedFontPx": 6
+            }
+          ]
+        },
+        "evidence": {
+          "verified": true,
+          "repository": "https://github.com/gogy717/JBhifi",
+          "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+          "references": 37
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 112,
+      "command": [
+        "/Users/ethan/.nvm/versions/node/v24.19.0/bin/node",
+        "/Users/ethan/.agents/skills/archify/bin/archify.mjs",
+        "check",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+        "artifact": {
+          "sha256": "b4f4f1686a68081f652aa3e40e6632d2fec84795a33a297cc7222a604c35d34e",
+          "bytes": 946845
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": [
+              "[composition/proper-crossing] standard relationship id \"order_store\" (\"customer_order\" -> \"store\") crosses relationship id \"return_processor\" (\"return_request\" -> \"staff\") at [1019, 179]",
+              "[composition/proper-crossing] standard relationship id \"order_store\" (\"customer_order\" -> \"store\") crosses relationship id \"return_resolver\" (\"return_request\" -> \"staff\") at [1043, 179]",
+              "[composition/proper-crossing] standard relationship id \"order_store\" (\"customer_order\" -> \"store\") crosses relationship id \"returnline_orderline\" (\"return_line\" -> \"order_line\") at [788, 930]",
+              "[composition/proper-crossing] standard relationship id \"order_store\" (\"customer_order\" -> \"store\") crosses relationship id \"adjustment_staff\" (\"stock_adjustment\" -> \"staff\") at [1240, 179]",
+              "[composition/proper-crossing] standard relationship id \"history_staff\" (\"order_status_history\" -> \"staff\") crosses relationship id \"return_order\" (\"return_request\" -> \"customer_order\") at [825, 662]",
+              "[composition/proper-crossing] standard relationship id \"history_staff\" (\"order_status_history\" -> \"staff\") crosses relationship id \"returnline_orderline\" (\"return_line\" -> \"order_line\") at [788, 662]",
+              "[composition/proper-crossing] standard relationship id \"return_order\" (\"return_request\" -> \"customer_order\") crosses relationship id \"returnline_orderline\" (\"return_line\" -> \"order_line\") at [825, 642]",
+              "[composition/proper-crossing] standard relationship id \"return_store\" (\"return_request\" -> \"store\") crosses relationship id \"adjustment_staff\" (\"stock_adjustment\" -> \"staff\") at [1240, 390]",
+              "[composition/proper-crossing] standard relationship id \"returnline_orderline\" (\"return_line\" -> \"order_line\") crosses relationship id \"payment_order\" (\"payment\" -> \"customer_order\") at [788, 934]"
+            ]
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": []
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "standard",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 10
+          },
+          "metrics": {
+            "properCrossings": 9,
+            "resolvedCrossovers": 0,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": 2,
+            "desktopReadabilityIssues": 1,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 4.332298136645963,
+            "maxBends": 4,
+            "routesOverSuggestedBends": 1,
+            "maxStretch": 1.095,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": 16,
+            "minInteriorSegmentPx": 22,
+            "shortSegmentCount": 0,
+            "shortEndpointSegmentCount": 0,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [],
+            "detours": [
+              {
+                "relationship": {
+                  "id": "order_store",
+                  "from": "customer_order",
+                  "to": "store",
+                  "label": "fulfilled at",
+                  "collectionIndex": 7,
+                  "artifactIndex": 8
+                },
+                "bends": 4,
+                "stretch": 1
+              }
+            ]
+          },
+          "leadingSpace": {
+            "measured": false,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "legacy-930",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 930,
+            "actualBudgetPx": 930,
+            "limit": "legacy",
+            "requestedTargetPx": 7.5,
+            "requestedTargetMet": false,
+            "hardFloorPx": 6,
+            "hardFloorMet": false,
+            "minimumOwner": {
+              "kind": "node",
+              "id": "user_account"
+            },
+            "minimumSourceTextPx": 9,
+            "minimumProjectedTextPx": 4.332298136645963,
+            "semanticTextCount": 312
+          },
+          "issues": [
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "return_processor",
+                "from": "return_request",
+                "to": "staff",
+                "label": "processed by",
+                "collectionIndex": 14,
+                "artifactIndex": 15
+              },
+              "point": [
+                1019,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "return_resolver",
+                "from": "return_request",
+                "to": "staff",
+                "label": "resolved by",
+                "collectionIndex": 15,
+                "artifactIndex": 16
+              },
+              "point": [
+                1043,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                788,
+                930
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "order_store",
+                "from": "customer_order",
+                "to": "store",
+                "label": "fulfilled at",
+                "collectionIndex": 7,
+                "artifactIndex": 8
+              },
+              "otherRelationship": {
+                "id": "adjustment_staff",
+                "from": "stock_adjustment",
+                "to": "staff",
+                "label": "made by",
+                "collectionIndex": 23,
+                "artifactIndex": 24
+              },
+              "point": [
+                1240,
+                179
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "history_staff",
+                "from": "order_status_history",
+                "to": "staff",
+                "label": "changed by",
+                "collectionIndex": 11,
+                "artifactIndex": 12
+              },
+              "otherRelationship": {
+                "id": "return_order",
+                "from": "return_request",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 12,
+                "artifactIndex": 13
+              },
+              "point": [
+                825,
+                662
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "history_staff",
+                "from": "order_status_history",
+                "to": "staff",
+                "label": "changed by",
+                "collectionIndex": 11,
+                "artifactIndex": 12
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                788,
+                662
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "return_order",
+                "from": "return_request",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 12,
+                "artifactIndex": 13
+              },
+              "otherRelationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "point": [
+                825,
+                642
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "return_store",
+                "from": "return_request",
+                "to": "store",
+                "label": "received at",
+                "collectionIndex": 13,
+                "artifactIndex": 14
+              },
+              "otherRelationship": {
+                "id": "adjustment_staff",
+                "from": "stock_adjustment",
+                "to": "staff",
+                "label": "made by",
+                "collectionIndex": 23,
+                "artifactIndex": 24
+              },
+              "point": [
+                1240,
+                390
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/proper-crossing",
+              "relationship": {
+                "id": "returnline_orderline",
+                "from": "return_line",
+                "to": "order_line",
+                "label": "",
+                "collectionIndex": 17,
+                "artifactIndex": 18
+              },
+              "otherRelationship": {
+                "id": "payment_order",
+                "from": "payment",
+                "to": "customer_order",
+                "label": "",
+                "collectionIndex": 18,
+                "artifactIndex": 19
+              },
+              "point": [
+                788,
+                934
+              ]
+            },
+            {
+              "severity": "warning",
+              "code": "composition/desktop-readability",
+              "nodeId": "user_account",
+              "owner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "viewportWidth": 1440,
+              "viewportHeight": 900,
+              "availableDiagramWidth": 930,
+              "budgetBasis": "legacy-930",
+              "readerContract": "declared-wide-v1",
+              "requestedTargetPx": 7.5,
+              "requestedTargetMet": false,
+              "budgetLimit": "legacy",
+              "viewBoxWidth": 1932,
+              "scale": 0.4813664596273292,
+              "text": "PK",
+              "detail": "context",
+              "sourceFontPx": 9,
+              "projectedFontPx": 4.332298136645963,
+              "minimumProjectedFontPx": 6
+            }
+          ]
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "c8f89e4a-363b-4c89-a7a9-50760079cfff"
+      }
+    },
+    "browser-check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 2692,
+      "command": [
+        "/Users/ethan/.nvm/versions/node/v24.19.0/bin/node",
+        "/Users/ethan/.agents/skills/archify/bin/archify.mjs",
+        "browser-check",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "pass",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "c8f89e4a-363b-4c89-a7a9-50760079cfff",
+        "artifact": {
+          "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+          "sha256": "b4f4f1686a68081f652aa3e40e6632d2fec84795a33a297cc7222a604c35d34e",
+          "bytes": 946845
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "available",
+          "executable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        },
+        "diagnostics": [],
+        "containment": {
+          "status": "pass",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "theme": "light",
+              "innerWidth": 1440,
+              "innerHeight": 900,
+              "scrollWidth": 1440,
+              "scrollHeight": 1049,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1376,
+              "diagramWidth": 1346,
+              "pageComposition": {
+                "bodyPaddingPx": 12,
+                "headerPx": 52,
+                "diagramChromePx": 78,
+                "svgPx": 907,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 6.270186335403727,
+              "minimumProjectedNonEdgeTextPx": 6.270186335403727,
+              "minimumProjectedEdgeTextPx": 6.270186335403727,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "theme": "light",
+              "innerWidth": 1600,
+              "innerHeight": 1000,
+              "scrollWidth": 1600,
+              "scrollHeight": 1223,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1536,
+              "diagramWidth": 1506,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 1015,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.015527950310559,
+              "minimumProjectedNonEdgeTextPx": 7.015527950310559,
+              "minimumProjectedEdgeTextPx": 7.015527950310559,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "theme": "light",
+              "innerWidth": 1920,
+              "innerHeight": 1080,
+              "scrollWidth": 1920,
+              "scrollHeight": 1293,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1640,
+              "diagramWidth": 1610,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 1085,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.5,
+              "minimumProjectedNonEdgeTextPx": 7.5,
+              "minimumProjectedEdgeTextPx": 7.5,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "theme": "light",
+              "innerWidth": 2048,
+              "innerHeight": 1320,
+              "scrollWidth": 2048,
+              "scrollHeight": 1320,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1660,
+              "diagramWidth": 1610,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 68,
+                "diagramChromePx": 94,
+                "svgPx": 1085,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.5,
+              "minimumProjectedNonEdgeTextPx": 7.5,
+              "minimumProjectedEdgeTextPx": 7.5,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 44,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            }
+          ]
+        },
+        "themeStates": {
+          "status": "pass",
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "requestedTheme": "light",
+              "resolvedTheme": "light",
+              "ok": true
+            },
+            {
+              "width": 1440,
+              "height": 900,
+              "requestedTheme": "dark",
+              "resolvedTheme": "dark",
+              "ok": true
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "requestedTheme": "dark",
+              "resolvedTheme": "dark",
+              "ok": true
+            }
+          ]
+        },
+        "readability": {
+          "status": "pass",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "theme": "light",
+              "innerWidth": 1440,
+              "innerHeight": 900,
+              "scrollWidth": 1440,
+              "scrollHeight": 1049,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1376,
+              "diagramWidth": 1346,
+              "pageComposition": {
+                "bodyPaddingPx": 12,
+                "headerPx": 52,
+                "diagramChromePx": 78,
+                "svgPx": 907,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 6.270186335403727,
+              "minimumProjectedNonEdgeTextPx": 6.270186335403727,
+              "minimumProjectedEdgeTextPx": 6.270186335403727,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "theme": "light",
+              "innerWidth": 1600,
+              "innerHeight": 1000,
+              "scrollWidth": 1600,
+              "scrollHeight": 1223,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1536,
+              "diagramWidth": 1506,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 1015,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.015527950310559,
+              "minimumProjectedNonEdgeTextPx": 7.015527950310559,
+              "minimumProjectedEdgeTextPx": 7.015527950310559,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "theme": "light",
+              "innerWidth": 1920,
+              "innerHeight": 1080,
+              "scrollWidth": 1920,
+              "scrollHeight": 1293,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1640,
+              "diagramWidth": 1610,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 1085,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.5,
+              "minimumProjectedNonEdgeTextPx": 7.5,
+              "minimumProjectedEdgeTextPx": 7.5,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "theme": "light",
+              "innerWidth": 2048,
+              "innerHeight": 1320,
+              "scrollWidth": 2048,
+              "scrollHeight": 1320,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1660,
+              "diagramWidth": 1610,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 68,
+                "diagramChromePx": 94,
+                "svgPx": 1085,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.5,
+              "minimumProjectedNonEdgeTextPx": 7.5,
+              "minimumProjectedEdgeTextPx": 7.5,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 44,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            }
+          ]
+        },
+        "viewerChrome": {
+          "status": "pass",
+          "viewports": [
+            {
+              "width": 1440,
+              "height": 900,
+              "theme": "light",
+              "innerWidth": 1440,
+              "innerHeight": 900,
+              "scrollWidth": 1440,
+              "scrollHeight": 1049,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1376,
+              "diagramWidth": 1346,
+              "pageComposition": {
+                "bodyPaddingPx": 12,
+                "headerPx": 52,
+                "diagramChromePx": 78,
+                "svgPx": 907,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 6.270186335403727,
+              "minimumProjectedNonEdgeTextPx": 6.270186335403727,
+              "minimumProjectedEdgeTextPx": 6.270186335403727,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1600,
+              "height": 1000,
+              "theme": "light",
+              "innerWidth": 1600,
+              "innerHeight": 1000,
+              "scrollWidth": 1600,
+              "scrollHeight": 1223,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1536,
+              "diagramWidth": 1506,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 1015,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.015527950310559,
+              "minimumProjectedNonEdgeTextPx": 7.015527950310559,
+              "minimumProjectedEdgeTextPx": 7.015527950310559,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 1920,
+              "height": 1080,
+              "theme": "light",
+              "innerWidth": 1920,
+              "innerHeight": 1080,
+              "scrollWidth": 1920,
+              "scrollHeight": 1293,
+              "overflowX": false,
+              "overflowY": true,
+              "verticalScrollAccepted": true,
+              "overflowDisposition": "readable-vertical-scroll",
+              "readerLayout": "adaptive",
+              "readerOverflow": "authored",
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1640,
+              "diagramWidth": 1610,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 60,
+                "diagramChromePx": 84,
+                "svgPx": 1085,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.5,
+              "minimumProjectedNonEdgeTextPx": 7.5,
+              "minimumProjectedEdgeTextPx": 7.5,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 54,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            },
+            {
+              "width": 2048,
+              "height": 1320,
+              "theme": "light",
+              "innerWidth": 2048,
+              "innerHeight": 1320,
+              "scrollWidth": 2048,
+              "scrollHeight": 1320,
+              "overflowX": false,
+              "overflowY": false,
+              "verticalScrollAccepted": false,
+              "overflowDisposition": "contained",
+              "readerLayout": "adaptive",
+              "readerOverflow": null,
+              "readerFit": "intrinsic-height",
+              "ok": true,
+              "readerWidth": 1660,
+              "diagramWidth": 1610,
+              "pageComposition": {
+                "bodyPaddingPx": 64,
+                "headerPx": 68,
+                "diagramChromePx": 94,
+                "svgPx": 1085,
+                "cardsPx": 0,
+                "viewBoxHeight": 1302
+              },
+              "viewBoxWidth": 1932,
+              "minimumProjectedNodeTextPx": 7.5,
+              "minimumProjectedNonEdgeTextPx": 7.5,
+              "minimumProjectedEdgeTextPx": 7.5,
+              "minimumProjectedNodeText": "PK",
+              "minimumProjectedNodeTextDetail": "context",
+              "minimumProjectedNodeTextOwner": {
+                "kind": "node",
+                "id": "user_account"
+              },
+              "minimumRequiredNodeTextPx": 6,
+              "readabilityOk": true,
+              "hasLegend": true,
+              "hasNavigationDock": true,
+              "legendDockIntersectionArea": 0,
+              "dockStageIntersectionArea": 0,
+              "dockStageGap": 10,
+              "requiredDockStageGap": 10,
+              "viewerChromeStageOk": true,
+              "viewerChromeReserve": 44,
+              "viewerChromeActive": true,
+              "viewerChromeOk": true,
+              "resolvedTheme": "light"
+            }
+          ]
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "jbhifi-schema.browser-check.json",
+          "files": []
+        }
+      }
+    }
+  },
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  },
+  "diagnostics": [],
+  "evidence": {
+    "receipt": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.finalize.json",
+    "summaryReceipt": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.finalize-summary.json",
+    "browserCheckReceipt": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "finishedAt": "2026-11-02T03:24:47.012Z",
+  "durationMs": 3289,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-01T14:33:05.924Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

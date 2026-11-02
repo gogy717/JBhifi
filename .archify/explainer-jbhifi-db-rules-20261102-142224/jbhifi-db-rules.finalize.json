@@ -1,0 +1,1179 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "explainer",
+  "quality": "standard",
+  "startedAt": "2026-11-02T03:29:42.645Z",
+  "specification": {
+    "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/candidate.archify.md",
+    "sha256": "fcacba092e6a78722a748e8ad405ffce935144d383f2a6917933ca931d76fc43",
+    "bytes": 17303
+  },
+  "artifact": {
+    "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.html",
+    "sha256": "d644aeb152899defba915933c79422c373130ba201592c7f2b076f452ad99f04",
+    "bytes": 2862376
+  },
+  "stages": {
+    "browser-check": {
+      "status": "not-run",
+      "execution": "not-requested"
+    },
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "/Users/ethan/.nvm/versions/node/v24.19.0/bin/node",
+        "/Users/ethan/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "explainer",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/candidate.archify.md",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.html",
+        "--quality",
+        "standard",
+        "--repo-root",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "fcacba092e6a78722a748e8ad405ffce935144d383f2a6917933ca931d76fc43",
+          "bytes": 17303
+        },
+        "validation": {
+          "checksPassed": 4,
+          "checkCount": 4,
+          "compositionProfile": "standard",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 801,
+      "command": [
+        "/Users/ethan/.nvm/versions/node/v24.19.0/bin/node",
+        "/Users/ethan/.agents/skills/archify/bin/archify.mjs",
+        "deliver",
+        "explainer",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/candidate.archify.md",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.html",
+        "--quality",
+        "standard",
+        "--repo-root",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "08960c9f-5bdf-4cf8-92f3-dc340befd53e",
+        "ok": true,
+        "command": "deliver",
+        "type": "explainer",
+        "input": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/candidate.archify.md",
+        "output": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.html",
+        "explainer": {
+          "preparedSha256": "814d6b99fd7ea4d6bceef4180b93120c8a6aec224a7e0d396447b1a1019389c6",
+          "dependencies": [
+            {
+              "kind": "repository",
+              "id": "br09",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "tables",
+              "path": "sql/01_tables.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "4df1184b113f7e8895c583e1a6e8eb63fd18512efecee3f7984f0d5e26cd05ff",
+              "bytes": 17412
+            },
+            {
+              "kind": "repository",
+              "id": "domains",
+              "path": "sql/00_domains.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "ab7210639335a4ac02d018148e8c756a1bcade44672168f028a36a30cb6df93d",
+              "bytes": 1191
+            },
+            {
+              "kind": "repository",
+              "id": "rules-header",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "br07",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "br09-log",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "br12",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "br15",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "br20",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "append",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "br21",
+              "path": "sql/02_rules.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+              "bytes": 35286
+            },
+            {
+              "kind": "repository",
+              "id": "views",
+              "path": "sql/03_views.sql",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "30569da3eae5651af10bd2e3d2b233259dec2134cc6a2ad89941925e360d2d92",
+              "bytes": 5236
+            },
+            {
+              "kind": "repository",
+              "id": "errors",
+              "path": "app/errors.py",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "c9f6fd008739a1f9565c63fc89742b72784d92ae8b9f6fb20fe8bcc3406cf502",
+              "bytes": 5685
+            },
+            {
+              "kind": "repository",
+              "id": "db",
+              "path": "app/db.py",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "3cf1d5af1d4ddbcfa610d3b740a0063fb090185e4c48cd67ebc2287b572c6e6a",
+              "bytes": 855
+            },
+            {
+              "kind": "repository",
+              "id": "checkout",
+              "path": "app/services/orders.py",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "501338fc9a034c5c6fb687b5ce9d9b8438ab2208024a4d54896ca29cc9f68b0a",
+              "bytes": 12577
+            },
+            {
+              "kind": "repository",
+              "id": "stock",
+              "path": "app/services/orders.py",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "501338fc9a034c5c6fb687b5ce9d9b8438ab2208024a4d54896ca29cc9f68b0a",
+              "bytes": 12577
+            },
+            {
+              "kind": "repository",
+              "id": "locks",
+              "path": "app/services/orders.py",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "501338fc9a034c5c6fb687b5ce9d9b8438ab2208024a4d54896ca29cc9f68b0a",
+              "bytes": 12577
+            },
+            {
+              "kind": "repository",
+              "id": "trace",
+              "path": "docs/rule-traceability.md",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "1960a4866517e0b672c5ef1e4929c59ae8c72c49c2201d6ced4f4bbf7441c716",
+              "bytes": 20899
+            },
+            {
+              "kind": "repository",
+              "id": "race",
+              "path": "docs/concurrency-evidence.md",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "6787780ee08e332992822dd3ec8b5a051f642c28a54c021e2846b6a99cad9f82",
+              "bytes": 15765
+            },
+            {
+              "kind": "repository",
+              "id": "rc",
+              "path": "docs/concurrency-evidence.md",
+              "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+              "sha256": "6787780ee08e332992822dd3ec8b5a051f642c28a54c021e2846b6a99cad9f82",
+              "bytes": 15765
+            },
+            {
+              "kind": "diagram-spec",
+              "id": "design-flow",
+              "inline": true,
+              "sha256": "9ac0cd702b9bb19f369f393bc58f6a6ff05f935da2cef617baea6a41f0c6dd1c",
+              "bytes": 1188
+            },
+            {
+              "kind": "diagram-spec",
+              "id": "schema-erd",
+              "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.erd.json",
+              "relativePath": "jbhifi-schema.erd.json",
+              "sha256": "72e563ca1ba5cdee013d74c783228680a252a61434173772097c17ad2de2c565",
+              "bytes": 31493
+            },
+            {
+              "kind": "diagram-spec",
+              "id": "paid-move",
+              "inline": true,
+              "sha256": "56e2fdb8f9ff66fa0ace367506afbf95c9f8b29cade9a03d35aa3fdef3ae1c28",
+              "bytes": 1407
+            },
+            {
+              "kind": "diagram-spec",
+              "id": "order-status-flow",
+              "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/order-status.lifecycle.json",
+              "relativePath": "order-status.lifecycle.json",
+              "sha256": "ff57f3686a46f58eae6262d6011ce1de96649f650a8243d16847bb23fda84127",
+              "bytes": 3984
+            }
+          ]
+        },
+        "specification": {
+          "sha256": "fcacba092e6a78722a748e8ad405ffce935144d383f2a6917933ca931d76fc43",
+          "bytes": 17303
+        },
+        "artifact": {
+          "sha256": "d644aeb152899defba915933c79422c373130ba201592c7f2b076f452ad99f04",
+          "bytes": 2862376
+        },
+        "validation": {
+          "checksPassed": 4,
+          "checkCount": 4,
+          "compositionProfile": "standard",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 479,
+      "command": [
+        "/Users/ethan/.nvm/versions/node/v24.19.0/bin/node",
+        "/Users/ethan/.agents/skills/archify/bin/archify.mjs",
+        "check",
+        "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.html",
+        "family": "explainer",
+        "artifact": {
+          "sha256": "d644aeb152899defba915933c79422c373130ba201592c7f2b076f452ad99f04",
+          "bytes": 2862376
+        },
+        "checks": [
+          {
+            "name": "explainer_structure",
+            "ok": true,
+            "details": [
+              "195 unique DOM IDs"
+            ]
+          },
+          {
+            "name": "explainer_payload_identity",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "explainer_dependencies",
+            "ok": true,
+            "details": [
+              "24 frozen dependencies"
+            ]
+          },
+          {
+            "name": "explainer_native_diagrams",
+            "ok": true,
+            "details": [
+              "design-flow: pass",
+              "schema-erd: pass",
+              "paid-move: pass",
+              "order-status-flow: pass"
+            ]
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "standard",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "issues": [],
+          "nativeDiagrams": [
+            {
+              "id": "design-flow",
+              "receipt": {
+                "ok": true,
+                "file": "/var/folders/lc/s_zx4_x12kxf6pqqynmnn7f40000gn/T/archify-explainer-check-7Fgv7d/child.html",
+                "artifact": {
+                  "sha256": "dee16bde4965f13bf09ee4ce95b2b5c87d0ed90d2d65e484134ea31f76c6d624",
+                  "bytes": 832466
+                },
+                "checks": [
+                  {
+                    "name": "single_svg",
+                    "ok": true,
+                    "details": [
+                      "found 1 <svg> block(s)"
+                    ]
+                  },
+                  {
+                    "name": "finite_svg",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "orthogonal_arrows",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "label_route_clearance",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "relationship_crossings",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "relationship_corridors",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "container_border_runs",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "route_rhythm",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "legend_clearance",
+                    "ok": true,
+                    "details": []
+                  }
+                ],
+                "composition": {
+                  "schemaVersion": 1,
+                  "profile": "standard",
+                  "status": "pass",
+                  "summary": {
+                    "errors": 0,
+                    "warnings": 0
+                  },
+                  "metrics": {
+                    "properCrossings": 0,
+                    "resolvedCrossovers": 0,
+                    "ambiguousCorridors": 0,
+                    "arrowheadCollisions": 0,
+                    "containerBorderRuns": 0,
+                    "labelRouteClearanceIssues": 0,
+                    "labelCanvasOverflowIssues": 0,
+                    "minLabelRouteClearance": 90.7,
+                    "desktopReadabilityIssues": 0,
+                    "viewportHeightIssues": 0,
+                    "minProjectedNodeTextPx": 6.739130434782608,
+                    "maxBends": 0,
+                    "routesOverSuggestedBends": 0,
+                    "maxStretch": 1,
+                    "routesOverSuggestedStretch": 0,
+                    "minSegmentPx": 32,
+                    "minInteriorSegmentPx": null,
+                    "shortSegmentCount": 0,
+                    "shortEndpointSegmentCount": 0,
+                    "shortInteriorSegmentCount": 0,
+                    "microSegmentCount": 0
+                  },
+                  "suggestedLimits": {
+                    "bendsPerRelationship": 2,
+                    "stretch": 1.35,
+                    "segmentPx": 16,
+                    "microSegmentPx": 8
+                  },
+                  "routeReview": {
+                    "crossings": [],
+                    "detours": []
+                  },
+                  "leadingSpace": {
+                    "measured": false,
+                    "reviewSuggested": false
+                  },
+                  "desktopReadability": {
+                    "budgetBasis": "legacy-930",
+                    "readerContract": "declared-wide-v1",
+                    "availableDiagramWidth": 930,
+                    "actualBudgetPx": 930,
+                    "limit": "legacy",
+                    "requestedTargetPx": null,
+                    "requestedTargetMet": null,
+                    "hardFloorPx": 6,
+                    "hardFloorMet": true,
+                    "minimumOwner": {
+                      "kind": "edge",
+                      "id": "enforce-to-tests-1",
+                      "from": "enforce",
+                      "to": "tests"
+                    },
+                    "minimumSourceTextPx": 8,
+                    "minimumProjectedTextPx": 6.739130434782608,
+                    "semanticTextCount": 9
+                  },
+                  "issues": []
+                }
+              }
+            },
+            {
+              "id": "schema-erd",
+              "receipt": {
+                "ok": true,
+                "file": "/var/folders/lc/s_zx4_x12kxf6pqqynmnn7f40000gn/T/archify-explainer-check-BmkvS9/child.html",
+                "artifact": {
+                  "sha256": "b4f4f1686a68081f652aa3e40e6632d2fec84795a33a297cc7222a604c35d34e",
+                  "bytes": 946845
+                },
+                "checks": [
+                  {
+                    "name": "single_svg",
+                    "ok": true,
+                    "details": [
+                      "found 1 <svg> block(s)"
+                    ]
+                  },
+                  {
+                    "name": "finite_svg",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "orthogonal_arrows",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "label_route_clearance",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "relationship_crossings",
+                    "ok": true,
+                    "details": [
+                      "[composition/proper-crossing] standard relationship id \"order_store\" (\"customer_order\" -> \"store\") crosses relationship id \"return_processor\" (\"return_request\" -> \"staff\") at [1019, 179]",
+                      "[composition/proper-crossing] standard relationship id \"order_store\" (\"customer_order\" -> \"store\") crosses relationship id \"return_resolver\" (\"return_request\" -> \"staff\") at [1043, 179]",
+                      "[composition/proper-crossing] standard relationship id \"order_store\" (\"customer_order\" -> \"store\") crosses relationship id \"returnline_orderline\" (\"return_line\" -> \"order_line\") at [788, 930]",
+                      "[composition/proper-crossing] standard relationship id \"order_store\" (\"customer_order\" -> \"store\") crosses relationship id \"adjustment_staff\" (\"stock_adjustment\" -> \"staff\") at [1240, 179]",
+                      "[composition/proper-crossing] standard relationship id \"history_staff\" (\"order_status_history\" -> \"staff\") crosses relationship id \"return_order\" (\"return_request\" -> \"customer_order\") at [825, 662]",
+                      "[composition/proper-crossing] standard relationship id \"history_staff\" (\"order_status_history\" -> \"staff\") crosses relationship id \"returnline_orderline\" (\"return_line\" -> \"order_line\") at [788, 662]",
+                      "[composition/proper-crossing] standard relationship id \"return_order\" (\"return_request\" -> \"customer_order\") crosses relationship id \"returnline_orderline\" (\"return_line\" -> \"order_line\") at [825, 642]",
+                      "[composition/proper-crossing] standard relationship id \"return_store\" (\"return_request\" -> \"store\") crosses relationship id \"adjustment_staff\" (\"stock_adjustment\" -> \"staff\") at [1240, 390]",
+                      "[composition/proper-crossing] standard relationship id \"returnline_orderline\" (\"return_line\" -> \"order_line\") crosses relationship id \"payment_order\" (\"payment\" -> \"customer_order\") at [788, 934]"
+                    ]
+                  },
+                  {
+                    "name": "relationship_corridors",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "container_border_runs",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "route_rhythm",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "legend_clearance",
+                    "ok": true,
+                    "details": []
+                  }
+                ],
+                "composition": {
+                  "schemaVersion": 1,
+                  "profile": "standard",
+                  "status": "pass",
+                  "summary": {
+                    "errors": 0,
+                    "warnings": 10
+                  },
+                  "metrics": {
+                    "properCrossings": 9,
+                    "resolvedCrossovers": 0,
+                    "ambiguousCorridors": 0,
+                    "arrowheadCollisions": 0,
+                    "containerBorderRuns": 0,
+                    "labelRouteClearanceIssues": 0,
+                    "labelCanvasOverflowIssues": 0,
+                    "minLabelRouteClearance": 2,
+                    "desktopReadabilityIssues": 1,
+                    "viewportHeightIssues": 0,
+                    "minProjectedNodeTextPx": 4.332298136645963,
+                    "maxBends": 4,
+                    "routesOverSuggestedBends": 1,
+                    "maxStretch": 1.095,
+                    "routesOverSuggestedStretch": 0,
+                    "minSegmentPx": 16,
+                    "minInteriorSegmentPx": 22,
+                    "shortSegmentCount": 0,
+                    "shortEndpointSegmentCount": 0,
+                    "shortInteriorSegmentCount": 0,
+                    "microSegmentCount": 0
+                  },
+                  "suggestedLimits": {
+                    "bendsPerRelationship": 2,
+                    "stretch": 1.35,
+                    "segmentPx": 16,
+                    "microSegmentPx": 8
+                  },
+                  "routeReview": {
+                    "crossings": [],
+                    "detours": [
+                      {
+                        "relationship": {
+                          "id": "order_store",
+                          "from": "customer_order",
+                          "to": "store",
+                          "label": "fulfilled at",
+                          "collectionIndex": 7,
+                          "artifactIndex": 8
+                        },
+                        "bends": 4,
+                        "stretch": 1
+                      }
+                    ]
+                  },
+                  "leadingSpace": {
+                    "measured": false,
+                    "reviewSuggested": false
+                  },
+                  "desktopReadability": {
+                    "budgetBasis": "legacy-930",
+                    "readerContract": "declared-wide-v1",
+                    "availableDiagramWidth": 930,
+                    "actualBudgetPx": 930,
+                    "limit": "legacy",
+                    "requestedTargetPx": 7.5,
+                    "requestedTargetMet": false,
+                    "hardFloorPx": 6,
+                    "hardFloorMet": false,
+                    "minimumOwner": {
+                      "kind": "node",
+                      "id": "user_account"
+                    },
+                    "minimumSourceTextPx": 9,
+                    "minimumProjectedTextPx": 4.332298136645963,
+                    "semanticTextCount": 312
+                  },
+                  "issues": [
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "order_store",
+                        "from": "customer_order",
+                        "to": "store",
+                        "label": "fulfilled at",
+                        "collectionIndex": 7,
+                        "artifactIndex": 8
+                      },
+                      "otherRelationship": {
+                        "id": "return_processor",
+                        "from": "return_request",
+                        "to": "staff",
+                        "label": "processed by",
+                        "collectionIndex": 14,
+                        "artifactIndex": 15
+                      },
+                      "point": [
+                        1019,
+                        179
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "order_store",
+                        "from": "customer_order",
+                        "to": "store",
+                        "label": "fulfilled at",
+                        "collectionIndex": 7,
+                        "artifactIndex": 8
+                      },
+                      "otherRelationship": {
+                        "id": "return_resolver",
+                        "from": "return_request",
+                        "to": "staff",
+                        "label": "resolved by",
+                        "collectionIndex": 15,
+                        "artifactIndex": 16
+                      },
+                      "point": [
+                        1043,
+                        179
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "order_store",
+                        "from": "customer_order",
+                        "to": "store",
+                        "label": "fulfilled at",
+                        "collectionIndex": 7,
+                        "artifactIndex": 8
+                      },
+                      "otherRelationship": {
+                        "id": "returnline_orderline",
+                        "from": "return_line",
+                        "to": "order_line",
+                        "label": "",
+                        "collectionIndex": 17,
+                        "artifactIndex": 18
+                      },
+                      "point": [
+                        788,
+                        930
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "order_store",
+                        "from": "customer_order",
+                        "to": "store",
+                        "label": "fulfilled at",
+                        "collectionIndex": 7,
+                        "artifactIndex": 8
+                      },
+                      "otherRelationship": {
+                        "id": "adjustment_staff",
+                        "from": "stock_adjustment",
+                        "to": "staff",
+                        "label": "made by",
+                        "collectionIndex": 23,
+                        "artifactIndex": 24
+                      },
+                      "point": [
+                        1240,
+                        179
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "history_staff",
+                        "from": "order_status_history",
+                        "to": "staff",
+                        "label": "changed by",
+                        "collectionIndex": 11,
+                        "artifactIndex": 12
+                      },
+                      "otherRelationship": {
+                        "id": "return_order",
+                        "from": "return_request",
+                        "to": "customer_order",
+                        "label": "",
+                        "collectionIndex": 12,
+                        "artifactIndex": 13
+                      },
+                      "point": [
+                        825,
+                        662
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "history_staff",
+                        "from": "order_status_history",
+                        "to": "staff",
+                        "label": "changed by",
+                        "collectionIndex": 11,
+                        "artifactIndex": 12
+                      },
+                      "otherRelationship": {
+                        "id": "returnline_orderline",
+                        "from": "return_line",
+                        "to": "order_line",
+                        "label": "",
+                        "collectionIndex": 17,
+                        "artifactIndex": 18
+                      },
+                      "point": [
+                        788,
+                        662
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "return_order",
+                        "from": "return_request",
+                        "to": "customer_order",
+                        "label": "",
+                        "collectionIndex": 12,
+                        "artifactIndex": 13
+                      },
+                      "otherRelationship": {
+                        "id": "returnline_orderline",
+                        "from": "return_line",
+                        "to": "order_line",
+                        "label": "",
+                        "collectionIndex": 17,
+                        "artifactIndex": 18
+                      },
+                      "point": [
+                        825,
+                        642
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "return_store",
+                        "from": "return_request",
+                        "to": "store",
+                        "label": "received at",
+                        "collectionIndex": 13,
+                        "artifactIndex": 14
+                      },
+                      "otherRelationship": {
+                        "id": "adjustment_staff",
+                        "from": "stock_adjustment",
+                        "to": "staff",
+                        "label": "made by",
+                        "collectionIndex": 23,
+                        "artifactIndex": 24
+                      },
+                      "point": [
+                        1240,
+                        390
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/proper-crossing",
+                      "relationship": {
+                        "id": "returnline_orderline",
+                        "from": "return_line",
+                        "to": "order_line",
+                        "label": "",
+                        "collectionIndex": 17,
+                        "artifactIndex": 18
+                      },
+                      "otherRelationship": {
+                        "id": "payment_order",
+                        "from": "payment",
+                        "to": "customer_order",
+                        "label": "",
+                        "collectionIndex": 18,
+                        "artifactIndex": 19
+                      },
+                      "point": [
+                        788,
+                        934
+                      ]
+                    },
+                    {
+                      "severity": "warning",
+                      "code": "composition/desktop-readability",
+                      "nodeId": "user_account",
+                      "owner": {
+                        "kind": "node",
+                        "id": "user_account"
+                      },
+                      "viewportWidth": 1440,
+                      "viewportHeight": 900,
+                      "availableDiagramWidth": 930,
+                      "budgetBasis": "legacy-930",
+                      "readerContract": "declared-wide-v1",
+                      "requestedTargetPx": 7.5,
+                      "requestedTargetMet": false,
+                      "budgetLimit": "legacy",
+                      "viewBoxWidth": 1932,
+                      "scale": 0.4813664596273292,
+                      "text": "PK",
+                      "detail": "context",
+                      "sourceFontPx": 9,
+                      "projectedFontPx": 4.332298136645963,
+                      "minimumProjectedFontPx": 6
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": "paid-move",
+              "receipt": {
+                "ok": true,
+                "file": "/var/folders/lc/s_zx4_x12kxf6pqqynmnn7f40000gn/T/archify-explainer-check-ahhePM/child.html",
+                "artifact": {
+                  "sha256": "52f0e45aa9fd5ee66944260acc27370d3bf947090a1bbe9caf4c9d37a5b3c572",
+                  "bytes": 831894
+                },
+                "checks": [
+                  {
+                    "name": "single_svg",
+                    "ok": true,
+                    "details": [
+                      "found 1 <svg> block(s)"
+                    ]
+                  },
+                  {
+                    "name": "finite_svg",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "orthogonal_arrows",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "label_route_clearance",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "relationship_crossings",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "relationship_corridors",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "container_border_runs",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "route_rhythm",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "legend_clearance",
+                    "ok": true,
+                    "details": []
+                  }
+                ],
+                "composition": {
+                  "schemaVersion": 1,
+                  "profile": "standard",
+                  "status": "pass",
+                  "summary": {
+                    "errors": 0,
+                    "warnings": 0
+                  },
+                  "metrics": {
+                    "properCrossings": 0,
+                    "resolvedCrossovers": 0,
+                    "ambiguousCorridors": 0,
+                    "arrowheadCollisions": 0,
+                    "containerBorderRuns": 0,
+                    "labelRouteClearanceIssues": 0,
+                    "labelCanvasOverflowIssues": 0,
+                    "minLabelRouteClearance": 28,
+                    "desktopReadabilityIssues": 0,
+                    "viewportHeightIssues": 0,
+                    "minProjectedNodeTextPx": 7.9411764705882355,
+                    "maxBends": 0,
+                    "routesOverSuggestedBends": 0,
+                    "maxStretch": 1,
+                    "routesOverSuggestedStretch": 0,
+                    "minSegmentPx": 150.2,
+                    "minInteriorSegmentPx": null,
+                    "shortSegmentCount": 0,
+                    "shortEndpointSegmentCount": 0,
+                    "shortInteriorSegmentCount": 0,
+                    "microSegmentCount": 0
+                  },
+                  "suggestedLimits": {
+                    "bendsPerRelationship": 2,
+                    "stretch": 1.35,
+                    "segmentPx": 16,
+                    "microSegmentPx": 8
+                  },
+                  "routeReview": {
+                    "crossings": [],
+                    "detours": []
+                  },
+                  "leadingSpace": {
+                    "measured": false,
+                    "reviewSuggested": false
+                  },
+                  "sequenceColumnSpace": {
+                    "measured": true,
+                    "columnFit": "spread",
+                    "participantCount": 6,
+                    "occupiedRight": 1014,
+                    "viewBoxLeft": 0,
+                    "canvasWidth": 1054,
+                    "emptyRightPx": 40,
+                    "emptyRightRatio": 0.038,
+                    "typicalParticipantWidth": 131,
+                    "reviewSuggested": false
+                  },
+                  "desktopReadability": {
+                    "budgetBasis": "legacy-930",
+                    "readerContract": "declared-wide-v1",
+                    "availableDiagramWidth": 930,
+                    "actualBudgetPx": 930,
+                    "limit": "legacy",
+                    "requestedTargetPx": null,
+                    "requestedTargetMet": null,
+                    "hardFloorPx": 6,
+                    "hardFloorMet": true,
+                    "minimumOwner": {
+                      "kind": "edge",
+                      "id": "svc-to-ord-1",
+                      "from": "svc",
+                      "to": "ord"
+                    },
+                    "minimumSourceTextPx": 9,
+                    "minimumProjectedTextPx": 7.9411764705882355,
+                    "semanticTextCount": 14
+                  },
+                  "issues": []
+                }
+              }
+            },
+            {
+              "id": "order-status-flow",
+              "receipt": {
+                "ok": true,
+                "file": "/var/folders/lc/s_zx4_x12kxf6pqqynmnn7f40000gn/T/archify-explainer-check-2FNrfk/child.html",
+                "artifact": {
+                  "sha256": "16130a2ecdde488fdc4ee69de74a7c5d6e1bda2cc86a572f23ec45ca8d4fc7bf",
+                  "bytes": 841471
+                },
+                "checks": [
+                  {
+                    "name": "single_svg",
+                    "ok": true,
+                    "details": [
+                      "found 1 <svg> block(s)"
+                    ]
+                  },
+                  {
+                    "name": "finite_svg",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "orthogonal_arrows",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "label_route_clearance",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "relationship_crossings",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "relationship_corridors",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "container_border_runs",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "route_rhythm",
+                    "ok": true,
+                    "details": []
+                  },
+                  {
+                    "name": "legend_clearance",
+                    "ok": true,
+                    "details": []
+                  }
+                ],
+                "composition": {
+                  "schemaVersion": 1,
+                  "profile": "standard",
+                  "status": "pass",
+                  "summary": {
+                    "errors": 0,
+                    "warnings": 0
+                  },
+                  "metrics": {
+                    "properCrossings": 0,
+                    "resolvedCrossovers": 0,
+                    "ambiguousCorridors": 0,
+                    "arrowheadCollisions": 0,
+                    "containerBorderRuns": 0,
+                    "labelRouteClearanceIssues": 0,
+                    "labelCanvasOverflowIssues": 0,
+                    "minLabelRouteClearance": 6,
+                    "desktopReadabilityIssues": 0,
+                    "viewportHeightIssues": 0,
+                    "minProjectedNodeTextPx": 7.063291139240506,
+                    "maxBends": 0,
+                    "routesOverSuggestedBends": 0,
+                    "maxStretch": 1,
+                    "routesOverSuggestedStretch": 0,
+                    "minSegmentPx": 72,
+                    "minInteriorSegmentPx": null,
+                    "shortSegmentCount": 0,
+                    "shortEndpointSegmentCount": 0,
+                    "shortInteriorSegmentCount": 0,
+                    "microSegmentCount": 0
+                  },
+                  "suggestedLimits": {
+                    "bendsPerRelationship": 2,
+                    "stretch": 1.35,
+                    "segmentPx": 16,
+                    "microSegmentPx": 8
+                  },
+                  "routeReview": {
+                    "crossings": [],
+                    "detours": []
+                  },
+                  "leadingSpace": {
+                    "measured": false,
+                    "reviewSuggested": false
+                  },
+                  "desktopReadability": {
+                    "budgetBasis": "legacy-930",
+                    "readerContract": "declared-wide-v1",
+                    "availableDiagramWidth": 930,
+                    "actualBudgetPx": 930,
+                    "limit": "legacy",
+                    "requestedTargetPx": null,
+                    "requestedTargetMet": null,
+                    "hardFloorPx": 6,
+                    "hardFloorMet": true,
+                    "minimumOwner": {
+                      "kind": "node",
+                      "id": "placed"
+                    },
+                    "minimumSourceTextPx": 9,
+                    "minimumProjectedTextPx": 7.063291139240506,
+                    "semanticTextCount": 24
+                  },
+                  "issues": []
+                }
+              }
+            }
+          ]
+        },
+        "diagnostics": [],
+        "provenance": "current",
+        "deliveryReceiptId": "08960c9f-5bdf-4cf8-92f3-dc340befd53e"
+      }
+    }
+  },
+  "browserCheck": {
+    "requested": false,
+    "ran": false
+  },
+  "diagnostics": [],
+  "evidence": {
+    "receipt": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.finalize.json",
+    "summaryReceipt": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.finalize-summary.json"
+  },
+  "visualReview": "not-requested",
+  "finishedAt": "2026-11-02T03:29:44.016Z",
+  "durationMs": 1371,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-01T14:33:05.924Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

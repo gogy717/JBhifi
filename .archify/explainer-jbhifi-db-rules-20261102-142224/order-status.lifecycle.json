@@ -1,0 +1,118 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Order status moves allowed by order_status_transition",
+    "locale": "en",
+    "output": ".archify/explainer-jbhifi-db-rules-20261102-142224/order-status.html",
+    "quality_profile": "standard",
+    "repository": {
+      "url": "https://github.com/gogy717/JBhifi.git",
+      "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0"
+    }
+  },
+  "mainPath": ["placed", "paid", "picking", "shipped", "delivered"],
+  "states": [
+    {
+      "id": "placed",
+      "type": "start",
+      "label": "placed",
+      "sublabel": "inside checkout only",
+      "sources": [
+        { "path": "sql/02_rules.sql", "line": 156, "end_line": 177, "label": "BR09: new orders start as placed" }
+      ]
+    },
+    {
+      "id": "paid",
+      "type": "active",
+      "label": "paid",
+      "sublabel": "charge = total (BR20)",
+      "sources": [
+        { "path": "sql/02_rules.sql", "line": 512, "end_line": 539, "label": "BR20 paid in full" }
+      ]
+    },
+    {
+      "id": "picking",
+      "type": "active",
+      "label": "picking",
+      "sublabel": "store staff move it",
+      "sources": [
+        { "path": "sql/02_rules.sql", "line": 141, "end_line": 154, "label": "allowed moves" }
+      ]
+    },
+    {
+      "id": "shipped",
+      "type": "active",
+      "label": "shipped",
+      "sublabel": "delivery only",
+      "sources": [
+        { "path": "sql/02_rules.sql", "line": 146, "end_line": 147, "label": "delivery moves" }
+      ]
+    },
+    {
+      "id": "delivered",
+      "type": "success",
+      "label": "delivered",
+      "sublabel": "30-day returns (BR11)",
+      "sources": [
+        { "path": "sql/02_rules.sql", "line": 248, "end_line": 275, "label": "BR11 return window" }
+      ]
+    },
+    {
+      "id": "ready",
+      "type": "waiting",
+      "label": "ready",
+      "sublabel": "Click & Collect only",
+      "sources": [
+        { "path": "sql/02_rules.sql", "line": 152, "end_line": 154, "label": "Click & Collect moves" }
+      ]
+    },
+    {
+      "id": "collected",
+      "type": "success",
+      "label": "collected",
+      "sublabel": "30-day returns (BR11)",
+      "sources": [
+        { "path": "sql/02_rules.sql", "line": 248, "end_line": 275, "label": "BR11 return window" }
+      ]
+    },
+    {
+      "id": "cancelled",
+      "type": "neutral",
+      "label": "cancelled",
+      "sublabel": "fully refunded (BR21)",
+      "sources": [
+        { "path": "sql/02_rules.sql", "line": 613, "end_line": 635, "label": "BR21 cancelled order refunded" }
+      ]
+    }
+  ],
+  "transitions": [
+    { "id": "placed-paid", "from": "placed", "to": "paid", "label": "charged" },
+    { "id": "paid-picking", "from": "paid", "to": "picking", "label": "pick" },
+    { "id": "picking-shipped", "from": "picking", "to": "shipped", "label": "delivery" },
+    { "id": "shipped-delivered", "from": "shipped", "to": "delivered", "label": "arrived" },
+    { "id": "picking-ready", "from": "picking", "to": "ready", "label": "Click & Collect" },
+    { "id": "ready-collected", "from": "ready", "to": "collected", "label": "picked up" },
+    { "id": "placed-cancelled", "from": "placed", "to": "cancelled", "label": "cancel" },
+    { "id": "paid-cancelled", "from": "paid", "to": "cancelled", "label": "cancel" },
+    { "id": "ready-cancelled", "from": "ready", "to": "cancelled", "label": "not collected" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Moves are data",
+      "items": [
+        "Each arrow is a row of order_status_transition for one or both fulfilment methods: 13 rows in all.",
+        "The BR09 trigger looks up (fulfilment_method, old status, new status); no row means the move is refused."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Extra gates on two moves",
+      "items": [
+        "placed -> paid also needs the charge to equal v_order_total (BR20).",
+        "Any move to cancelled also needs refunds to equal charges (BR21)."
+      ]
+    }
+  ]
+}

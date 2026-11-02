@@ -1,0 +1,1383 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "JB Hi-Fi omnichannel retail schema",
+    "locale": "en",
+    "output": ".archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+    "quality_profile": "standard",
+    "repository": {
+      "url": "https://github.com/gogy717/JBhifi.git",
+      "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0"
+    },
+    "views": [
+      {
+        "id": "order-core",
+        "label": "Orders and their status log",
+        "focus": [
+          "customer_order",
+          "order_line",
+          "order_status_history",
+          "order_status_transition",
+          "customer_address",
+          "store"
+        ],
+        "note": "BR06-BR10, BR17, BR20: a fixed header, immutable lines, status moves read from order_status_transition and logged to history."
+      },
+      {
+        "id": "returns-refunds",
+        "label": "Returns and refunds",
+        "focus": [
+          "return_request",
+          "return_line",
+          "payment",
+          "order_line",
+          "customer_order"
+        ],
+        "note": "BR11-BR14: composite FKs keep return lines and refunds on the same order; triggers cap quantities and amounts."
+      },
+      {
+        "id": "stock",
+        "label": "Stock per store",
+        "focus": [
+          "inventory",
+          "stock_adjustment",
+          "store",
+          "staff",
+          "product"
+        ],
+        "note": "BR03, BR18: inventory is the store x product M:N; each manual change is logged by staff of that store."
+      },
+      {
+        "id": "people",
+        "label": "People and sign-in",
+        "focus": [
+          "customer",
+          "user_account",
+          "staff",
+          "store"
+        ],
+        "note": "BR04, BR05, BR19: one staff table for the ISA, a deferred manager FK, one sign-in per person."
+      },
+      {
+        "id": "catalogue",
+        "label": "Catalogue and pricing",
+        "focus": [
+          "product",
+          "brand",
+          "category",
+          "product_spec",
+          "promotion"
+        ],
+        "note": "BR15: promotions never overlap and stay below the base price; specs are key-value rows."
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 72,
+    "gapY": 56,
+    "entityW": 248
+  },
+  "entities": [
+    {
+      "id": "user_account",
+      "label": "user_account",
+      "tag": "stores & staff",
+      "row": 0,
+      "col": 1,
+      "width": 336,
+      "attributes": [
+        {
+          "name": "auth_subject",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "customer_id",
+          "type": "INT",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "customer.customer_id"
+        },
+        {
+          "name": "staff_id",
+          "type": "INT",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "staff.staff_id"
+        },
+        {
+          "name": "linked_at",
+          "type": "TIMESTAMPTZ"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 69,
+          "end_line": 83,
+          "label": "user_account (BR19)"
+        }
+      ]
+    },
+    {
+      "id": "staff",
+      "label": "staff",
+      "tag": "stores & staff",
+      "row": 0,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "staff_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "uk"
+          ]
+        },
+        {
+          "name": "store_id",
+          "type": "INT",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "store.store_id"
+        },
+        {
+          "name": "staff_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "full_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "email",
+          "type": "email_address",
+          "key": "uk"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 47,
+          "end_line": 61,
+          "label": "staff ISA, single table (BR05)"
+        }
+      ],
+      "width": 290
+    },
+    {
+      "id": "store",
+      "label": "store",
+      "tag": "stores & staff",
+      "row": 0,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "store_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "staff.store_id"
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "key": "uk"
+        },
+        {
+          "name": "store_type",
+          "type": "TEXT"
+        },
+        {
+          "name": "suburb",
+          "type": "TEXT"
+        },
+        {
+          "name": "state",
+          "type": "au_state"
+        },
+        {
+          "name": "manager_id",
+          "type": "INT｜BR04 deferred",
+          "key": "fk",
+          "references": "staff.staff_id"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 35,
+          "end_line": 45,
+          "label": "store"
+        },
+        {
+          "path": "sql/01_tables.sql",
+          "line": 63,
+          "end_line": 67,
+          "label": "br04 manager FK, deferred"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 38,
+          "end_line": 56,
+          "label": "BR06 store stays retail"
+        }
+      ],
+      "width": 268
+    },
+    {
+      "id": "customer",
+      "label": "customer",
+      "tag": "customers",
+      "row": 2,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "customer_id",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "email",
+          "type": "email_address",
+          "key": "uk"
+        },
+        {
+          "name": "full_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "phone",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 8,
+          "end_line": 16,
+          "label": "customer (BR01)"
+        }
+      ],
+      "width": 268
+    },
+    {
+      "id": "customer_address",
+      "label": "customer_address",
+      "tag": "customers",
+      "row": 3,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "customer_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "customer.customer_id"
+        },
+        {
+          "name": "address_no",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "line1",
+          "type": "TEXT"
+        },
+        {
+          "name": "suburb",
+          "type": "TEXT"
+        },
+        {
+          "name": "state",
+          "type": "au_state"
+        },
+        {
+          "name": "postcode",
+          "type": "au_postcode"
+        },
+        {
+          "name": "is_active",
+          "type": "BOOLEAN｜BR16 retire"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 18,
+          "end_line": 31,
+          "label": "weak entity of customer"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 421,
+          "end_line": 436,
+          "label": "BR16 address immutable"
+        }
+      ],
+      "width": 268
+    },
+    {
+      "id": "order_status_transition",
+      "label": "order_status_transition",
+      "tag": "orders",
+      "row": 1,
+      "col": 1,
+      "width": 336,
+      "attributes": [
+        {
+          "name": "fulfilment_method",
+          "type": "fulfilment",
+          "key": "pk"
+        },
+        {
+          "name": "from_status",
+          "type": "order_status",
+          "key": "pk"
+        },
+        {
+          "name": "to_status",
+          "type": "order_status",
+          "key": "pk"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 183,
+          "end_line": 189,
+          "label": "allowed moves as data (BR09)"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 141,
+          "end_line": 154,
+          "label": "the 13 allowed moves"
+        }
+      ]
+    },
+    {
+      "id": "order_status_history",
+      "label": "order_status_history",
+      "tag": "orders",
+      "row": 2,
+      "col": 1,
+      "width": 336,
+      "attributes": [
+        {
+          "name": "order_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "customer_order.order_id"
+        },
+        {
+          "name": "seq",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "from_status",
+          "type": "order_status｜NULL on create"
+        },
+        {
+          "name": "to_status",
+          "type": "order_status"
+        },
+        {
+          "name": "changed_at",
+          "type": "TIMESTAMPTZ"
+        },
+        {
+          "name": "changed_by_staff_id",
+          "type": "INT｜NULL = no staff",
+          "key": "fk",
+          "references": "staff.staff_id"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 227,
+          "end_line": 243,
+          "label": "audit trail (R11, BR09)"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 179,
+          "end_line": 208,
+          "label": "written by AFTER trigger"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 231,
+          "end_line": 246,
+          "label": "pg_trigger_depth() guard"
+        }
+      ]
+    },
+    {
+      "id": "customer_order",
+      "label": "customer_order",
+      "tag": "orders",
+      "row": 3,
+      "col": 1,
+      "width": 336,
+      "attributes": [
+        {
+          "name": "order_id",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "customer_id",
+          "type": "INT",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "customer.customer_id"
+        },
+        {
+          "name": "idempotency_key",
+          "type": "UUID",
+          "key": "uk"
+        },
+        {
+          "name": "fulfilment_method",
+          "type": "fulfilment"
+        },
+        {
+          "name": "fulfilling_store_id",
+          "type": "INT｜ship or collect",
+          "key": "fk",
+          "references": "store.store_id"
+        },
+        {
+          "name": "delivery_address_no",
+          "type": "INT",
+          "key": "fk",
+          "references": "customer_address.address_no"
+        },
+        {
+          "name": "status",
+          "type": "order_status"
+        },
+        {
+          "name": "placed_at",
+          "type": "TIMESTAMPTZ"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 191,
+          "end_line": 210,
+          "label": "order header (BR06, BR10, BR17)"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 156,
+          "end_line": 177,
+          "label": "BR09 transition trigger"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 512,
+          "end_line": 539,
+          "label": "BR20 paid in full"
+        }
+      ]
+    },
+    {
+      "id": "order_line",
+      "label": "order_line",
+      "tag": "orders",
+      "row": 4,
+      "col": 1,
+      "width": 336,
+      "attributes": [
+        {
+          "name": "order_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk",
+            "uk"
+          ],
+          "references": "customer_order.order_id"
+        },
+        {
+          "name": "line_no",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "product_id",
+          "type": "INT",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "product.product_id"
+        },
+        {
+          "name": "quantity",
+          "type": "INT"
+        },
+        {
+          "name": "unit_price",
+          "type": "money_aud｜price at sale"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 212,
+          "end_line": 225,
+          "label": "weak entity of order (BR07)"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 96,
+          "end_line": 136,
+          "label": "BR08 purchase record"
+        }
+      ]
+    },
+    {
+      "id": "return_request",
+      "label": "return_request",
+      "tag": "returns & payments",
+      "row": 1,
+      "col": 2,
+      "width": 290,
+      "attributes": [
+        {
+          "name": "return_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "uk"
+          ]
+        },
+        {
+          "name": "order_id",
+          "type": "INT",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "customer_order.order_id"
+        },
+        {
+          "name": "idempotency_key",
+          "type": "UUID｜retry token",
+          "key": "uk"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "reason",
+          "type": "TEXT"
+        },
+        {
+          "name": "requested_at",
+          "type": "TIMESTAMPTZ"
+        },
+        {
+          "name": "received_store_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "store.store_id"
+        },
+        {
+          "name": "processed_by_staff_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "staff.staff_id"
+        },
+        {
+          "name": "received_at",
+          "type": "TIMESTAMPTZ"
+        },
+        {
+          "name": "resolved_by_staff_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "staff.staff_id"
+        },
+        {
+          "name": "resolved_at",
+          "type": "TIMESTAMPTZ"
+        },
+        {
+          "name": "rejection_reason",
+          "type": "TEXT"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 245,
+          "end_line": 284,
+          "label": "return header and checks"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 248,
+          "end_line": 275,
+          "label": "BR11 return window"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 311,
+          "end_line": 332,
+          "label": "return status flow"
+        }
+      ]
+    },
+    {
+      "id": "return_line",
+      "label": "return_line",
+      "tag": "returns & payments",
+      "row": 2,
+      "col": 2,
+      "width": 290,
+      "attributes": [
+        {
+          "name": "return_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "return_request.return_id"
+        },
+        {
+          "name": "line_no",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "order_line.line_no"
+        },
+        {
+          "name": "order_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "return_request.order_id"
+        },
+        {
+          "name": "quantity",
+          "type": "INT"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 286,
+          "end_line": 299,
+          "label": "BR13 same-order composite FK"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 277,
+          "end_line": 309,
+          "label": "BR12 quantity cap"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 690,
+          "end_line": 701,
+          "label": "BR14 lines never change"
+        }
+      ]
+    },
+    {
+      "id": "payment",
+      "label": "payment",
+      "tag": "returns & payments",
+      "row": 3,
+      "col": 2,
+      "width": 290,
+      "attributes": [
+        {
+          "name": "payment_id",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "order_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "customer_order.order_id"
+        },
+        {
+          "name": "kind",
+          "type": "TEXT"
+        },
+        {
+          "name": "amount",
+          "type": "money_aud"
+        },
+        {
+          "name": "return_id",
+          "type": "INT｜refunds only",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "return_request.return_id"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMPTZ"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 301,
+          "end_line": 326,
+          "label": "ledger (BR14, BR20 index)"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 334,
+          "end_line": 364,
+          "label": "BR14 refunds within charged"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 541,
+          "end_line": 577,
+          "label": "append-only records"
+        }
+      ]
+    },
+    {
+      "id": "inventory",
+      "label": "inventory",
+      "tag": "stock",
+      "row": 1,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "store_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "store.store_id"
+        },
+        {
+          "name": "product_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "product.product_id"
+        },
+        {
+          "name": "quantity",
+          "type": "INT"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 145,
+          "end_line": 154,
+          "label": "M:N store x product (BR03)"
+        }
+      ],
+      "width": 268
+    },
+    {
+      "id": "stock_adjustment",
+      "label": "stock_adjustment",
+      "tag": "stock",
+      "row": 2,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "adjustment_id",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "store_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "inventory.store_id"
+        },
+        {
+          "name": "product_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "inventory.product_id"
+        },
+        {
+          "name": "staff_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "staff.staff_id"
+        },
+        {
+          "name": "delta",
+          "type": "INT"
+        },
+        {
+          "name": "reason",
+          "type": "TEXT"
+        },
+        {
+          "name": "note",
+          "type": "TEXT"
+        },
+        {
+          "name": "quantity_after",
+          "type": "INT｜snapshot"
+        },
+        {
+          "name": "adjusted_at",
+          "type": "TIMESTAMPTZ"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 156,
+          "end_line": 179,
+          "label": "BR18 adjustment log"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 464,
+          "end_line": 475,
+          "label": "BR18 append-only"
+        }
+      ],
+      "width": 268
+    },
+    {
+      "id": "brand",
+      "label": "brand",
+      "tag": "catalogue",
+      "row": 0,
+      "col": 4,
+      "attributes": [
+        {
+          "name": "brand_id",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "key": "uk"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 97,
+          "end_line": 102,
+          "label": "brand"
+        }
+      ],
+      "width": 264
+    },
+    {
+      "id": "category",
+      "label": "category",
+      "tag": "catalogue",
+      "row": 1,
+      "col": 4,
+      "attributes": [
+        {
+          "name": "category_id",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "key": "uk"
+        },
+        {
+          "name": "parent_id",
+          "type": "INT｜NULL = top level",
+          "key": "fk",
+          "references": "category.category_id"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 87,
+          "end_line": 95,
+          "label": "recursive relationship"
+        }
+      ],
+      "width": 264
+    },
+    {
+      "id": "product",
+      "label": "product",
+      "tag": "catalogue",
+      "row": 2,
+      "col": 4,
+      "attributes": [
+        {
+          "name": "product_id",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "sku",
+          "type": "TEXT",
+          "key": "uk"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "brand_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "brand.brand_id"
+        },
+        {
+          "name": "category_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "category.category_id"
+        },
+        {
+          "name": "base_price",
+          "type": "money_aud"
+        },
+        {
+          "name": "is_active",
+          "type": "BOOLEAN｜retired, kept"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 104,
+          "end_line": 118,
+          "label": "product, one row per SKU"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 401,
+          "end_line": 419,
+          "label": "BR15 base price guard"
+        }
+      ],
+      "width": 264
+    },
+    {
+      "id": "product_spec",
+      "label": "product_spec",
+      "tag": "catalogue",
+      "row": 3,
+      "col": 4,
+      "attributes": [
+        {
+          "name": "product_id",
+          "type": "INT",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "product.product_id"
+        },
+        {
+          "name": "spec_name",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "spec_value",
+          "type": "TEXT"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 120,
+          "end_line": 128,
+          "label": "key-value specs (T-5)"
+        }
+      ],
+      "width": 264
+    },
+    {
+      "id": "promotion",
+      "label": "promotion",
+      "tag": "catalogue",
+      "row": 4,
+      "col": 4,
+      "attributes": [
+        {
+          "name": "promotion_id",
+          "type": "INT",
+          "key": "pk"
+        },
+        {
+          "name": "product_id",
+          "type": "INT",
+          "key": "fk",
+          "references": "product.product_id"
+        },
+        {
+          "name": "sale_price",
+          "type": "money_aud"
+        },
+        {
+          "name": "starts_at",
+          "type": "TIMESTAMPTZ"
+        },
+        {
+          "name": "ends_at",
+          "type": "TIMESTAMPTZ"
+        }
+      ],
+      "sources": [
+        {
+          "path": "sql/01_tables.sql",
+          "line": 130,
+          "end_line": 141,
+          "label": "promotion period"
+        },
+        {
+          "path": "sql/02_rules.sql",
+          "line": 366,
+          "end_line": 399,
+          "label": "BR15 no overlap, below base"
+        }
+      ],
+      "width": 264
+    }
+  ],
+  "relationships": [
+    {
+      "id": "account_customer",
+      "from": "user_account",
+      "to": "customer",
+      "fromCardinality": "one",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "account_staff",
+      "from": "user_account",
+      "to": "staff",
+      "fromCardinality": "one",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "staff_store",
+      "from": "staff",
+      "to": "store",
+      "label": "works at",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "store_manager",
+      "from": "store",
+      "to": "staff",
+      "label": "managed by",
+      "fromCardinality": "one",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "address_customer",
+      "from": "customer_address",
+      "to": "customer",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one"
+    },
+    {
+      "id": "order_customer",
+      "from": "customer_order",
+      "to": "customer",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "order_address",
+      "from": "customer_order",
+      "to": "customer_address",
+      "label": "delivers to",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "order_store",
+      "from": "customer_order",
+      "to": "store",
+      "label": "fulfilled at",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "line_order",
+      "from": "order_line",
+      "to": "customer_order",
+      "fromCardinality": "many",
+      "toCardinality": "one"
+    },
+    {
+      "id": "line_product",
+      "from": "order_line",
+      "to": "product",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "history_order",
+      "from": "order_status_history",
+      "to": "customer_order",
+      "fromCardinality": "many",
+      "toCardinality": "one"
+    },
+    {
+      "id": "history_staff",
+      "from": "order_status_history",
+      "to": "staff",
+      "label": "changed by",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "return_order",
+      "from": "return_request",
+      "to": "customer_order",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "return_store",
+      "from": "return_request",
+      "to": "store",
+      "label": "received at",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "return_processor",
+      "from": "return_request",
+      "to": "staff",
+      "label": "processed by",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "return_resolver",
+      "from": "return_request",
+      "to": "staff",
+      "label": "resolved by",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "returnline_return",
+      "from": "return_line",
+      "to": "return_request",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one"
+    },
+    {
+      "id": "returnline_orderline",
+      "from": "return_line",
+      "to": "order_line",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one"
+    },
+    {
+      "id": "payment_order",
+      "from": "payment",
+      "to": "customer_order",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "payment_return",
+      "from": "payment",
+      "to": "return_request",
+      "label": "refund for",
+      "fromCardinality": "one",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "toOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "inventory_store",
+      "from": "inventory",
+      "to": "store",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one"
+    },
+    {
+      "id": "inventory_product",
+      "from": "inventory",
+      "to": "product",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one"
+    },
+    {
+      "id": "adjustment_inventory",
+      "from": "stock_adjustment",
+      "to": "inventory",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "adjustment_staff",
+      "from": "stock_adjustment",
+      "to": "staff",
+      "label": "made by",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "product_brand",
+      "from": "product",
+      "to": "brand",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "product_category",
+      "from": "product",
+      "to": "category",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "spec_product",
+      "from": "product_spec",
+      "to": "product",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one"
+    },
+    {
+      "id": "promotion_product",
+      "from": "promotion",
+      "to": "product",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Composite keys that carry rules",
+      "items": [
+        "br04: store (store_id, manager_id) -> staff (store_id, staff_id), checked at COMMIT because store and staff point at each other.",
+        "br17: customer_order (customer_id, delivery_address_no) -> customer_address: only the customer's own address.",
+        "br13: return_line (return_id, order_id) -> return_request: a return line comes from the returned order.",
+        "br18 and return_request: (store_id, staff_id) -> staff: only staff of that store act on its stock and returns."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Not drawn as lines",
+      "items": [
+        "category.parent_id -> category.category_id is a self-reference: a two-level category tree.",
+        "order_status_transition has no foreign key: the BR09 trigger reads it on every status change.",
+        "One charge per order is a partial unique index, br20_one_charge_per_order (WHERE kind = 'charge')."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Domains and keys",
+      "items": [
+        "money_aud is NUMERIC(10,2) >= 0 (BR02); email_address is a lower-case address format (BR01).",
+        "fulfilment, order_status, au_state and au_postcode are domains with a CHECKed value list or format.",
+        "Surrogate keys are INT GENERATED BY DEFAULT AS IDENTITY; weak entities use composite keys."
+      ]
+    }
+  ]
+}

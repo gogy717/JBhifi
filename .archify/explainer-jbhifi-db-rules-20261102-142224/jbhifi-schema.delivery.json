@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "c8f89e4a-363b-4c89-a7a9-50760079cfff",
+  "status": "current",
+  "command": "deliver",
+  "type": "erd",
+  "input": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.erd.json",
+  "output": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.html",
+  "specification": {
+    "sha256": "72e563ca1ba5cdee013d74c783228680a252a61434173772097c17ad2de2c565",
+    "bytes": 31493
+  },
+  "artifact": {
+    "sha256": "b4f4f1686a68081f652aa3e40e6632d2fec84795a33a297cc7222a604c35d34e",
+    "bytes": 946845
+  }
+}

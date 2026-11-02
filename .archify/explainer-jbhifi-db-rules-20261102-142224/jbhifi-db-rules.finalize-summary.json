@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "explainer",
+  "quality": "standard",
+  "specification": {
+    "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/candidate.archify.md",
+    "sha256": "fcacba092e6a78722a748e8ad405ffce935144d383f2a6917933ca931d76fc43",
+    "bytes": 17303
+  },
+  "artifact": {
+    "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.html",
+    "sha256": "d644aeb152899defba915933c79422c373130ba201592c7f2b076f452ad99f04",
+    "bytes": 2862376
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "not-run"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.finalize.json",
+    "summaryReceipt": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.finalize-summary.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-01T14:33:05.924Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 1371,
+  "browserCheck": {
+    "requested": false,
+    "ran": false
+  }
+}

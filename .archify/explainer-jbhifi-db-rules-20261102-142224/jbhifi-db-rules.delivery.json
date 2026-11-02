@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "08960c9f-5bdf-4cf8-92f3-dc340befd53e",
+  "status": "current",
+  "command": "deliver",
+  "type": "explainer",
+  "input": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/candidate.archify.md",
+  "output": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-db-rules.html",
+  "specification": {
+    "sha256": "fcacba092e6a78722a748e8ad405ffce935144d383f2a6917933ca931d76fc43",
+    "bytes": 17303
+  },
+  "artifact": {
+    "sha256": "d644aeb152899defba915933c79422c373130ba201592c7f2b076f452ad99f04",
+    "bytes": 2862376
+  },
+  "explainer": {
+    "preparedSha256": "814d6b99fd7ea4d6bceef4180b93120c8a6aec224a7e0d396447b1a1019389c6",
+    "dependencies": [
+      {
+        "kind": "repository",
+        "id": "br09",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "tables",
+        "path": "sql/01_tables.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "4df1184b113f7e8895c583e1a6e8eb63fd18512efecee3f7984f0d5e26cd05ff",
+        "bytes": 17412
+      },
+      {
+        "kind": "repository",
+        "id": "domains",
+        "path": "sql/00_domains.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "ab7210639335a4ac02d018148e8c756a1bcade44672168f028a36a30cb6df93d",
+        "bytes": 1191
+      },
+      {
+        "kind": "repository",
+        "id": "rules-header",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "br07",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "br09-log",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "br12",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "br15",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "br20",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "append",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "br21",
+        "path": "sql/02_rules.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "d08993a8fad2e4fa2b9943e37dedaab7c32d6e9b4071af1b881a2c730d162708",
+        "bytes": 35286
+      },
+      {
+        "kind": "repository",
+        "id": "views",
+        "path": "sql/03_views.sql",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "30569da3eae5651af10bd2e3d2b233259dec2134cc6a2ad89941925e360d2d92",
+        "bytes": 5236
+      },
+      {
+        "kind": "repository",
+        "id": "errors",
+        "path": "app/errors.py",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "c9f6fd008739a1f9565c63fc89742b72784d92ae8b9f6fb20fe8bcc3406cf502",
+        "bytes": 5685
+      },
+      {
+        "kind": "repository",
+        "id": "db",
+        "path": "app/db.py",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "3cf1d5af1d4ddbcfa610d3b740a0063fb090185e4c48cd67ebc2287b572c6e6a",
+        "bytes": 855
+      },
+      {
+        "kind": "repository",
+        "id": "checkout",
+        "path": "app/services/orders.py",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "501338fc9a034c5c6fb687b5ce9d9b8438ab2208024a4d54896ca29cc9f68b0a",
+        "bytes": 12577
+      },
+      {
+        "kind": "repository",
+        "id": "stock",
+        "path": "app/services/orders.py",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "501338fc9a034c5c6fb687b5ce9d9b8438ab2208024a4d54896ca29cc9f68b0a",
+        "bytes": 12577
+      },
+      {
+        "kind": "repository",
+        "id": "locks",
+        "path": "app/services/orders.py",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "501338fc9a034c5c6fb687b5ce9d9b8438ab2208024a4d54896ca29cc9f68b0a",
+        "bytes": 12577
+      },
+      {
+        "kind": "repository",
+        "id": "trace",
+        "path": "docs/rule-traceability.md",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "1960a4866517e0b672c5ef1e4929c59ae8c72c49c2201d6ced4f4bbf7441c716",
+        "bytes": 20899
+      },
+      {
+        "kind": "repository",
+        "id": "race",
+        "path": "docs/concurrency-evidence.md",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "6787780ee08e332992822dd3ec8b5a051f642c28a54c021e2846b6a99cad9f82",
+        "bytes": 15765
+      },
+      {
+        "kind": "repository",
+        "id": "rc",
+        "path": "docs/concurrency-evidence.md",
+        "revision": "4d49cf5ece9a54a31eed1f6db34e5922a579f6a0",
+        "sha256": "6787780ee08e332992822dd3ec8b5a051f642c28a54c021e2846b6a99cad9f82",
+        "bytes": 15765
+      },
+      {
+        "kind": "diagram-spec",
+        "id": "design-flow",
+        "inline": true,
+        "sha256": "9ac0cd702b9bb19f369f393bc58f6a6ff05f935da2cef617baea6a41f0c6dd1c",
+        "bytes": 1188
+      },
+      {
+        "kind": "diagram-spec",
+        "id": "schema-erd",
+        "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/jbhifi-schema.erd.json",
+        "relativePath": "jbhifi-schema.erd.json",
+        "sha256": "72e563ca1ba5cdee013d74c783228680a252a61434173772097c17ad2de2c565",
+        "bytes": 31493
+      },
+      {
+        "kind": "diagram-spec",
+        "id": "paid-move",
+        "inline": true,
+        "sha256": "56e2fdb8f9ff66fa0ace367506afbf95c9f8b29cade9a03d35aa3fdef3ae1c28",
+        "bytes": 1407
+      },
+      {
+        "kind": "diagram-spec",
+        "id": "order-status-flow",
+        "path": "/Users/ethan/Dev/Course/comp9120/JBhifi/.archify/explainer-jbhifi-db-rules-20261102-142224/order-status.lifecycle.json",
+        "relativePath": "order-status.lifecycle.json",
+        "sha256": "ff57f3686a46f58eae6262d6011ce1de96649f650a8243d16847bb23fda84127",
+        "bytes": 3984
+      }
+    ]
+  }
+}
