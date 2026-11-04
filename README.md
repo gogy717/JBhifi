@@ -101,6 +101,26 @@ API and the web app; the database keeps running. `--reset` first rebuilds the de
 (`scripts/reset_db.py`), `--dev` runs `next dev` instead of a production build, and `--api-port` / `--web-port`
 choose other ports. Logs go to `.demo/`. Sign-in is Clerk's hosted service, so the demo needs the internet.
 
+**Share it publicly (Cloudflare Tunnel, free).** `scripts/tunnel_demo.sh` runs the same demo behind a Cloudflare
+quick tunnel at `https://<random>.trycloudflare.com`. It needs no Cloudflare account or domain, only
+[`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+(Ubuntu: Cloudflare's apt repo, then `sudo apt install cloudflared`; macOS: `brew install cloudflared`):
+
+```bash
+scripts/tunnel_demo.sh               # API on 8010, web app on 3000; any demo.py option (e.g. --reset) passes through
+```
+
+The address is new every time the tunnel starts. The script prints it, writes it to `.demo/url`, and adds it to
+`AUTH_AUTHORIZED_PARTIES` for that run, so sign-in works there without editing `.env`. Change the ports with
+`API_PORT=… WEB_PORT=… scripts/tunnel_demo.sh`. The site is up only while the machine running it is. Clerk's
+development instance shows a "Development mode" badge, and code 424242 still works.
+
+To keep it running on a Linux machine (it restarts on failure and starts at boot), use a systemd user service
+`~/.config/systemd/user/jbhifi.service` with `WorkingDirectory=%h/JBhifi`,
+`ExecStart=%h/JBhifi/scripts/tunnel_demo.sh`, `Restart=on-failure` and `KillSignal=SIGINT`. Then run
+`systemctl --user enable --now jbhifi` (and `loginctl enable-linger` once). Read the address with
+`cat ~/JBhifi/.demo/url`.
+
 **For development**, three terminals, each starting in the repo root:
 
 | # | Start | Then open |
