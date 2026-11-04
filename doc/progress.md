@@ -4,6 +4,41 @@ Newest entries first. IDs such as R#, BR# and T1 refer to `.claude/plan.md`.
 
 ---
 
+## 2026-11-04 — Branch `gogy717/cloudflare-tunnel`: the demo at a public address, for free
+
+The demo now runs on a team machine (Ubuntu, reached over Tailscale) and is shared through a **Cloudflare quick
+tunnel** (`scripts/tunnel_demo.sh`, README → Share it publicly).
+
+- **Why a tunnel**:
+  - Workers can't run psycopg2 or PostgreSQL. An all-Cloudflare deployment needs Cloudflare Containers for
+    FastAPI, which needs the paid Workers plan, plus a hosted Postgres.
+  - A tunnel costs nothing and changes no code.
+  - The price is that the site is up only while that machine is. Its address also changes on every start,
+    because it isn't a named tunnel (a named tunnel needs a domain).
+- **Sign-in on a changing address**: the API accepts only the origins in `AUTH_AUTHORIZED_PARTIES`
+  (`app/identity.py`).
+  - The script starts the tunnel first, reads its address, and exports the list with that address added
+    before it starts `demo.py`.
+  - `load_dotenv` never overrides a variable that is already set, so `.env` stays as it is.
+- **Server setup**:
+  - Node 22 and cloudflared come from apt. `.env` and `web/.env.local` were copied over (never committed), with
+    `POSTGRES_PORT=5433` there. The Mac's 5434 comes from its own compose override.
+  - The API is on 8010 because 8000 is taken on that machine. `reset_db.py` built the database and linked the
+    four personas.
+  - A systemd user service keeps it running.
+
+**Verification.**
+- `/health` returns ok locally and through the public address.
+- The storefront loads there with its deals, and Clerk's sign-in form loads with no console errors.
+- After `systemctl --user restart jbhifi`, a new address came up and the API's `AUTH_AUTHORIZED_PARTIES` held
+  it.
+- Not done: a full sign-in through the tunnel, which needs the personas' Clerk password.
+
+**GenAI use.** Claude Code (Opus 5.5) compared the deployment options, wrote `scripts/tunnel_demo.sh` and set up
+the server over SSH.
+
+---
+
 ## 2026-10-16 — Branch `gogy717/walkthrough-redesign`: the walkthrough matches the code and the redesigned pages
 
 `docs/demo-walkthrough.md` is checked step by step. The permissions are checked against the services, the
